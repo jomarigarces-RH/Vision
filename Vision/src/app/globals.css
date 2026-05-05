@@ -42,9 +42,13 @@
   --color-secondary: var(--text-secondary);
   --color-tertiary: var(--text-tertiary);
   
-  --color-brand: var(--brand-blue);
-  --color-brand-hover: var(--brand-blue-hover);
-  --color-brand-light: var(--brand-blue-light);
+  --color-brand-blue: var(--brand-blue);
+  --color-brand-blue-hover: var(--brand-blue-hover);
+  --color-brand-blue-light: var(--brand-blue-light);
+  
+  --color-accent-red: var(--accent-red);
+  --color-accent-green: var(--accent-green);
+  --color-accent-orange: var(--accent-orange);
   
   --color-border-light: var(--border-light);
   

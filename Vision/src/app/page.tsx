@@ -265,37 +265,37 @@ export default function Dashboard() {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
         
         {/* HEADER */}
-        <header className="h-[72px] bg-white border-b border-[var(--border-light)] flex items-center justify-between px-4 sm:px-6 shrink-0 z-10 shadow-sm">
-          <div className="flex items-center gap-3 sm:gap-4">
+        <header className="h-[72px] bg-white border-b border-[var(--border-light)] flex items-center justify-between px-3 sm:px-6 shrink-0 z-10 shadow-sm overflow-hidden">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
             <button 
               onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
+              className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors shrink-0"
             >
               <Menu size={20} />
             </button>
-            <h1 className="text-lg sm:text-xl font-bold tracking-tight text-[var(--text-primary)] flex items-center">
+            <h1 className="text-base sm:text-xl font-bold tracking-tight text-[var(--text-primary)] flex items-center truncate">
               <span className="hidden sm:inline">Resident Home</span>
               <span className="sm:hidden">Resident</span>
               <span className="text-[var(--text-tertiary)] font-medium mx-1 sm:mx-2">|</span> 
-              Vision
+              <span className="truncate">Vision</span>
             </h1>
           </div>
           
-          <div className="flex items-center gap-4">
-            <div className="bg-slate-100 rounded-lg p-1 flex">
+          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+            <div className="hidden sm:flex bg-slate-100 rounded-lg p-1">
               <button className="px-4 py-1.5 text-sm font-semibold rounded-md bg-white text-[var(--text-primary)] shadow-sm">
                 Coached
               </button>
             </div>
             
-            <div className="h-8 w-[1px] bg-slate-200"></div>
+            <div className="hidden sm:block h-8 w-[1px] bg-slate-200"></div>
             
-            <button className="relative p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors">
+            <button className="relative p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors shrink-0">
               <Bell size={20} />
               <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
             </button>
             
-            <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-brand-blue to-indigo-400 text-white flex items-center justify-center font-bold text-sm shadow-sm cursor-pointer">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gradient-to-tr from-brand-blue to-indigo-400 text-white flex items-center justify-center font-bold text-xs sm:text-sm shadow-sm cursor-pointer shrink-0">
               JG
             </div>
           </div>
