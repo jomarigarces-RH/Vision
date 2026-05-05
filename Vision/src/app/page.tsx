@@ -103,13 +103,30 @@ export default function Dashboard() {
   const [agentsOpen, setAgentsOpen] = useState(false);
   const [activeView, setActiveView] = useState("dashboard");
   const [modalOpen, setModalOpen] = useState(false);
-  const [ratingModalOpen, setRatingModalOpen] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [rating, setRating] = useState(0);
+
+  // Form State
+  const [formData, setFormData] = useState({
+    lob: '',
+    date: new Date().toISOString().split('T')[0],
+    coachName: 'Jake Cajes', // Example default
+    sessionType: '',
+    categories: '',
+    strengths: '',
+    areasOfOpportunity: '',
+    rootCause: '',
+    actionPlan: '',
+    overallRating: '',
+    otherFeedback: '',
+    orderNumber: '',
+    teamLeadFeedback: ''
+  });
 
   // Responsive state
   const [isMobile, setIsMobile] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [activeRichTextField, setActiveRichTextField] = useState<keyof typeof formData | null>(null);
   const [observationText, setObservationText] = useState("");
 
   useEffect(() => {
@@ -125,6 +142,13 @@ export default function Dashboard() {
 
   const openObservationModal = (name: string) => {
     setSelectedAgent(name);
+    // Reset form with automated fields
+    setFormData(prev => ({
+      ...prev,
+      date: new Date().toISOString().split('T')[0],
+      coachName: 'JG (Current User)', 
+      agentName: name
+    }));
     setModalOpen(true);
   };
 
@@ -136,6 +160,19 @@ export default function Dashboard() {
   const proceedToRating = () => {
     setModalOpen(false);
     setRatingModalOpen(true);
+  };
+
+  const openRichTextEditor = (fieldId: keyof typeof formData) => {
+    setActiveRichTextField(fieldId);
+    setObservationText(formData[fieldId]);
+    setEditModalOpen(true);
+  };
+
+  const saveRichText = () => {
+    if (activeRichTextField) {
+      setFormData(prev => ({ ...prev, [activeRichTextField]: observationText }));
+    }
+    setEditModalOpen(false);
   };
 
   return (
@@ -473,10 +510,10 @@ export default function Dashboard() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" onClick={closeModals}></div>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[800px] flex flex-col max-h-[90vh] relative z-10 animate-in zoom-in-95 duration-200">
-            <div className="p-6 border-b border-[var(--border-light)] flex justify-between items-center bg-slate-50/50 rounded-t-2xl">
+            <div className="p-6 border-b border-[var(--border-light)] flex justify-between items-center bg-slate-50/50 rounded-t-2xl shrink-0">
               <div>
-                <h2 className="text-xl font-bold">Observation Details {selectedAgent}</h2>
-                <p className="text-sm text-[var(--text-secondary)] mt-1">Review activity and compliance metrics.</p>
+                <h2 className="text-xl font-bold">Observation Form</h2>
+                <p className="text-sm text-[var(--text-secondary)] mt-1">Complete the observation details below.</p>
               </div>
               <button onClick={closeModals} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors">
                 <X size={20} />
@@ -484,56 +521,166 @@ export default function Dashboard() {
             </div>
             
             <div className="p-6 overflow-y-auto flex-1 custom-scrollbar">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+              {/* Grid 1: Basic Info */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5 mb-8">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Agent Name</label>
-                  <div className="font-semibold text-lg">{selectedAgent}</div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">LOB</label>
+                  <select 
+                    className="w-full bg-white border border-[var(--border-light)] rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue"
+                    value={formData.lob} onChange={e => setFormData({...formData, lob: e.target.value})}
+                  >
+                    <option value="" disabled>Select LOB...</option>
+                    <option value="lob1">LOB 1</option>
+                    <option value="lob2">LOB 2</option>
+                  </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Observation Details</label>
-                  <div 
-                    className="font-semibold text-lg cursor-pointer hover:text-brand-blue transition-colors flex items-center gap-2 group w-fit"
-                    onClick={() => setEditModalOpen(true)}
-                    title="Click to edit details"
-                  >
-                    <span>{selectedAgent}</span>
-                    <div className="opacity-0 group-hover:opacity-100 bg-slate-100 p-1 rounded transition-opacity">
-                      <Edit3 size={16} />
-                    </div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Date of Observation</label>
+                  <input 
+                    type="date" 
+                    className="w-full bg-slate-50 border border-[var(--border-light)] rounded-lg px-4 py-2.5 text-slate-600 cursor-not-allowed"
+                    value={formData.date} disabled
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Coach Name</label>
+                  <input 
+                    type="text" 
+                    className="w-full bg-slate-50 border border-[var(--border-light)] rounded-lg px-4 py-2.5 text-slate-600 cursor-not-allowed"
+                    value={formData.coachName} disabled
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Agent Name</label>
+                  <div className="w-full bg-slate-50 border border-[var(--border-light)] rounded-lg px-4 py-2.5 font-semibold text-brand-blue">
+                    {selectedAgent}
                   </div>
                 </div>
               </div>
-              
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Feedback Notes</label>
-                <div className="flex flex-col gap-4">
-                  {[
-                    { name: selectedAgent, text: 'Observation scoring analysis false points. Entry as to analysis, and the not lifted do it are contributing battery some coach co-analysis.' },
-                    { name: 'Analytics', text: 'Time coaching/processing to line totalizing commit bent the inner fold and gate yet that one positive source point.' }
-                  ].map((fb, i) => (
-                    <div key={i} className="flex gap-4 p-4 bg-slate-50 rounded-xl border border-[var(--border-light)]">
-                      <div 
-                        className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0"
-                        style={{ backgroundColor: getAvatarColor(fb.name) }}
-                      >
-                        {getInitials(fb.name)}
-                      </div>
-                      <div>
-                        <div className="font-bold text-sm mb-1">{fb.name}</div>
-                        <p className="text-sm text-[var(--text-secondary)] leading-relaxed">{fb.text}</p>
-                      </div>
-                    </div>
-                  ))}
+
+              {/* Grid 2: Observation Types */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5 mb-8">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Session Type</label>
+                  <select 
+                    className="w-full bg-white border border-[var(--border-light)] rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue"
+                    value={formData.sessionType} onChange={e => setFormData({...formData, sessionType: e.target.value})}
+                  >
+                    <option value="" disabled>Select Type...</option>
+                    <option value="remote">Remote Observation</option>
+                    <option value="side-by-side">Side-by-Side</option>
+                    <option value="real-time">Real-time Guidance</option>
+                    <option value="1-1-followup">Observation - 1:1 Follow-up needed</option>
+                  </select>
                 </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Categories</label>
+                  <select 
+                    className="w-full bg-white border border-[var(--border-light)] rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue"
+                    value={formData.categories} onChange={e => setFormData({...formData, categories: e.target.value})}
+                  >
+                    <option value="" disabled>Select Category...</option>
+                    <option value="problem-solving">Problem-Solving/Resolution</option>
+                    <option value="product-knowledge">Product/Process Knowledge</option>
+                    <option value="customer-handling">Customer Handling Skills</option>
+                    <option value="platform-mastery">Platform Mastery</option>
+                    <option value="call-control">Call Control/Time Management</option>
+                    <option value="communication">Communication Skills</option>
+                    <option value="compliance">Compliance/Policy Adherence</option>
+                    <option value="adherence-call-flow">Adherence to Call Flow</option>
+                    <option value="documentation">Documentation Accuracy</option>
+                    <option value="process-execution">Process Execution & Accuracy</option>
+                    <option value="others">Others (Specified under other feedback...)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Rich Text Areas */}
+              <div className="flex flex-col gap-6 mb-8">
+                {[
+                  { id: 'strengths', label: 'Strengths' },
+                  { id: 'areasOfOpportunity', label: 'Areas of Opportunity' },
+                  { id: 'rootCause', label: 'Root Cause Identification' },
+                  { id: 'actionPlan', label: 'Action Plan' },
+                ].map(field => (
+                  <div key={field.id}>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">{field.label}</label>
+                      <button 
+                        onClick={() => openRichTextEditor(field.id as keyof typeof formData)}
+                        className="text-xs font-bold text-brand-blue hover:text-brand-blue-hover flex items-center gap-1 bg-brand-blue-light px-2 py-1 rounded-md"
+                      >
+                        <Edit3 size={12} /> Edit Details
+                      </button>
+                    </div>
+                    <div 
+                      className="w-full min-h-[80px] bg-white border border-[var(--border-light)] rounded-lg p-4 text-[14px] text-slate-700 cursor-text hover:border-slate-400 transition-colors empty:before:content-['Click_Edit_Details_to_add_content...'] empty:before:text-slate-400"
+                      onClick={() => openRichTextEditor(field.id as keyof typeof formData)}
+                    >
+                      {formData[field.id as keyof typeof formData]}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Grid 3: Rating & Additional */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5 mb-8">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Overall Performance Rating</label>
+                  <select 
+                    className="w-full bg-white border border-[var(--border-light)] rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue"
+                    value={formData.overallRating} onChange={e => setFormData({...formData, overallRating: e.target.value})}
+                  >
+                    <option value="" disabled>Select Rating...</option>
+                    <option value="meets">Meets Expectations</option>
+                    <option value="exceeds">Exceeds Expectations</option>
+                    <option value="needs-improvement">Needs Improvement</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Order Number, Phone, or Email</label>
+                  <input 
+                    type="text" 
+                    placeholder="Enter reference..."
+                    className="w-full bg-white border border-[var(--border-light)] rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue"
+                    value={formData.orderNumber} onChange={e => setFormData({...formData, orderNumber: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              {/* Final Text Areas */}
+              <div className="flex flex-col gap-6">
+                {[
+                  { id: 'otherFeedback', label: 'Other Feedback, Comments and Insights' },
+                  { id: 'teamLeadFeedback', label: 'Team Lead Feedback' }
+                ].map(field => (
+                  <div key={field.id}>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">{field.label}</label>
+                      <button 
+                        onClick={() => openRichTextEditor(field.id as keyof typeof formData)}
+                        className="text-xs font-bold text-brand-blue hover:text-brand-blue-hover flex items-center gap-1 bg-brand-blue-light px-2 py-1 rounded-md"
+                      >
+                        <Edit3 size={12} /> Edit Details
+                      </button>
+                    </div>
+                    <div 
+                      className="w-full min-h-[80px] bg-white border border-[var(--border-light)] rounded-lg p-4 text-[14px] text-slate-700 cursor-text hover:border-slate-400 transition-colors empty:before:content-['Click_Edit_Details_to_add_content...'] empty:before:text-slate-400"
+                      onClick={() => openRichTextEditor(field.id as keyof typeof formData)}
+                    >
+                      {formData[field.id as keyof typeof formData]}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
             
-            <div className="p-6 border-t border-[var(--border-light)] flex justify-end gap-3 bg-slate-50/50 rounded-b-2xl">
+            <div className="p-6 border-t border-[var(--border-light)] flex justify-end gap-3 bg-slate-50/50 rounded-b-2xl shrink-0">
               <button onClick={closeModals} className="px-5 py-2.5 rounded-lg font-semibold text-slate-600 hover:bg-slate-200 transition-colors">
                 Cancel
               </button>
               <button onClick={proceedToRating} className="px-5 py-2.5 rounded-lg font-semibold bg-brand-blue text-white shadow-md shadow-brand-blue/20 hover:bg-brand-blue-hover transition-all hover:-translate-y-0.5">
-                Observe Agent
+                Save Observation
               </button>
             </div>
           </div>
@@ -632,7 +779,7 @@ export default function Dashboard() {
               <button onClick={() => setEditModalOpen(false)} className="px-4 py-2 rounded-lg font-semibold text-sm text-slate-600 hover:bg-slate-200 transition-colors">
                 Cancel
               </button>
-              <button onClick={() => setEditModalOpen(false)} className="px-4 py-2 rounded-lg font-semibold text-sm bg-brand-blue text-white shadow-md shadow-brand-blue/20 hover:bg-brand-blue-hover transition-all hover:-translate-y-0.5">
+              <button onClick={saveRichText} className="px-4 py-2 rounded-lg font-semibold text-sm bg-brand-blue text-white shadow-md shadow-brand-blue/20 hover:bg-brand-blue-hover transition-all hover:-translate-y-0.5">
                 Save Changes
               </button>
             </div>
