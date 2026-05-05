@@ -580,7 +580,7 @@ function NavItem({ icon, label, collapsed, active, onClick }: { icon: React.Reac
   );
 }
 
-function AgentRow({ coach, idx, onClick }: { coach: any, idx: number, onClick: () => void }) {
+function AgentRow({ coach, idx, onClick }: { coach: { name: string, desc: string, badge?: string, badgeColor?: string }, idx: number, onClick: () => void }) {
   return (
     <div onClick={onClick} className="flex items-center gap-3 p-3 rounded-xl border border-transparent hover:border-[var(--border-light)] hover:bg-slate-50 cursor-pointer transition-all group">
       <div className="relative shrink-0">
