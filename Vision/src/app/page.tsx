@@ -103,6 +103,7 @@ export default function Dashboard() {
   const [agentsOpen, setAgentsOpen] = useState(false);
   const [activeView, setActiveView] = useState("dashboard");
   const [modalOpen, setModalOpen] = useState(false);
+  const [ratingModalOpen, setRatingModalOpen] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [rating, setRating] = useState(0);
 
