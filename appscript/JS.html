@@ -1,0 +1,521 @@
+<script>
+// ===== DATA =====
+const AVATAR_URLS = [
+  'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&crop=face',
+  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face',
+  'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop&crop=face',
+  'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=face',
+  'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop&crop=face',
+  'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop&crop=face',
+];
+
+const coachesData = [
+  { name: 'Sarah Mitchell', desc: 'Staff observation & coaching line acts & courses', badge: '09', badgeColor: 'blue' },
+  { name: 'James Cooper', desc: 'Observation Score from coaching', badge: '09', badgeColor: 'blue' },
+  { name: 'Emily Chen', desc: 'Staff creation Agency Scores more specific data & analysis', badge: '09', badgeColor: 'red' },
+];
+
+const assignedAgentsData = [
+  { name: 'Laura Kim', desc: 'Staff analysis & for target development in teams', badge: '09', badgeColor: 'red' },
+  { name: 'Marcus Webb', desc: 'Staff creation Agency Scores more specific data & analysis', badge: '09', badgeColor: 'blue' },
+  { name: 'Diana Ross', desc: 'Staff creation Agency Scores more specific data & analysis', badge: '09', badgeColor: 'red' },
+  { name: 'Tyler James', desc: 'Staff creation Agency Scores more specific data & analysis', badge: '09', badgeColor: 'blue' },
+];
+
+// Staff data — strictly the 20 coaches, no headers
+const staffData = [
+  { name: 'Jake Cajes', desc: 'Observation Scores', pct: '1.35%', meta: 'Coach 330 (15%)' },
+  { name: 'Mikaela Barrera', desc: 'Line Observation Activity scoring', pct: '1.55%', meta: 'Coaches' },
+  { name: 'John Ortega', desc: 'Line Compliance & aging results...', pct: '1.35%', meta: 'Coaches' },
+  { name: 'Chui Goh', desc: 'Enter Compliance & co-range coaching', pct: '1.45%', meta: '-4.90' },
+  { name: 'Kyla Serion', desc: 'Enter Coordination controls notes...', pct: '1.38%', meta: '+125.8 3% Ins' },
+  { name: 'Zaira Kinol', desc: 'Center & operate adv trans...', pct: '1.17%', meta: '13%' },
+  { name: 'Irene Estravela', desc: 'Observation Activity scoring', pct: '1.42%', meta: 'Coach 210 (12%)' },
+  { name: 'Krizha Abia', desc: 'Line Compliance & scoring', pct: '1.28%', meta: 'Coaches' },
+  { name: 'Korina Alcantara', desc: 'Observation Scores analysis', pct: '1.60%', meta: '+8% above' },
+  { name: 'Charbel Mahinay', desc: 'Staff coaching session notes', pct: '1.33%', meta: 'Coach 115 (9%)' },
+  { name: 'Erwin Verano', desc: 'Compliance & quality review', pct: '1.50%', meta: '+12.3%' },
+  { name: 'JM Piñero', desc: 'Enter Coordination controls notes...', pct: '1.22%', meta: '-2.10' },
+  { name: 'Karl Mag-usara', desc: 'Center & operate adv trans...', pct: '1.38%', meta: 'Coaches' },
+  { name: 'Shiela Bologa', desc: 'Line Observation Activity scoring', pct: '1.47%', meta: '+6% above' },
+  { name: 'Gazelle Bulalacao', desc: 'Observation Scores review', pct: '1.55%', meta: 'Coach 220 (14%)' },
+  { name: 'Joenesse Bonghanoy', desc: 'Staff coaching & compliance', pct: '1.40%', meta: '+9.5%' },
+  { name: 'Alyssa Reyes', desc: 'Line Compliance & aging results...', pct: '1.31%', meta: 'Coaches' },
+  { name: 'Elaine Roxas', desc: 'Center & quality coaching', pct: '1.25%', meta: '-1.80' },
+  { name: 'May-Ann Montegrejo', desc: 'Enter Compliance & co-range coaching', pct: '1.52%', meta: '+11% above' },
+  { name: 'Xavy Cuerpo', desc: 'Observation Activity & scoring', pct: '1.44%', meta: 'Coach 190 (10%)' },
+];
+
+// ===== DOM READY =====
+document.addEventListener('DOMContentLoaded', () => {
+  initSidebar();
+  initNavigation();
+  populateAgentLists();
+  populateStaffList();
+  initCharts();
+  initModals();
+  initStarRating();
+  initSlider();
+});
+
+// ===== SIDEBAR =====
+function initSidebar() {
+  const hamburger = document.getElementById('hamburgerBtn');
+  const sidebar = document.getElementById('sidebar');
+  const mainContent = document.getElementById('mainContent');
+
+  // Hamburger toggles collapse/expand
+  hamburger.addEventListener('click', () => {
+    sidebar.classList.toggle('collapsed');
+    mainContent.classList.toggle('sidebar-collapsed');
+    // Re-render charts after sidebar transition
+    setTimeout(initCharts, 300);
+  });
+
+  // Agents group submenu toggle
+  const agentsGroup = document.getElementById('navAgentsGroup');
+  const submenu = document.getElementById('agentsSubmenu');
+  agentsGroup.addEventListener('click', (e) => {
+    e.preventDefault();
+    // If sidebar is collapsed, expand it first
+    if (sidebar.classList.contains('collapsed')) {
+      sidebar.classList.remove('collapsed');
+      mainContent.classList.remove('sidebar-collapsed');
+      setTimeout(() => {
+        agentsGroup.classList.add('open');
+        submenu.classList.add('open');
+      }, 250);
+    } else {
+      agentsGroup.classList.toggle('open');
+      submenu.classList.toggle('open');
+    }
+  });
+
+  // Set tooltip attributes for collapsed mode
+  document.querySelectorAll('.nav-item').forEach(item => {
+    const label = item.querySelector('.nav-label');
+    if (label) {
+      item.setAttribute('data-tooltip', label.textContent);
+    }
+  });
+}
+
+// ===== NAVIGATION =====
+function initNavigation() {
+  const navItems = document.querySelectorAll('.nav-item[data-view]');
+
+  navItems.forEach(item => {
+    item.addEventListener('click', (e) => {
+      e.preventDefault();
+      const view = item.dataset.view;
+      switchView(view);
+      // Update active state
+      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+      item.classList.add('active');
+    });
+  });
+}
+
+function switchView(view) {
+  document.querySelectorAll('.view-panel').forEach(p => p.classList.remove('active'));
+  if (view === 'dashboard') {
+    document.getElementById('dashboardView').classList.add('active');
+    setTimeout(initCharts, 50);
+  } else if (view === 'coaches') {
+    document.getElementById('coachesView').classList.add('active');
+  }
+}
+
+// ===== POPULATE LISTS =====
+function populateAgentLists() {
+  const coachesList = document.getElementById('coachesList');
+  if (coachesList) {
+    coachesData.forEach((c, i) => {
+      coachesList.appendChild(createAgentEntry(c, i));
+    });
+  }
+
+  const assignedList = document.getElementById('assignedAgentsList');
+  if (assignedList) {
+    assignedAgentsData.forEach((a, i) => {
+      assignedList.appendChild(createAgentEntry(a, i + 3));
+    });
+  }
+}
+
+function createAgentEntry(data, avatarIdx) {
+  const entry = document.createElement('div');
+  entry.className = 'agent-entry';
+  entry.innerHTML = `
+    <div class="avatar-wrapper">
+      <img class="agent-avatar" src="${AVATAR_URLS[avatarIdx % AVATAR_URLS.length]}" alt="${data.name}" loading="lazy">
+      <span class="avatar-badge ${data.badgeColor}">${data.badge === '09' ? '1' : data.badge}</span>
+    </div>
+    <div class="agent-info">
+      <div class="agent-name">${data.name}</div>
+      <div class="agent-desc">${data.desc}</div>
+    </div>
+    <div class="agent-actions">
+      <span class="check-badge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        09
+      </span>
+    </div>
+  `;
+  entry.addEventListener('click', () => showObservationModal(data.name));
+  return entry;
+}
+
+function getInitials(name) {
+  return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+}
+
+function getAvatarColor(name) {
+  const colors = ['#4F7DF3','#F59E0B','#10B981','#EF4444','#8B5CF6','#EC4899','#06B6D4','#F97316','#14B8A6','#6366F1'];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return colors[Math.abs(hash) % colors.length];
+}
+
+function populateStaffList() {
+  const staffList = document.getElementById('staffList');
+  if (!staffList) return;
+  staffData.forEach((s) => {
+    const row = document.createElement('div');
+    row.className = 'staff-row';
+    const initials = getInitials(s.name);
+    const bgColor = getAvatarColor(s.name);
+    row.innerHTML = `
+      <div class="staff-avatar-circle" style="background:${bgColor};">${initials}</div>
+      <div class="staff-info">
+        <div class="staff-name">${s.name}</div>
+        <div class="staff-desc">${s.desc}</div>
+      </div>
+      <div class="staff-percent">${s.pct}</div>
+      <div class="staff-meta">${s.meta}</div>
+      <div class="staff-chevron">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+    `;
+    row.addEventListener('click', () => showObservationModal(s.name));
+    staffList.appendChild(row);
+  });
+}
+
+// ===== CHARTS (Canvas 2D) =====
+function initCharts() {
+  drawBarChart('staffCoachingChart', [35, 50, 28, 45, 60, 42, 55, 48], ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug'], 'Staff Activity');
+  drawBarChart('absenteeismChart', [20, 45, 30, 60, 80, 55, 90, 70, 85], ['Line 1','Line 2','Line Agents','Score Incl','Total Score'], 'Absenteeism');
+  drawLineChart('observationScoresChart');
+  drawLineChart('complianceChart');
+  drawDonutChart('masteredDonutChart', [35, 40, 25], ['#4F7DF3', '#1E3A6E', '#F97316']);
+  drawDonutChart('completionDonutChart', [30, 35, 20, 15], ['#4F7DF3', '#1E3A6E', '#F97316', '#10B981']);
+}
+
+function drawBarChart(canvasId, data, labels, title) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.scale(dpr, dpr);
+  const w = rect.width, h = rect.height;
+  const padL = 40, padR = 20, padT = 20, padB = 40;
+  const chartW = w - padL - padR, chartH = h - padT - padB;
+  const maxVal = Math.max(...data) * 1.15;
+  const barW = Math.min(chartW / data.length * 0.55, 28);
+  const gap = chartW / data.length;
+
+  // Grid lines
+  ctx.strokeStyle = '#F1F5F9'; ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = padT + (chartH / 4) * i;
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
+    ctx.fillStyle = '#94A3B8'; ctx.font = '10px Inter';
+    ctx.fillText(Math.round(maxVal - (maxVal / 4) * i), 4, y + 4);
+  }
+
+  // Bars with gradient
+  data.forEach((val, i) => {
+    const x = padL + gap * i + (gap - barW) / 2;
+    const barH = (val / maxVal) * chartH;
+    const y = padT + chartH - barH;
+    const gradient = ctx.createLinearGradient(x, y, x, padT + chartH);
+    gradient.addColorStop(0, i % 2 === 0 ? '#4F7DF3' : '#2D5AD0');
+    gradient.addColorStop(1, i % 2 === 0 ? '#6B91F7' : '#4F7DF3');
+    ctx.fillStyle = gradient;
+    roundRect(ctx, x, y, barW, barH, 4);
+    ctx.fill();
+
+    // Labels
+    if (labels[i]) {
+      ctx.fillStyle = '#94A3B8'; ctx.font = '9px Inter'; ctx.textAlign = 'center';
+      ctx.fillText(labels[i], x + barW / 2, padT + chartH + 16);
+      ctx.textAlign = 'start';
+    }
+  });
+}
+
+function drawLineChart(canvasId) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr; canvas.height = rect.height * dpr;
+  ctx.scale(dpr, dpr);
+  const w = rect.width, h = rect.height;
+  const padL = 40, padR = 20, padT = 20, padB = 30;
+  const chartW = w - padL - padR, chartH = h - padT - padB;
+
+  const points = [];
+  const numPoints = 10;
+  for (let i = 0; i < numPoints; i++) {
+    points.push({ x: padL + (chartW / (numPoints - 1)) * i, y: padT + Math.random() * chartH * 0.7 + chartH * 0.1 });
+  }
+  // Sort by ascending trend
+  points.sort((a, b) => b.y - a.y);
+  points.forEach((p, i) => p.x = padL + (chartW / (numPoints - 1)) * i);
+
+  // Grid
+  ctx.strokeStyle = '#F1F5F9'; ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = padT + (chartH / 4) * i;
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
+  }
+
+  // Area fill
+  const areaGrad = ctx.createLinearGradient(0, padT, 0, padT + chartH);
+  areaGrad.addColorStop(0, 'rgba(79,125,243,0.15)');
+  areaGrad.addColorStop(1, 'rgba(79,125,243,0.01)');
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, padT + chartH);
+  points.forEach(p => ctx.lineTo(p.x, p.y));
+  ctx.lineTo(points[points.length - 1].x, padT + chartH);
+  ctx.closePath();
+  ctx.fillStyle = areaGrad; ctx.fill();
+
+  // Line
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
+  points.forEach(p => ctx.lineTo(p.x, p.y));
+  ctx.strokeStyle = '#4F7DF3'; ctx.lineWidth = 2.5; ctx.lineJoin = 'round'; ctx.stroke();
+
+  // Dots
+  points.forEach(p => {
+    ctx.beginPath(); ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2);
+    ctx.fillStyle = '#4F7DF3'; ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+  });
+
+  // Labels
+  const lbls = ['Line','1%','3%','60%','33','Max'];
+  ctx.fillStyle = '#94A3B8'; ctx.font = '9px Inter'; ctx.textAlign = 'center';
+  for (let i = 0; i < Math.min(lbls.length, numPoints); i++) {
+    ctx.fillText(lbls[i] || '', padL + (chartW / (numPoints - 1)) * i, padT + chartH + 16);
+  }
+}
+
+function drawDonutChart(canvasId, data, colors) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const size = 150;
+  canvas.width = size * dpr; canvas.height = size * dpr;
+  canvas.style.width = size + 'px'; canvas.style.height = size + 'px';
+  ctx.scale(dpr, dpr);
+
+  const cx = size / 2, cy = size / 2, r = 58, innerR = 36;
+  const total = data.reduce((s, v) => s + v, 0);
+  let startAngle = -Math.PI / 2;
+
+  data.forEach((val, i) => {
+    const sliceAngle = (val / total) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, startAngle, startAngle + sliceAngle);
+    ctx.arc(cx, cy, innerR, startAngle + sliceAngle, startAngle, true);
+    ctx.closePath();
+    ctx.fillStyle = colors[i]; ctx.fill();
+
+    // Separator
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+    startAngle += sliceAngle;
+  });
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h);
+  ctx.lineTo(x, y + h);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+// ===== MODALS =====
+function initModals() {
+  const obsModal = document.getElementById('observationModal');
+  const ratingModal = document.getElementById('ratingModal');
+
+  // Close on backdrop
+  [obsModal, ratingModal].forEach(modal => {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeAllModals();
+    });
+  });
+
+  // Close buttons
+  document.getElementById('modalCancelBtn').addEventListener('click', closeAllModals);
+  document.getElementById('ratingCancelBtn').addEventListener('click', closeAllModals);
+  document.getElementById('modalSubmitBtn').addEventListener('click', closeAllModals);
+  document.getElementById('ratingSubmitBtn').addEventListener('click', () => {
+    closeAllModals();
+    showToast('Observation submitted successfully!');
+  });
+
+  // Observe Agent -> Rating modal
+  document.getElementById('observeAgentBtn').addEventListener('click', () => {
+    obsModal.classList.remove('show');
+    setTimeout(() => ratingModal.classList.add('show'), 150);
+  });
+
+  document.getElementById('ratingObserveBtn').addEventListener('click', () => {
+    closeAllModals();
+    showToast('Agent observed successfully!');
+  });
+
+  // Escape key
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeAllModals();
+  });
+}
+
+function showObservationModal(agentName) {
+  const modal = document.getElementById('observationModal');
+  document.getElementById('modalAgentTitle').textContent = `Observation Details ${agentName}`;
+  document.getElementById('modalAgentName').textContent = agentName;
+  document.getElementById('modalDetailLabel').textContent = agentName;
+
+  // Populate feedback
+  const feedbackContainer = document.getElementById('modalAgentFeedback');
+  feedbackContainer.innerHTML = '';
+  const feedbackItems = [
+    { name: agentName, text: 'Observation scoring analysis false points. Entry as to analysis, and the not lifted do it are contributing battery some coach co-analysis.' },
+    { name: 'Analytics', text: 'Time coaching/processing to line totalizing commit bent the inner fold and gate yet that one positive source point.' },
+  ];
+  feedbackItems.forEach((f, i) => {
+    const item = document.createElement('div');
+    item.className = 'feedback-item';
+    const initials = getInitials(f.name);
+    const bgColor = getAvatarColor(f.name);
+    item.innerHTML = `
+      <div class="staff-avatar-circle" style="background:${bgColor}; width:36px; height:36px; font-size:0.7rem; flex-shrink:0;">${initials}</div>
+      <div>
+        <span class="feedback-name">${f.name}</span>
+        <p class="feedback-text">${f.text}</p>
+      </div>
+    `;
+    feedbackContainer.appendChild(item);
+  });
+
+  modal.classList.add('show');
+}
+
+function closeAllModals() {
+  document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('show'));
+}
+
+// ===== STAR RATING =====
+function initStarRating() {
+  const stars = document.querySelectorAll('#starsContainer .star');
+  const ratingNum = document.getElementById('ratingNumber');
+  const slider = document.getElementById('scoreSlider');
+
+  stars.forEach(star => {
+    star.addEventListener('click', () => {
+      const val = parseInt(star.dataset.value);
+      updateStars(val);
+      ratingNum.textContent = val;
+      slider.value = val;
+      document.getElementById('sliderLabel').textContent = val;
+    });
+
+    star.addEventListener('mouseenter', () => {
+      const val = parseInt(star.dataset.value);
+      stars.forEach(s => {
+        s.classList.toggle('filled', parseInt(s.dataset.value) <= val);
+      });
+    });
+  });
+
+  document.getElementById('starsContainer').addEventListener('mouseleave', () => {
+    const current = parseInt(ratingNum.textContent);
+    updateStars(current);
+  });
+}
+
+function updateStars(val) {
+  document.querySelectorAll('#starsContainer .star').forEach(s => {
+    s.classList.toggle('filled', parseInt(s.dataset.value) <= val);
+  });
+}
+
+// ===== SLIDER =====
+function initSlider() {
+  const slider = document.getElementById('scoreSlider');
+  const label = document.getElementById('sliderLabel');
+  const ratingNum = document.getElementById('ratingNumber');
+
+  slider.addEventListener('input', () => {
+    const val = parseFloat(slider.value);
+    label.textContent = val;
+    ratingNum.textContent = Math.round(val);
+    updateStars(Math.round(val));
+    // Update slider fill
+    const pct = ((val - slider.min) / (slider.max - slider.min)) * 100;
+    slider.style.background = `linear-gradient(to right, #4F7DF3 ${pct}%, #E2E8F0 ${pct}%)`;
+  });
+  // Init fill
+  slider.dispatchEvent(new Event('input'));
+}
+
+// ===== TOAST =====
+function showToast(message) {
+  const existing = document.querySelector('.toast');
+  if (existing) existing.remove();
+
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.textContent = message;
+  toast.style.cssText = `
+    position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: linear-gradient(135deg, #1E293B, #334155); color: white;
+    padding: 14px 28px; border-radius: 12px; font-weight: 600; font-size: 0.88rem;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.2); z-index: 9999;
+    opacity: 0; transition: all 0.3s ease;
+  `;
+  document.body.appendChild(toast);
+  requestAnimationFrame(() => {
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateX(-50%) translateY(0)';
+  });
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateX(-50%) translateY(20px)';
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
+}
+
+// ===== RESIZE CHARTS =====
+let resizeTimeout;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimeout);
+  resizeTimeout = setTimeout(initCharts, 250);
+});
+</script>
