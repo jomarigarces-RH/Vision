@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   Menu, LayoutDashboard, Users, UserCog, HandHeart, HelpCircle, 
-  Settings, ChevronDown, Check, X, Bell 
+  Settings, ChevronDown, Check, X, Bell, Edit3
 } from "lucide-react";
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -107,6 +107,22 @@ export default function Dashboard() {
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [rating, setRating] = useState(0);
 
+  // Responsive state
+  const [isMobile, setIsMobile] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [observationText, setObservationText] = useState("");
+
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      if (mobile) setSidebarCollapsed(true);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
   const openObservationModal = (name: string) => {
     setSelectedAgent(name);
     setModalOpen(true);
@@ -123,18 +139,27 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-[var(--bg-body)] font-sans text-[var(--text-primary)]">
+    <div className="flex h-screen w-full overflow-hidden bg-[var(--bg-body)] font-sans text-[var(--text-primary)] relative">
       
+      {/* Mobile Sidebar Overlay */}
+      {isMobile && !sidebarCollapsed && (
+        <div 
+          className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-20"
+          onClick={() => setSidebarCollapsed(true)}
+        />
+      )}
+
       {/* --- SIDEBAR --- */}
       <aside 
-        className={`bg-white border-r border-[var(--border-light)] flex flex-col transition-all duration-300 z-20 shadow-[var(--shadow-sm)]
-          ${sidebarCollapsed ? 'w-[72px]' : 'w-[260px]'}`}
+        className={`bg-white border-r border-[var(--border-light)] flex flex-col transition-all duration-300 z-30 shadow-[var(--shadow-sm)] h-full
+          absolute md:relative
+          ${sidebarCollapsed ? '-translate-x-full md:translate-x-0 md:w-[72px]' : 'translate-x-0 w-[260px]'}`}
       >
         <div className="p-5 flex justify-center items-center">
           <div className={`bg-white rounded-xl flex items-center justify-center shadow-sm overflow-hidden transition-all duration-300 ${sidebarCollapsed ? 'w-10 h-10 p-1' : 'w-[60px] h-[66px] p-1.5'}`}>
             <svg width={sidebarCollapsed ? "24" : "36"} height={sidebarCollapsed ? "28" : "44"} viewBox="0 0 120 148" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M12 8 L12 100 L30 100 L30 68 L58 68 L78 100 L98 100 L74 64 C88 58 96 46 96 32 C96 14 82 8 62 8 Z M30 24 L58 24 C72 24 78 28 78 38 C78 48 72 54 58 54 L30 54 Z" fill="#1E293B"/>
-              {!sidebarCollapsed && <text x="60" y="132" textAnchor="middle" fontFamily="Inter, sans-serif" fontWeight="800" fontSize="22" letterSpacing="3" fill="#1E293B">RESIDENT</text>}
+              {(!sidebarCollapsed || isMobile) && <text x="60" y="132" textAnchor="middle" fontFamily="Inter, sans-serif" fontWeight="800" fontSize="22" letterSpacing="3" fill="#1E293B">RESIDENT</text>}
             </svg>
           </div>
         </div>
@@ -202,16 +227,19 @@ export default function Dashboard() {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
         
         {/* HEADER */}
-        <header className="h-[72px] bg-white border-b border-[var(--border-light)] flex items-center justify-between px-6 shrink-0 z-10 shadow-sm">
-          <div className="flex items-center gap-4">
+        <header className="h-[72px] bg-white border-b border-[var(--border-light)] flex items-center justify-between px-4 sm:px-6 shrink-0 z-10 shadow-sm">
+          <div className="flex items-center gap-3 sm:gap-4">
             <button 
               onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
               className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
             >
               <Menu size={20} />
             </button>
-            <h1 className="text-xl font-bold tracking-tight text-[var(--text-primary)]">
-              Resident Home <span className="text-[var(--text-tertiary)] font-medium mx-2">|</span> Vision
+            <h1 className="text-lg sm:text-xl font-bold tracking-tight text-[var(--text-primary)] flex items-center">
+              <span className="hidden sm:inline">Resident Home</span>
+              <span className="sm:hidden">Resident</span>
+              <span className="text-[var(--text-tertiary)] font-medium mx-1 sm:mx-2">|</span> 
+              Vision
             </h1>
           </div>
           
@@ -463,7 +491,16 @@ export default function Dashboard() {
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Observation Details</label>
-                  <div className="font-semibold text-lg">{selectedAgent}</div>
+                  <div 
+                    className="font-semibold text-lg cursor-pointer hover:text-brand-blue transition-colors flex items-center gap-2 group w-fit"
+                    onClick={() => setEditModalOpen(true)}
+                    title="Click to edit details"
+                  >
+                    <span>{selectedAgent}</span>
+                    <div className="opacity-0 group-hover:opacity-100 bg-slate-100 p-1 rounded transition-opacity">
+                      <Edit3 size={16} />
+                    </div>
+                  </div>
                 </div>
               </div>
               
@@ -550,6 +587,53 @@ export default function Dashboard() {
               </button>
               <button onClick={closeModals} className="px-5 py-2.5 rounded-lg font-semibold bg-brand-blue text-white shadow-md shadow-brand-blue/20 hover:bg-brand-blue-hover transition-all hover:-translate-y-0.5">
                 Submit Rating
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rich Text Editor Modal */}
+      {editModalOpen && selectedAgent && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={() => setEditModalOpen(false)}></div>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[700px] flex flex-col relative z-10 animate-in zoom-in-95 duration-200">
+            <div className="p-4 border-b border-[var(--border-light)] flex justify-between items-center bg-slate-50/50 rounded-t-2xl">
+              <h2 className="text-lg font-bold">Edit Observation Details</h2>
+              <button onClick={() => setEditModalOpen(false)} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+            
+            <div className="p-0 flex flex-col">
+              {/* Toolbar */}
+              <div className="flex items-center gap-1 p-2 border-b border-[var(--border-light)] bg-slate-50">
+                <button className="p-1.5 hover:bg-slate-200 rounded text-slate-700 font-bold w-8">B</button>
+                <button className="p-1.5 hover:bg-slate-200 rounded text-slate-700 italic font-serif w-8">I</button>
+                <button className="p-1.5 hover:bg-slate-200 rounded text-slate-700 underline w-8">U</button>
+                <div className="w-[1px] h-5 bg-slate-300 mx-1"></div>
+                <button className="p-1.5 hover:bg-slate-200 rounded text-slate-700 w-8">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+                </button>
+                <button className="p-1.5 hover:bg-slate-200 rounded text-slate-700 w-8">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="21" y1="6" x2="3" y2="6"></line><line x1="21" y1="12" x2="9" y2="12"></line><line x1="21" y1="18" x2="7" y2="18"></line></svg>
+                </button>
+              </div>
+              
+              <textarea 
+                className="w-full h-[300px] p-4 resize-none focus:outline-none text-[var(--text-primary)]"
+                placeholder="Write your observation notes here... Use the toolbar to format."
+                value={observationText}
+                onChange={(e) => setObservationText(e.target.value)}
+              />
+            </div>
+            
+            <div className="p-4 border-t border-[var(--border-light)] flex justify-end gap-2 bg-slate-50/50 rounded-b-2xl">
+              <button onClick={() => setEditModalOpen(false)} className="px-4 py-2 rounded-lg font-semibold text-sm text-slate-600 hover:bg-slate-200 transition-colors">
+                Cancel
+              </button>
+              <button onClick={() => setEditModalOpen(false)} className="px-4 py-2 rounded-lg font-semibold text-sm bg-brand-blue text-white shadow-md shadow-brand-blue/20 hover:bg-brand-blue-hover transition-all hover:-translate-y-0.5">
+                Save Changes
               </button>
             </div>
           </div>
