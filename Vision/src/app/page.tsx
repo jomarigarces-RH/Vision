@@ -300,6 +300,27 @@ function getMondayEST() {
   return `${y}-${m}-${d}`;
 }
 
+function ActiveTimer({ startTime }: { startTime: number }) {
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    const updateElapsed = () => {
+      setElapsed(Math.floor((Date.now() - startTime) / 1000));
+    };
+    updateElapsed();
+    const interval = setInterval(updateElapsed, 1000);
+    return () => clearInterval(interval);
+  }, [startTime]);
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
+  return <span>{formatTime(elapsed)}</span>;
+}
+
 export default function Dashboard() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [agentsOpen, setAgentsOpen] = useState(false);
@@ -318,12 +339,16 @@ export default function Dashboard() {
   const [dateFilterModalOpen, setDateFilterModalOpen] = useState(false);
   const [filterSinceDate, setFilterSinceDate] = useState(getMondayEST());
   const [completionPeriod, setCompletionPeriod] = useState<'TW' | 'LW' | 'MTD'>('TW');
+  const [notObsPeriod, setNotObsPeriod] = useState<'TW' | 'LW' | 'MTD'>('TW');
+  const [notObsDept, setNotObsDept] = useState('Sales');
 
   // Convex: fetch observations from database
   const observedAgentsList = useQuery(api.observations.getObservedAgents, { sinceDate: filterSinceDate }) ?? [];
   const observedAgents = useMemo(() => new Set(observedAgentsList), [observedAgentsList]);
   const allObservations = useQuery(api.observations.list) ?? [];
+  const activeObservations = useQuery(api.observations.listActive) ?? [];
   const createObservation = useMutation(api.observations.create);
+  const startObservation = useMutation(api.observations.start);
 
   const [recentObsModalOpen, setRecentObsModalOpen] = useState(false);
   const [wowChartsModalOpen, setWowChartsModalOpen] = useState(false);
@@ -499,6 +524,61 @@ export default function Dashboard() {
     });
   }, [allObservations, weekStats, completionPeriod]);
 
+  const notObservedStats = useMemo(() => {
+    let start = weekStats.thisWeekStart;
+    let end: string | undefined = undefined;
+    if (notObsPeriod === 'LW') {
+      start = weekStats.lastWeekStart;
+      end = weekStats.lastWeekEnd;
+    } else if (notObsPeriod === 'MTD') {
+      start = weekStats.monthStart;
+    }
+
+    const periodObserved = new Set(
+      allObservations
+        .filter(o => o.date >= start && (!end || o.date <= end))
+        .map(o => o.agentName)
+    );
+
+    const relevantAgents = AGENTS.filter(a => {
+      const coach = COACHES.find(c => c.name === a.coach);
+      if (notObsDept !== 'All' && coach?.dept !== notObsDept) return false;
+      return true;
+    });
+
+    const coachStats: Record<string, number> = {};
+    relevantAgents.forEach(a => {
+       if (!periodObserved.has(a.name)) {
+          coachStats[a.coach] = (coachStats[a.coach] || 0) + 1;
+       }
+    });
+
+    return Object.entries(coachStats)
+      .map(([name, val]) => ({ name: name.split(' ')[0], fullName: name, val }))
+      .sort((a,b) => b.val - a.val);
+  }, [allObservations, notObsPeriod, notObsDept, weekStats]);
+
+  const observationTrendData = useMemo(() => {
+    const now = new Date();
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const month = now.getMonth() + 1;
+    const year = now.getFullYear();
+
+    const data = [];
+    for (let i = 1; i <= daysInMonth; i++) {
+      const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+      const dayObs = allObservations.filter(o => o.date === dateStr);
+      
+      data.push({
+        day: i,
+        Sales: dayObs.filter(o => o.department.includes('Sales')).length,
+        Support: dayObs.filter(o => o.department.includes('Support')).length,
+        Specialty: dayObs.filter(o => o.department.includes('Specialty')).length,
+      });
+    }
+    return data;
+  }, [allObservations]);
+
   const overallCompletion = useMemo(() => {
     const total = lobsStats.reduce((acc, curr) => acc + curr.total, 0);
     const observed = lobsStats.reduce((acc, curr) => acc + curr.observed, 0);
@@ -515,17 +595,35 @@ export default function Dashboard() {
   };
 
   // Filter and Data Helpers
+  const observationDataStats = useMemo(() => {
+    const lobs = ['Sales', 'Support', 'Specialty'];
+    const getCount = (dept: string, start: string, end?: string) => {
+      return allObservations.filter(o => {
+        if (!o.department.includes(dept)) return false;
+        if (o.date < start) return false;
+        if (end && o.date > end) return false;
+        return true;
+      }).length;
+    };
+    return lobs.map(dept => ({
+      name: dept,
+      TW: getCount(dept, weekStats.thisWeekStart),
+      LW: getCount(dept, weekStats.lastWeekStart, weekStats.lastWeekEnd),
+      MTD: getCount(dept, weekStats.monthStart)
+    }));
+  }, [allObservations, weekStats]);
+
   const getCoachDept = (coachName: string) => COACHES.find(c => c.name === coachName)?.dept || 'Other';
   const getAgentCoach = (agentName: string) => AGENTS.find(a => a.name === agentName)?.coach || 'None';
   
-  const coachesData = COACHES.slice(0, 3).map(c => ({
+  const coachesData = COACHES.map(c => ({
     name: c.name,
     desc: `${c.dept} Department Coach`,
     badge: '09',
     badgeColor: c.dept === 'Sales' ? 'bg-brand-blue text-white' : 'bg-accent-red text-white'
   }));
 
-  const assignedAgentsData = AGENTS.slice(0, 4).map(a => ({
+  const assignedAgentsData = AGENTS.slice(0, 10).map(a => ({
     name: a.name,
     desc: `Coach: ${a.coach}`,
     badge: '09',
@@ -534,7 +632,7 @@ export default function Dashboard() {
 
   // Form State
   const [formData, setFormData] = useState({
-    department: [] as string[],
+    department: '',
     otherDepartment: '',
     date: new Date().toISOString().split('T')[0],
     coachName: 'Jake Cajes', // Example default
@@ -548,7 +646,8 @@ export default function Dashboard() {
     overallRating: [] as string[],
     otherFeedback: '',
     orderNumber: '',
-    teamLeadFeedback: ''
+    teamLeadFeedback: '',
+    startTime: null as number | null
   });
 
   // Responsive state
@@ -571,7 +670,7 @@ export default function Dashboard() {
   const openObservationModal = (name: string) => {
     setSelectedAgent(name);
     setFormData({
-      department: [],
+      department: '',
       otherDepartment: '',
       date: new Date().toISOString().split('T')[0],
       coachName: 'JG (Current User)',
@@ -585,9 +684,21 @@ export default function Dashboard() {
       overallRating: [],
       otherFeedback: '',
       orderNumber: '',
-      teamLeadFeedback: ''
+      teamLeadFeedback: '',
+      startTime: Date.now()
     } as any);
     setModalOpen(true);
+  };
+
+  const handleStartObservation = async (agentName: string) => {
+    const agentCoach = AGENTS.find(a => a.name === agentName)?.coach || 'Unknown';
+    await startObservation({ agentName, coachName: agentCoach });
+    openObservationModal(agentName);
+    // Find the startTime from active observations after a short delay or just use current
+    const active = activeObservations.find(o => o.agentName === agentName);
+    if (active) {
+       setFormData(prev => ({ ...prev, startTime: active.startTime }));
+    }
   };
 
   const closeModals = () => {
@@ -600,7 +711,7 @@ export default function Dashboard() {
       await createObservation({
         agentName: selectedAgent,
         coachName: agentCoach,
-        department: formData.department,
+        department: [formData.department],
         otherDepartment: formData.otherDepartment || undefined,
         date: formData.date,
         sessionType: formData.sessionType,
@@ -616,6 +727,7 @@ export default function Dashboard() {
         teamLeadFeedback: formData.teamLeadFeedback || undefined,
         rating: 0, // No longer used but kept for schema compatibility
         observedBy: 'JG (Current User)',
+        duration: formData.startTime ? Math.floor((Date.now() - (formData.startTime as any)) / 1000) : undefined
       });
     }
     closeModals();
@@ -720,7 +832,6 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
-
           <NavItem 
             icon={<UserCog size={20} />} 
             label="Coaches" 
@@ -728,6 +839,9 @@ export default function Dashboard() {
             active={activeView === "coaches"}
             onClick={() => setActiveView("coaches")}
           />
+        </nav>
+
+        <div className="p-3 border-t border-[var(--border-light)] flex flex-col gap-1">
           <NavItem 
             icon={<History size={20} />} 
             label="History" 
@@ -735,9 +849,6 @@ export default function Dashboard() {
             active={activeView === "history"}
             onClick={() => setActiveView("history")}
           />
-        </nav>
-
-        <div className="p-3 border-t border-[var(--border-light)] flex flex-col gap-1">
           <NavItem icon={<Settings size={20} />} label="Settings" collapsed={sidebarCollapsed} />
         </div>
       </aside>
@@ -839,35 +950,110 @@ export default function Dashboard() {
                 
                 {/* Column 1 */}
                 <div className="flex flex-col gap-6">
-                  {/* Card: Coaching Activity */}
-                  <div className="bg-white rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
+                  {/* Card: Observation Data */}
+                  <div className="bg-white rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)] overflow-hidden">
                     <div className="flex justify-between items-center mb-4">
-                      <h2 className="font-bold text-lg">Staff Coaching Activity</h2>
-                      <button className="text-slate-400 hover:text-slate-600"><Menu size={16} /></button>
+                      <h2 className="font-bold text-lg">Observation Data</h2>
                     </div>
-                    <div className="h-[200px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={barData1}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
-                          <Tooltip cursor={{fill: '#F8FAFC'}} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)'}} />
-                          <Bar dataKey="val" fill="#4F7DF3" radius={[4, 4, 0, 0]} barSize={24} />
-                        </BarChart>
-                      </ResponsiveContainer>
+                    
+                    <div className="w-full">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="border-b border-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                            <th className="py-3 px-2">Line of Business</th>
+                            <th className="py-3 px-2 text-center text-brand-blue">This Week</th>
+                            <th className="py-3 px-2 text-center opacity-40">Last Week</th>
+                            <th className="py-3 px-2 text-center opacity-40">MTD</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                          {observationDataStats.map((row, i) => (
+                            <tr key={i} className="hover:bg-slate-50/50 transition-colors group">
+                              <td className="py-3 px-2">
+                                <div className="flex items-center gap-2">
+                                  <div className={`w-1.5 h-1.5 rounded-full ${
+                                    row.name === 'Sales' ? 'bg-brand-blue' : row.name === 'Support' ? 'bg-emerald-500' : 'bg-amber-500'
+                                  }`} />
+                                  <span className="text-sm font-bold text-slate-700">{row.name}</span>
+                                </div>
+                              </td>
+                              <td className="py-3 px-2 text-center text-sm font-black text-brand-blue">
+                                {row.TW}
+                              </td>
+                              <td className="py-3 px-2 text-center text-sm font-black text-slate-400">
+                                {row.LW}
+                              </td>
+                              <td className="py-3 px-2 text-center text-sm font-black text-slate-400">
+                                {row.MTD}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr className="bg-slate-50/50">
+                            <td className="py-2 px-2 text-[10px] font-black text-slate-500 uppercase">Total</td>
+                            <td className="py-2 px-2 text-center text-xs font-black text-slate-700">
+                              {observationDataStats.reduce((acc, curr) => acc + curr.TW, 0)}
+                            </td>
+                            <td className="py-2 px-2 text-center text-xs font-black text-slate-700">
+                              {observationDataStats.reduce((acc, curr) => acc + curr.LW, 0)}
+                            </td>
+                            <td className="py-2 px-2 text-center text-xs font-black text-slate-700">
+                              {observationDataStats.reduce((acc, curr) => acc + curr.MTD, 0)}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
                     </div>
                   </div>
 
                   {/* Card: Absenteeism */}
                   <div className="bg-white rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
                     <div className="flex justify-between items-center mb-4">
-                      <h2 className="font-bold text-lg">Absenteeism</h2>
-                      <button className="text-slate-400 hover:text-slate-600"><Menu size={16} /></button>
+                      <h2 className="font-bold text-lg">Missing Observation</h2>
+                      <div className="flex items-center gap-2">
+                        <div className="w-32">
+                          <Select 
+                            options={['Sales', 'Support', 'Specialty']}
+                            selected={notObsDept}
+                            onChange={setNotObsDept}
+                            placeholder="LOB..."
+                          />
+                        </div>
+                        <div className="flex bg-slate-100 p-1 rounded-lg">
+                          {[
+                            { id: 'TW', label: 'TW' },
+                            { id: 'LW', label: 'LW' },
+                            { id: 'MTD', label: 'Month' }
+                          ].map(p => (
+                            <button 
+                              key={p.id}
+                              onClick={() => setNotObsPeriod(p.id as any)}
+                              className={`px-2 py-1 text-[9px] font-black rounded-md transition-all ${notObsPeriod === p.id ? 'bg-white text-brand-blue shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                            >
+                              {p.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                     <div className="h-[200px] w-full">
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={barData2}>
+                        <BarChart data={notObservedStats} barGap={2}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
-                          <Tooltip cursor={{fill: '#F8FAFC'}} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)'}} />
-                          <Bar dataKey="val" fill="#10B981" radius={[4, 4, 0, 0]} barSize={32} />
+                          <Tooltip 
+                            cursor={{fill: '#F8FAFC'}} 
+                            contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)'}}
+                            formatter={(val: any, name: any, props: any) => [`${val} Agents`, props.payload.fullName]}
+                          />
+                          <Bar dataKey="val" fill="#EF4444" radius={[2, 2, 0, 0]} barSize={16} />
+                          <XAxis 
+                            dataKey="name" 
+                            axisLine={false} 
+                            tickLine={false} 
+                            tick={{fontSize: 8, fontWeight: 700, fill: '#64748b'}}
+                            interval={0}
+                          />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -916,15 +1102,32 @@ export default function Dashboard() {
                   {/* Card: Observation Scores */}
                   <div className="bg-white rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
                     <div className="flex justify-between items-center mb-4">
-                      <h2 className="font-bold text-lg">Observation Scores</h2>
-                      <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">Monthly</span>
+                      <h2 className="font-bold text-lg">Observation Index</h2>
+                      <div className="flex bg-slate-100 p-1 rounded-lg">
+                        {[
+                          { id: 'TW', label: 'TW' },
+                          { id: 'MTD', label: 'MTD' }
+                        ].map(p => (
+                          <button 
+                            key={p.id}
+                            onClick={() => setCompletionPeriod(p.id as any)}
+                            className={`px-2 py-1 text-[10px] font-black rounded-md transition-all ${completionPeriod === p.id ? 'bg-white text-brand-blue shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                          >
+                            {p.label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                     <div className="h-[200px] w-full">
                       <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={lineData}>
+                        <LineChart data={observationTrendData}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                          <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 700, fill: '#64748b'}} />
+                          <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 700, fill: '#64748b'}} />
                           <Tooltip contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)'}} />
-                          <Line type="monotone" dataKey="val" stroke="#4F7DF3" strokeWidth={3} dot={{r: 4, strokeWidth: 2, fill: '#fff'}} activeDot={{r: 6}} />
+                          <Line type="monotone" dataKey="Sales" stroke="#4F7DF3" strokeWidth={2} dot={{r: 2}} name="Sales" />
+                          <Line type="monotone" dataKey="Support" stroke="#10B981" strokeWidth={2} dot={{r: 2}} name="Support" />
+                          <Line type="monotone" dataKey="Specialty" stroke="#F59E0B" strokeWidth={2} dot={{r: 2}} name="Specialty" />
                         </LineChart>
                       </ResponsiveContainer>
                     </div>
@@ -1038,21 +1241,52 @@ export default function Dashboard() {
                   <div className="bg-[var(--text-primary)] text-white rounded-2xl p-5 shadow-[var(--shadow-md)] relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-bl-full -mr-10 -mt-10 pointer-events-none"></div>
                     <div className="flex justify-between items-center mb-4 relative z-10">
-                      <h2 className="font-bold text-lg">Compliance Analytics</h2>
+                      <h2 className="font-bold text-lg">Active Observation</h2>
+                      <div className="flex items-center gap-1.5">
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                        </span>
+                        <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Live</span>
+                      </div>
                     </div>
-                    <div className="h-[200px] w-full relative z-10">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={lineData}>
-                          <Line type="monotone" dataKey="val" stroke="#10B981" strokeWidth={3} dot={{r: 4, strokeWidth: 2, fill: '#1E293B', stroke: '#10B981'}} />
-                          <Tooltip contentStyle={{backgroundColor: '#1E293B', borderColor: '#334155', color: '#fff', borderRadius: '8px'}} itemStyle={{color: '#fff'}} />
-                        </LineChart>
-                      </ResponsiveContainer>
+                    <div className="flex flex-col gap-3 min-h-[200px] max-h-[300px] overflow-y-auto custom-scrollbar relative z-10">
+                      {activeObservations.map((active, i) => (
+                        <div key={i} className="bg-white/10 backdrop-blur-md border border-white/10 rounded-xl p-3 flex items-center justify-between group hover:bg-white/20 transition-all">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center font-bold text-xs">
+                              {getInitials(active.agentName)}
+                            </div>
+                            <div>
+                              <div className="text-sm font-bold truncate max-w-[120px]">{active.agentName}</div>
+                              <div className="text-[10px] text-white/50">Coach: {active.coachName}</div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-xs font-mono font-bold text-emerald-400">
+                              <ActiveTimer startTime={active.startTime} />
+                            </div>
+                            <button 
+                              onClick={() => openObservationModal(active.agentName)}
+                              className="text-[9px] font-black uppercase bg-white text-slate-900 px-2 py-0.5 rounded mt-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              Resume
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      {activeObservations.length === 0 && (
+                        <div className="flex-1 flex flex-col items-center justify-center text-white/30 italic py-10">
+                          <Users size={32} className="mb-2 opacity-20" />
+                          <p className="text-xs">No active observations</p>
+                        </div>
+                      )}
                     </div>
                   </div>
 
                   {/* Card: Completion Scores */}
                   <div className="bg-white rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
-                    <h2 className="font-bold text-lg mb-2">Completion Scores</h2>
+                    <h2 className="font-bold text-lg mb-2">Observation Completion (Agent)</h2>
                     <div className="flex flex-col gap-4 mt-4">
                       {lobsStats.map((stat, i) => (
                         <div key={i} className="space-y-1.5">
@@ -1216,16 +1450,15 @@ export default function Dashboard() {
                     return (
                       <div 
                         key={i} 
-                        onClick={() => openObservationModal(agent.name)}
-                        className="flex items-center gap-4 p-4 border-b border-[var(--border-light)] last:border-b-0 hover:bg-blue-50/30 cursor-pointer transition-all group"
+                        className="flex items-center gap-4 p-4 border-b border-[var(--border-light)] last:border-b-0 hover:bg-blue-50/30 transition-all group"
                       >
                         <div 
-                          className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-sm group-hover:scale-110 transition-transform"
+                          className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-sm"
                           style={{ backgroundColor: color }}
                         >
                           {initials}
                         </div>
-                        <div className="flex-1 min-w-0">
+                        <div className="flex-1 min-w-0" onClick={() => openObservationModal(agent.name)}>
                           <h3 className="font-bold text-[var(--text-primary)] truncate group-hover:text-brand-blue transition-colors">{agent.name}</h3>
                           <p className="text-xs text-[var(--text-secondary)] truncate">Coach: {agent.coach}</p>
                         </div>
@@ -1235,10 +1468,12 @@ export default function Dashboard() {
                           <div className="text-sm font-bold text-slate-400">{lastWeek}</div>
                           <div className="text-sm font-bold text-slate-700">{month}</div>
                           <div className="flex justify-end">
-                            <div className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-black ${wowColor} min-w-[50px] justify-center`}>
-                              {wow > 0 ? '▲' : wow < 0 ? '▼' : '—'} 
-                              {wow !== 0 && Math.abs(wow)}
-                            </div>
+                            <button 
+                              onClick={() => handleStartObservation(agent.name)}
+                              className="px-3 py-1 bg-brand-blue text-white text-[10px] font-black uppercase rounded shadow-sm hover:bg-brand-blue-hover transition-all active:scale-95"
+                            >
+                              {activeObservations.some(o => o.agentName === agent.name) ? 'Resume' : 'Start'}
+                            </button>
                           </div>
                         </div>
 
@@ -1325,23 +1560,12 @@ export default function Dashboard() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5 mb-8">
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Department</label>
-                  <MultiSelect 
-                    options={['Sales', 'Support', 'Service Recovery', 'Other']}
+                  <Select 
+                    options={['Sales', 'Support', 'Specialty']}
                     selected={formData.department}
-                    onChange={vals => setFormData({...formData, department: vals})}
+                    onChange={val => setFormData({...formData, department: val})}
                     placeholder="Select Department..."
                   />
-                  {formData.department.includes('Other') && (
-                    <div className="mt-2 animate-in fade-in slide-in-from-top-1 duration-200">
-                      <input 
-                        type="text"
-                        placeholder="Type department..."
-                        className="w-full bg-white border border-[var(--border-light)] rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue"
-                        value={formData.otherDepartment}
-                        onChange={e => setFormData({...formData, otherDepartment: e.target.value})}
-                      />
-                    </div>
-                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Date of Observation</label>
@@ -1750,22 +1974,22 @@ export default function Dashboard() {
       {/* Observation Detail Modal */}
       {selectedObs && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setSelectedObs(null)}></div>
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-[500px] flex flex-col relative z-10 animate-in zoom-in-95 duration-300 max-h-[90vh] overflow-hidden">
-            <div className="relative h-32 bg-gradient-to-br from-brand-blue to-indigo-600 rounded-t-3xl overflow-hidden shrink-0">
-              <div className="absolute inset-0 opacity-10">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setSelectedObs(null)}></div>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-[550px] flex flex-col relative z-10 animate-in zoom-in-95 duration-300 max-h-[90vh] overflow-hidden">
+            <div className="relative h-36 bg-gradient-to-br from-indigo-500 via-brand-blue to-purple-600 rounded-t-3xl overflow-hidden shrink-0">
+              <div className="absolute inset-0 opacity-20">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-white rounded-full -mr-20 -mt-20"></div>
                 <div className="absolute bottom-0 left-0 w-32 h-32 bg-white rounded-full -ml-10 -mb-10"></div>
               </div>
               <button 
                 onClick={() => setSelectedObs(null)}
-                className="absolute top-4 right-4 p-2 bg-black/10 hover:bg-black/20 text-white rounded-full backdrop-blur-md transition-colors"
+                className="absolute top-6 right-6 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full backdrop-blur-md transition-colors"
               >
-                <X size={18} />
+                <X size={20} />
               </button>
               <div className="absolute -bottom-10 left-8">
                 <div 
-                  className="w-20 h-20 rounded-2xl flex items-center justify-center text-white font-bold text-2xl shadow-xl border-4 border-white"
+                  className="w-24 h-24 rounded-3xl flex items-center justify-center text-white font-bold text-3xl shadow-2xl border-4 border-white"
                   style={{ backgroundColor: getAvatarColor(selectedObs.agentName) }}
                 >
                   {getInitials(selectedObs.agentName)}
@@ -1773,75 +1997,61 @@ export default function Dashboard() {
               </div>
             </div>
             
-            <div className="pt-14 p-8 overflow-y-auto flex-1 custom-scrollbar scroll-smooth">
-              <div className="flex justify-between items-start mb-6">
+            <div className="pt-14 p-8 overflow-y-auto flex-1 custom-scrollbar space-y-6">
+              <div className="flex justify-between items-start">
                 <div>
-                  <h2 className="text-2xl font-black text-slate-800">{selectedObs.agentName}</h2>
-                  <p className="text-slate-500 font-medium">Observation by {selectedObs.coachName}</p>
+                  <h2 className="text-3xl font-black text-slate-800 tracking-tight">{selectedObs.agentName}</h2>
+                  <p className="text-slate-500 font-semibold mt-1">Coaching Session by {selectedObs.coachName}</p>
+                </div>
+                <div className="text-right">
+                  <div className="text-[10px] font-black text-brand-blue bg-blue-50 px-2 py-1 rounded-md uppercase mb-1">ID: {selectedObs._id.slice(-8).toUpperCase()}</div>
+                  <div className="text-[10px] font-bold text-slate-400 uppercase">{selectedObs.date}</div>
                 </div>
               </div>
 
-              <div className="space-y-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                    <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Date Recorded</div>
-                    <div className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                      <Calendar size={14} className="text-brand-blue" />
-                      {selectedObs.date}
-                    </div>
+              {/* Data Cards */}
+              <div className="space-y-4">
+                {[
+                  { label: 'Strengths', value: selectedObs.strengths },
+                  { label: 'Areas of Opportunity', value: selectedObs.areasOfOpportunity },
+                  { label: 'Root Cause', value: selectedObs.rootCause },
+                  { label: 'Action Plan', value: selectedObs.actionPlan },
+                  { label: 'Other Feedback', value: selectedObs.otherFeedback },
+                  { label: 'Team Lead Feedback', value: selectedObs.teamLeadFeedback }
+                ].map(field => field.value && field.value.trim() !== "" && (
+                  <div 
+                    key={field.label} 
+                    className="bg-slate-50/80 p-5 rounded-2xl border border-slate-100 hover:border-slate-200 transition-all shadow-sm"
+                  >
+                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">{field.label}</div>
+                    <div className="text-[15px] text-slate-700 leading-relaxed whitespace-pre-wrap font-medium">{field.value}</div>
                   </div>
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                    <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Observation ID</div>
-                    <div className="text-sm font-mono font-bold text-slate-700 truncate">
-                      {selectedObs._id.slice(-8).toUpperCase()}
-                    </div>
-                  </div>
-                </div>
+                ))}
 
-                {/* All Filed Details */}
-                <div className="space-y-4">
-                  {[
-                    { label: 'Strengths', value: selectedObs.strengths },
-                    { label: 'Areas of Opportunity', value: selectedObs.areasOfOpportunity },
-                    { label: 'Root Cause', value: selectedObs.rootCause },
-                    { label: 'Action Plan', value: selectedObs.actionPlan },
-                    { label: 'Other Feedback', value: selectedObs.otherFeedback },
-                    { label: 'Team Lead Feedback', value: selectedObs.teamLeadFeedback }
-                  ].map(field => field.value && field.value.trim() !== "" && (
-                    <div 
-                      key={field.label} 
-                      onClick={() => setExpandedNote({ label: field.label, content: field.value })}
-                      className="bg-slate-50 p-4 rounded-2xl border border-slate-100 hover:bg-white hover:border-brand-blue/30 hover:shadow-md transition-all cursor-pointer group"
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{field.label}</div>
-                        <div className="text-[9px] font-black text-brand-blue opacity-0 group-hover:opacity-100 transition-opacity uppercase">Click to Expand</div>
-                      </div>
-                      <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap line-clamp-4">{field.value}</div>
-                    </div>
-                  ))}
-
-                  {![
-                    selectedObs.strengths, 
-                    selectedObs.areasOfOpportunity, 
-                    selectedObs.rootCause, 
-                    selectedObs.actionPlan, 
-                    selectedObs.otherFeedback, 
-                    selectedObs.teamLeadFeedback
-                  ].some(v => v && v.trim() !== "") && (
-                    <div className="text-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                      <p className="text-sm text-slate-400 italic">No detailed notes recorded for this session.</p>
-                    </div>
-                  )}
-
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                    <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-3">Context & Categories</div>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedObs.department.map((d: string) => <span key={d} className="px-2 py-1 bg-blue-50 text-blue-600 border border-blue-100 rounded text-[9px] font-black uppercase">{d}</span>)}
-                      {selectedObs.sessionType.map((s: string) => <span key={s} className="px-2 py-1 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded text-[9px] font-black uppercase">{s}</span>)}
-                      {selectedObs.categories.map((c: string) => <span key={c} className="px-2 py-1 bg-amber-50 text-amber-600 border border-amber-100 rounded text-[9px] font-black uppercase">{c}</span>)}
-                      {selectedObs.overallRating.map((r: string) => <span key={r} className="px-2 py-1 bg-slate-900 text-white rounded text-[9px] font-black uppercase">{r}</span>)}
-                    </div>
+                {/* Tags Section */}
+                <div className="bg-slate-50/50 p-6 rounded-3xl border border-slate-100/50 space-y-4">
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">Context & Categories</div>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedObs.department.map((d: string) => (
+                      <span key={d} className="px-3 py-1.5 bg-white text-brand-blue border border-blue-100 rounded-lg text-[10px] font-black uppercase shadow-sm">
+                        {d}
+                      </span>
+                    ))}
+                    {selectedObs.sessionType.map((s: string) => (
+                      <span key={s} className="px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-lg text-[10px] font-black uppercase shadow-sm">
+                        {s}
+                      </span>
+                    ))}
+                    {selectedObs.categories.map((c: string) => (
+                      <span key={c} className="px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-100 rounded-lg text-[10px] font-black uppercase shadow-sm">
+                        {c}
+                      </span>
+                    ))}
+                    {selectedObs.overallRating.map((r: string) => (
+                      <span key={r} className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-[10px] font-black uppercase shadow-sm">
+                        {r}
+                      </span>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -1850,7 +2060,7 @@ export default function Dashboard() {
             <div className="p-8 pt-0 shrink-0">
               <button 
                 onClick={() => setSelectedObs(null)}
-                className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold hover:bg-black transition-all active:scale-[0.98] shadow-xl shadow-slate-200"
+                className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-lg hover:bg-black hover:shadow-2xl transition-all active:scale-[0.98] shadow-xl shadow-slate-200"
               >
                 Close Details
               </button>
@@ -1976,6 +2186,43 @@ function NavItem({ icon, label, collapsed, active, onClick }: { icon: React.Reac
     >
       <div className={`${active ? 'text-brand-blue' : 'text-slate-400'}`}>{icon}</div>
       {!collapsed && <span>{label}</span>}
+    </div>
+  );
+}
+
+function Select({ options, selected, onChange, placeholder }: { options: string[], selected: string, onChange: (val: string) => void, placeholder: string }) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <div className="relative">
+      <div 
+        className="w-full bg-white border border-[var(--border-light)] rounded-lg px-4 py-2.5 flex items-center justify-between cursor-pointer focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue min-h-[46px]"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <span className={selected ? "text-slate-800 font-medium" : "text-slate-400 text-sm"}>
+          {selected || placeholder}
+        </span>
+        <ChevronDown size={16} className={`text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </div>
+
+      {isOpen && (
+        <>
+          <div className="fixed inset-0 z-[60]" onClick={() => setIsOpen(false)} />
+          <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-[var(--border-light)] rounded-xl shadow-xl z-[70] py-1 max-h-60 overflow-y-auto custom-scrollbar animate-in slide-in-from-top-2 duration-200">
+            {options.map(option => (
+              <div 
+                key={option}
+                className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between
+                  ${selected === option ? 'bg-brand-blue-light text-brand-blue font-semibold' : 'text-slate-600 hover:bg-slate-50'}`}
+                onClick={() => { onChange(option); setIsOpen(false); }}
+              >
+                <span>{option}</span>
+                {selected === option && <Check size={14} />}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }

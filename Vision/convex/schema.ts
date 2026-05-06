@@ -21,8 +21,17 @@ export default defineSchema({
     teamLeadFeedback: v.optional(v.string()),
     rating: v.number(),
     observedBy: v.string(),
+    duration: v.optional(v.number()), // Duration in seconds
   })
     .index("by_agent", ["agentName"])
     .index("by_coach", ["coachName"])
     .index("by_date", ["date"]),
+
+  active_observations: defineTable({
+    agentName: v.string(),
+    coachName: v.string(),
+    startTime: v.number(), // timestamp
+  })
+    .index("by_coach", ["coachName"])
+    .index("by_agent", ["agentName"]),
 });

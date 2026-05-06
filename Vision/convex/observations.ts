@@ -22,9 +22,62 @@ export const create = mutation({
     teamLeadFeedback: v.optional(v.string()),
     rating: v.number(),
     observedBy: v.string(),
+    duration: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    // If there's an active observation for this agent, remove it
+    const active = await ctx.db
+      .query("active_observations")
+      .withIndex("by_agent", (q) => q.eq("agentName", args.agentName))
+      .unique();
+    
+    if (active) {
+      await ctx.db.delete(active._id);
+    }
+
     return await ctx.db.insert("observations", args);
+  },
+});
+
+// Start an observation
+export const start = mutation({
+  args: {
+    agentName: v.string(),
+    coachName: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Check if already observing
+    const existing = await ctx.db
+      .query("active_observations")
+      .withIndex("by_agent", (q) => q.eq("agentName", args.agentName))
+      .unique();
+    
+    if (existing) return existing._id;
+
+    return await ctx.db.insert("active_observations", {
+      agentName: args.agentName,
+      coachName: args.coachName,
+      startTime: Date.now(),
+    });
+  },
+});
+
+// List active observations
+export const listActive = query({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.db.query("active_observations").collect();
+  },
+});
+
+// Get active observation for an agent
+export const getActiveForAgent = query({
+  args: { agentName: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("active_observations")
+      .withIndex("by_agent", (q) => q.eq("agentName", args.agentName))
+      .unique();
   },
 });
 
