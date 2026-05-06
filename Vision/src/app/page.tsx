@@ -867,7 +867,7 @@ export default function Dashboard() {
                           >
                             {lobsStats.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
                           </Pie>
-                          <Tooltip formatter={(val: number) => `${val}% Completed`} />
+                          <Tooltip formatter={(val: any) => `${val}% Completed`} />
                         </PieChart>
                       </ResponsiveContainer>
                       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
