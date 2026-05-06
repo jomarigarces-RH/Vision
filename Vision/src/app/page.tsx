@@ -376,6 +376,24 @@ export default function Dashboard() {
       return coach?.dept === dept;
     });
 
+  // Completion statistics for Dashboard
+  const lobsStats = useMemo(() => {
+    const lobs = ['Sales', 'Support', 'Specialty'];
+    return lobs.map(dept => {
+      const deptAgents = getAgentsByDept(dept);
+      const total = deptAgents.length;
+      const observed = deptAgents.filter(a => observedAgents.has(a.name)).length;
+      const percent = total > 0 ? Math.round((observed / total) * 100) : 0;
+      return { name: dept, total, observed, value: percent, color: dept === 'Sales' ? '#4F7DF3' : dept === 'Support' ? '#10B981' : '#F59E0B' };
+    });
+  }, [observedAgents]);
+
+  const overallCompletion = useMemo(() => {
+    const total = AGENTS.length;
+    const observed = AGENTS.filter(a => observedAgents.has(a.name)).length;
+    return total > 0 ? Math.round((observed / total) * 100) : 0;
+  }, [observedAgents]);
+
   const getAgentsForCoach = (coachName: string) => AGENTS.filter(a => a.coach === coachName);
   
   const getCoachCompletionRate = (coachName: string) => {
@@ -747,22 +765,39 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  {/* Card: Mastered Observability */}
+                  {/* Card: LOB Completion Status */}
                   <div className="bg-white rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
-                    <h2 className="font-bold text-lg mb-2">Mastered Observability</h2>
+                    <h2 className="font-bold text-lg mb-2">LOB Completion</h2>
                     <div className="h-[200px] w-full flex items-center justify-center relative">
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
-                          <Pie data={donutData1} cx="50%" cy="50%" innerRadius={60} outerRadius={85} paddingAngle={2} dataKey="value" stroke="none">
-                            {donutData1.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
+                          <Pie 
+                            data={lobsStats} 
+                            cx="50%" 
+                            cy="50%" 
+                            innerRadius={60} 
+                            outerRadius={85} 
+                            paddingAngle={5} 
+                            dataKey="value" 
+                            stroke="none"
+                          >
+                            {lobsStats.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
                           </Pie>
-                          <Tooltip />
+                          <Tooltip formatter={(val: number) => `${val}% Completed`} />
                         </PieChart>
                       </ResponsiveContainer>
                       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                        <span className="text-3xl font-bold text-slate-800">75%</span>
-                        <span className="text-xs text-slate-500">Mastery</span>
+                        <span className="text-3xl font-bold text-slate-800">{overallCompletion}%</span>
+                        <span className="text-xs text-slate-500">Overall</span>
                       </div>
+                    </div>
+                    <div className="flex justify-center gap-4 mt-2">
+                      {lobsStats.map((s, i) => (
+                        <div key={i} className="flex items-center gap-1.5">
+                          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.color }}></div>
+                          <span className="text-[10px] font-bold text-slate-500 uppercase">{s.name}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
 
@@ -798,19 +833,26 @@ export default function Dashboard() {
                   {/* Card: Completion Scores */}
                   <div className="bg-white rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
                     <h2 className="font-bold text-lg mb-2">Completion Scores</h2>
-                    <div className="h-[200px] w-full flex items-center justify-center relative">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie data={donutData2} cx="50%" cy="50%" innerRadius={60} outerRadius={85} paddingAngle={2} dataKey="value" stroke="none">
-                            {donutData2.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
-                          </Pie>
-                          <Tooltip />
-                        </PieChart>
-                      </ResponsiveContainer>
-                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                        <span className="text-3xl font-bold text-brand-blue">88%</span>
-                        <span className="text-xs text-slate-500">Completed</span>
-                      </div>
+                    <div className="flex flex-col gap-4 mt-4">
+                      {lobsStats.map((stat, i) => (
+                        <div key={i} className="space-y-1.5">
+                          <div className="flex justify-between text-sm">
+                            <span className="font-bold text-slate-700">{stat.name}</span>
+                            <span className="text-slate-500 font-medium">{stat.observed} / {stat.total}</span>
+                          </div>
+                          <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden shadow-inner">
+                            <div 
+                              className="h-full rounded-full transition-all duration-1000 ease-out" 
+                              style={{ width: `${stat.value}%`, backgroundColor: stat.color }}
+                            />
+                          </div>
+                          <div className="flex justify-end">
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded shadow-sm ${stat.value === 100 ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-slate-50 text-slate-500 border border-slate-100'}`}>
+                              {stat.value}% COMPLETE
+                            </span>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
