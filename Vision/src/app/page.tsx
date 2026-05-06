@@ -267,6 +267,39 @@ function getAvatarColor(name: string) {
   return colors[Math.abs(hash) % colors.length];
 }
 
+function getMondayEST() {
+  // Get current date in New York (EST/EDT)
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+  
+  const parts = formatter.formatToParts(now);
+  const year = parts.find(p => p.type === 'year')?.value;
+  const month = parts.find(p => p.type === 'month')?.value;
+  const day = parts.find(p => p.type === 'day')?.value;
+  
+  // Base date object in EST
+  const estDate = new Date(`${year}-${month}-${day}T00:00:00`);
+  
+  // Sunday is 0, Monday is 1, ...
+  const dayOfWeek = estDate.getDay();
+  // If today is Sunday (0), we go back 6 days. If Monday (1), 0 days.
+  const diff = (dayOfWeek === 0 ? 6 : dayOfWeek - 1);
+  
+  const monday = new Date(estDate);
+  monday.setDate(estDate.getDate() - diff);
+  
+  // Format as YYYY-MM-DD
+  const y = monday.getFullYear();
+  const m = String(monday.getMonth() + 1).padStart(2, '0');
+  const d = String(monday.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 export default function Dashboard() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [agentsOpen, setAgentsOpen] = useState(false);
@@ -279,8 +312,9 @@ export default function Dashboard() {
   const [coachModalOpen, setCoachModalOpen] = useState(false);
   const [selectedCoach, setSelectedCoach] = useState<string | null>(null);
 
-  // Convex: fetch observed agents from database
-  const observedAgentsList = useQuery(api.observations.getObservedAgents) ?? [];
+  // Convex: fetch observed agents from database (Reset every Monday EST)
+  const currentMonday = useMemo(() => getMondayEST(), []);
+  const observedAgentsList = useQuery(api.observations.getObservedAgents, { sinceDate: currentMonday }) ?? [];
   const observedAgents = useMemo(() => new Set(observedAgentsList), [observedAgentsList]);
   const createObservation = useMutation(api.observations.create);
 

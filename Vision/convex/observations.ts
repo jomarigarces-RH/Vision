@@ -58,11 +58,17 @@ export const getByCoach = query({
   },
 });
 
-// Get all observed agent names (for tracking completion)
+// Get observed agent names since a specific date (for weekly/monthly tracking)
 export const getObservedAgents = query({
-  args: {},
-  handler: async (ctx) => {
-    const observations = await ctx.db.query("observations").collect();
+  args: { sinceDate: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    let q = ctx.db.query("observations");
+    
+    if (args.sinceDate) {
+      q = q.withIndex("by_date", (idx) => idx.gte("date", args.sinceDate));
+    }
+
+    const observations = await q.collect();
     const agentNames = new Set(observations.map((o) => o.agentName));
     return Array.from(agentNames);
   },
