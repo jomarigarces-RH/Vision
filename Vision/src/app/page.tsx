@@ -268,12 +268,16 @@ function getAvatarColor(name: string) {
 export default function Dashboard() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [agentsOpen, setAgentsOpen] = useState(false);
-  const [expandedDept, setExpandedDept] = useState<string | null>(null);
   const [activeView, setActiveView] = useState("dashboard");
+  const [selectedDept, setSelectedDept] = useState<string>('Sales');
   const [modalOpen, setModalOpen] = useState(false);
   const [ratingModalOpen, setRatingModalOpen] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [rating, setRating] = useState(0);
+  const [coachModalOpen, setCoachModalOpen] = useState(false);
+  const [selectedCoach, setSelectedCoach] = useState<string | null>(null);
+  // Mock observed agents — in production this would come from the database
+  const [observedAgents, setObservedAgents] = useState<Set<string>>(new Set());
 
   // Derive agents by department (agent → coach → coach's LOB)
   const getAgentsByDept = (dept: string) => 
@@ -281,6 +285,15 @@ export default function Dashboard() {
       const coach = COACHES.find(c => c.name === a.coach);
       return coach?.dept === dept;
     });
+
+  const getAgentsForCoach = (coachName: string) => AGENTS.filter(a => a.coach === coachName);
+  
+  const getCoachCompletionRate = (coachName: string) => {
+    const agents = getAgentsForCoach(coachName);
+    if (agents.length === 0) return 0;
+    const observed = agents.filter(a => observedAgents.has(a.name)).length;
+    return Math.round((observed / agents.length) * 100);
+  };
 
   // Filter and Data Helpers
   const getCoachDept = (coachName: string) => COACHES.find(c => c.name === coachName)?.dept || 'Other';
@@ -438,40 +451,25 @@ export default function Dashboard() {
             </div>
             
             {/* Submenu */}
-            <div className={`overflow-hidden transition-all duration-300 ${!sidebarCollapsed && agentsOpen ? 'max-h-[2000px] opacity-100 mt-1' : 'max-h-0 opacity-0'}`}>
+            <div className={`overflow-hidden transition-all duration-300 ${!sidebarCollapsed && agentsOpen ? 'max-h-[200px] opacity-100 mt-1' : 'max-h-0 opacity-0'}`}>
               <div className="pl-4 pr-3 flex flex-col gap-0.5 border-l-2 border-slate-100 ml-5 py-1">
                 {['Sales', 'Support', 'Specialty'].map(dept => {
                   const deptAgents = getAgentsByDept(dept);
-                  const isExpanded = expandedDept === dept;
+                  const isActive = activeView === 'agents' && selectedDept === dept;
                   return (
-                    <div key={dept} className="flex flex-col">
-                      <div 
-                        className="px-3 py-2 text-[12px] font-bold text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-50 rounded-md transition-colors flex items-center justify-between"
-                        onClick={() => setExpandedDept(isExpanded ? null : dept)}
-                      >
-                        <span className="flex items-center gap-2">
-                          <span className={`w-2 h-2 rounded-full ${
-                            dept === 'Sales' ? 'bg-blue-500' : dept === 'Support' ? 'bg-emerald-500' : 'bg-amber-500'
-                          }`} />
-                          {dept}
-                          <span className="text-[10px] font-normal text-slate-400">({deptAgents.length})</span>
-                        </span>
-                        <ChevronDown size={14} className={`text-slate-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
-                      </div>
-                      <div className={`overflow-hidden transition-all duration-300 ${isExpanded ? 'max-h-[1200px] opacity-100' : 'max-h-0 opacity-0'}`}>
-                        <div className="pl-4 flex flex-col gap-0.5 py-1 max-h-[300px] overflow-y-auto custom-scrollbar">
-                          {deptAgents.map(agent => (
-                            <div 
-                              key={agent.name}
-                              onClick={() => openObservationModal(agent.name)}
-                              className="px-3 py-1.5 text-[12px] text-slate-600 hover:bg-brand-blue-light hover:text-brand-blue rounded-md cursor-pointer transition-colors truncate"
-                              title={`${agent.name} — Coach: ${agent.coach}`}
-                            >
-                              {agent.name}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
+                    <div 
+                      key={dept}
+                      className={`px-3 py-2 text-[13px] font-medium cursor-pointer rounded-md transition-colors flex items-center justify-between
+                        ${isActive ? 'bg-brand-blue-light text-brand-blue font-semibold' : 'text-[var(--text-secondary)] hover:bg-slate-50 hover:text-[var(--brand-blue)]'}`}
+                      onClick={() => { setSelectedDept(dept); setActiveView('agents'); }}
+                    >
+                      <span className="flex items-center gap-2">
+                        <span className={`w-2 h-2 rounded-full ${
+                          dept === 'Sales' ? 'bg-blue-500' : dept === 'Support' ? 'bg-emerald-500' : 'bg-amber-500'
+                        }`} />
+                        {dept}
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-normal">{deptAgents.length}</span>
                     </div>
                   );
                 })}
@@ -693,19 +691,22 @@ export default function Dashboard() {
                   <p className="text-[var(--text-secondary)] mt-1">Manage and observe all assigned coaches.</p>
                 </div>
                 <div className="bg-white border border-[var(--border-light)] rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] shadow-sm">
-                  Showing <span className="font-bold text-[var(--text-primary)]">{staffData.length}</span> coaches
+                  Showing <span className="font-bold text-[var(--text-primary)]">{COACHES.length}</span> coaches
                 </div>
               </div>
 
               <div className="bg-white rounded-2xl shadow-[var(--shadow-sm)] border border-[var(--border-light)] overflow-hidden">
                 <div className="flex flex-col">
-                  {staffData.map((staff, i) => {
-                    const initials = getInitials(staff.name);
-                    const color = getAvatarColor(staff.name);
+                  {COACHES.map((coach, i) => {
+                    const initials = getInitials(coach.name);
+                    const color = getAvatarColor(coach.name);
+                    const agents = getAgentsForCoach(coach.name);
+                    const completionRate = getCoachCompletionRate(coach.name);
+                    const observedCount = agents.filter(a => observedAgents.has(a.name)).length;
                     return (
                       <div 
                         key={i} 
-                        onClick={() => openObservationModal(staff.name)}
+                        onClick={() => { setSelectedCoach(coach.name); setCoachModalOpen(true); }}
                         className="flex items-center gap-4 p-4 border-b border-[var(--border-light)] last:border-b-0 hover:bg-slate-50 cursor-pointer transition-colors group"
                       >
                         <div 
@@ -715,16 +716,91 @@ export default function Dashboard() {
                           {initials}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h3 className="font-bold text-[var(--text-primary)] truncate">{staff.name}</h3>
-                          <p className="text-sm text-[var(--text-secondary)] truncate">{staff.desc}</p>
+                          <h3 className="font-bold text-[var(--text-primary)] truncate">{coach.name}</h3>
+                          <p className="text-sm text-[var(--text-secondary)] truncate">{coach.dept} Department Coach</p>
+                        </div>
+                        <div className="text-right hidden sm:flex items-center gap-2 shrink-0 min-w-[100px]">
+                          <div className="w-16 h-2 bg-slate-100 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full transition-all" style={{ width: `${completionRate}%`, backgroundColor: completionRate === 100 ? '#10B981' : completionRate > 50 ? '#F59E0B' : '#EF4444' }} />
+                          </div>
+                          <span className={`font-bold text-sm ${completionRate === 100 ? 'text-emerald-500' : completionRate > 50 ? 'text-amber-500' : 'text-red-400'}`}>{completionRate}%</span>
                         </div>
                         <div className="text-right hidden sm:block shrink-0 min-w-[80px]">
-                          <span className="font-bold text-brand-blue">{staff.pct}</span>
+                          <span className="text-[11px] font-medium text-slate-500">{observedCount}/{agents.length} done</span>
                         </div>
-                        <div className="text-right hidden md:block shrink-0 min-w-[120px]">
-                          <span className="text-xs font-semibold bg-slate-100 text-slate-600 px-2 py-1 rounded-md">{staff.meta}</span>
+                        <div className="text-right hidden md:block shrink-0 min-w-[90px]">
+                          <span className={`text-xs font-semibold px-2 py-1 rounded-md ${
+                            coach.dept === 'Sales' ? 'bg-blue-50 text-blue-600' : coach.dept === 'Support' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
+                          }`}>{coach.dept}</span>
                         </div>
                         <div className="text-slate-300 group-hover:text-brand-blue transition-colors pl-2">
+                          <ChevronDown className="-rotate-90" size={20} />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* VIEW: AGENTS BY DEPARTMENT */}
+          {activeView === "agents" && (
+            <div className="max-w-[1000px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold text-[var(--text-primary)]">{selectedDept} Agents</h2>
+                  <p className="text-[var(--text-secondary)] mt-1">Click an agent to start an observation.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {['Sales', 'Support', 'Specialty'].map(dept => (
+                    <button 
+                      key={dept}
+                      onClick={() => setSelectedDept(dept)}
+                      className={`px-3 py-1.5 text-sm font-semibold rounded-lg transition-colors ${
+                        selectedDept === dept 
+                          ? 'bg-brand-blue text-white shadow-sm' 
+                          : 'bg-white border border-[var(--border-light)] text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {dept}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl shadow-[var(--shadow-sm)] border border-[var(--border-light)] overflow-hidden">
+                <div className="flex flex-col">
+                  {getAgentsByDept(selectedDept).map((agent, i) => {
+                    const initials = getInitials(agent.name);
+                    const color = getAvatarColor(agent.name);
+                    const isObserved = observedAgents.has(agent.name);
+                    return (
+                      <div 
+                        key={i} 
+                        onClick={() => openObservationModal(agent.name)}
+                        className="flex items-center gap-4 p-4 border-b border-[var(--border-light)] last:border-b-0 hover:bg-slate-50 cursor-pointer transition-colors group"
+                      >
+                        <div 
+                          className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-inner"
+                          style={{ backgroundColor: color }}
+                        >
+                          {initials}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-bold text-[var(--text-primary)] truncate">{agent.name}</h3>
+                          <p className="text-sm text-[var(--text-secondary)] truncate">Coach: {agent.coach}</p>
+                        </div>
+                        <div className="hidden sm:block shrink-0">
+                          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+                            isObserved 
+                              ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' 
+                              : 'bg-slate-100 text-slate-500 border border-slate-200'
+                          }`}>
+                            {isObserved ? '✓ Observed' : 'Pending'}
+                          </span>
+                        </div>
+                        <div className="text-slate-300 group-hover:text-brand-blue transition-colors">
                           <ChevronDown className="-rotate-90" size={20} />
                         </div>
                       </div>
@@ -986,7 +1062,12 @@ export default function Dashboard() {
               <button onClick={closeModals} className="px-5 py-2.5 rounded-lg font-semibold text-slate-600 hover:bg-slate-200 transition-colors">
                 Cancel
               </button>
-              <button onClick={closeModals} className="px-5 py-2.5 rounded-lg font-semibold bg-brand-blue text-white shadow-md shadow-brand-blue/20 hover:bg-brand-blue-hover transition-all hover:-translate-y-0.5">
+              <button onClick={() => {
+                if (selectedAgent) {
+                  setObservedAgents(prev => new Set(prev).add(selectedAgent));
+                }
+                closeModals();
+              }} className="px-5 py-2.5 rounded-lg font-semibold bg-brand-blue text-white shadow-md shadow-brand-blue/20 hover:bg-brand-blue-hover transition-all hover:-translate-y-0.5">
                 Submit Rating
               </button>
             </div>
@@ -1040,6 +1121,98 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* Coach Detail Modal */}
+      {coachModalOpen && selectedCoach && (() => {
+        const coach = COACHES.find(c => c.name === selectedCoach);
+        const coachAgents = getAgentsForCoach(selectedCoach);
+        const completionRate = getCoachCompletionRate(selectedCoach);
+        const observedCount = coachAgents.filter(a => observedAgents.has(a.name)).length;
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" onClick={() => setCoachModalOpen(false)}></div>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[600px] flex flex-col max-h-[85vh] relative z-10 animate-in zoom-in-95 duration-200">
+              {/* Header */}
+              <div className="p-6 border-b border-[var(--border-light)] bg-slate-50/50 rounded-t-2xl shrink-0">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-4">
+                    <div 
+                      className="w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-md"
+                      style={{ backgroundColor: getAvatarColor(selectedCoach) }}
+                    >
+                      {getInitials(selectedCoach)}
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold text-[var(--text-primary)]">{selectedCoach}</h2>
+                      <p className="text-sm text-[var(--text-secondary)]">{coach?.dept} Department Coach</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setCoachModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors">
+                    <X size={20} />
+                  </button>
+                </div>
+
+                {/* Completion Bar */}
+                <div className="mt-4 flex items-center gap-3">
+                  <div className="flex-1 h-3 bg-slate-200 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full rounded-full transition-all duration-500" 
+                      style={{ 
+                        width: `${completionRate}%`, 
+                        backgroundColor: completionRate === 100 ? '#10B981' : completionRate > 50 ? '#F59E0B' : '#EF4444' 
+                      }} 
+                    />
+                  </div>
+                  <span className={`text-sm font-bold ${completionRate === 100 ? 'text-emerald-500' : completionRate > 50 ? 'text-amber-500' : 'text-red-400'}`}>
+                    {observedCount}/{coachAgents.length} observed ({completionRate}%)
+                  </span>
+                </div>
+              </div>
+
+              {/* Agents List */}
+              <div className="flex-1 overflow-y-auto custom-scrollbar">
+                <div className="p-2">
+                  {coachAgents.map((agent, i) => {
+                    const isObserved = observedAgents.has(agent.name);
+                    return (
+                      <div 
+                        key={i}
+                        className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors group"
+                        onClick={() => { setCoachModalOpen(false); openObservationModal(agent.name); }}
+                      >
+                        <div 
+                          className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0"
+                          style={{ backgroundColor: getAvatarColor(agent.name) }}
+                        >
+                          {getInitials(agent.name)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-semibold text-sm text-[var(--text-primary)] truncate">{agent.name}</h4>
+                        </div>
+                        <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full shrink-0 ${
+                          isObserved 
+                            ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' 
+                            : 'bg-slate-100 text-slate-500 border border-slate-200'
+                        }`}>
+                          {isObserved ? '✓ Observed' : 'Pending'}
+                        </span>
+                        <ChevronDown className="-rotate-90 text-slate-300 group-hover:text-brand-blue transition-colors" size={16} />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="p-4 border-t border-[var(--border-light)] flex justify-end bg-slate-50/50 rounded-b-2xl shrink-0">
+                <button onClick={() => setCoachModalOpen(false)} className="px-5 py-2.5 rounded-lg font-semibold text-slate-600 hover:bg-slate-200 transition-colors">
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
     </div>
   );
