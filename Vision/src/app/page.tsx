@@ -5,7 +5,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { 
   Menu, LayoutDashboard, Users, UserCog, HandHeart, HelpCircle, 
-  Settings, ChevronDown, Check, X, Bell, Edit3, Search, Calendar, Filter, History
+  Settings, ChevronDown, Check, X, Bell, Edit3, Search, Calendar, Filter, History, BarChart as BarChartIcon
 } from "lucide-react";
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -330,6 +330,35 @@ export default function Dashboard() {
 
   const recentObservations = useMemo(() => allObservations.slice(0, 20), [allObservations]);
 
+  const weekStats = useMemo(() => {
+    const now = new Date();
+    const thisMon = new Date(now);
+    const d = thisMon.getDay();
+    const diff = thisMon.getDate() - d + (d === 0 ? -6 : 1);
+    thisMon.setDate(diff);
+    const thisWeekStart = thisMon.toISOString().split('T')[0];
+
+    const lastMon = new Date(thisMon);
+    lastMon.setDate(thisMon.getDate() - 7);
+    const lastWeekStart = lastMon.toISOString().split('T')[0];
+    const lastSun = new Date(thisMon);
+    lastSun.setDate(thisMon.getDate() - 1);
+    const lastWeekEnd = lastSun.toISOString().split('T')[0];
+
+    const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+
+    return { thisWeekStart, lastWeekStart, lastWeekEnd, monthStart };
+  }, []);
+
+  const getCoachPeriodCount = (coachName: string, start: string, end?: string) => {
+    return allObservations.filter(o => {
+      if (o.coachName !== coachName) return false;
+      if (o.date < start) return false;
+      if (end && o.date > end) return false;
+      return true;
+    }).length;
+  };
+
   const topAgents = useMemo(() => {
     const agentStats: Record<string, { thisWeek: number, lastWeek: number, month: number }> = {};
     
@@ -382,34 +411,7 @@ export default function Dashboard() {
     return results.slice(0, 8);
   }, [searchQuery]);
 
-  const weekStats = useMemo(() => {
-    const now = new Date();
-    const thisMon = new Date(now);
-    const d = thisMon.getDay();
-    const diff = thisMon.getDate() - d + (d === 0 ? -6 : 1);
-    thisMon.setDate(diff);
-    const thisWeekStart = thisMon.toISOString().split('T')[0];
 
-    const lastMon = new Date(thisMon);
-    lastMon.setDate(thisMon.getDate() - 7);
-    const lastWeekStart = lastMon.toISOString().split('T')[0];
-    const lastSun = new Date(thisMon);
-    lastSun.setDate(thisMon.getDate() - 1);
-    const lastWeekEnd = lastSun.toISOString().split('T')[0];
-
-    const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-
-    return { thisWeekStart, lastWeekStart, lastWeekEnd, monthStart };
-  }, []);
-
-  const getCoachPeriodCount = (coachName: string, start: string, end?: string) => {
-    return allObservations.filter(o => {
-      if (o.coachName !== coachName) return false;
-      if (o.date < start) return false;
-      if (end && o.date > end) return false;
-      return true;
-    }).length;
-  };
 
   const handleSearchResultClick = (result: any) => {
     setSearchQuery("");
@@ -1733,7 +1735,7 @@ export default function Dashboard() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[650px] flex flex-col max-h-[80vh] relative z-10 animate-in zoom-in-95 duration-200">
             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 rounded-t-2xl">
               <h2 className="text-xl font-bold flex items-center gap-2 text-slate-800">
-                <BarChart className="text-brand-blue" size={22} />
+                <BarChartIcon className="text-brand-blue" size={22} />
                 Agent Activity Rankings
               </h2>
               <button onClick={() => setTopAgentsModalOpen(false)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-colors">
@@ -1752,14 +1754,12 @@ export default function Dashboard() {
 
             <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
               <div className="space-y-1">
-                {topAgents.slice(0, 10).map((agent, i) => {
-                  const wowColor = agent.wow > 0 ? 'text-emerald-500 bg-emerald-50' : agent.wow < 0 ? 'text-rose-500 bg-rose-50' : 'text-slate-400 bg-slate-50';
-                  return (
-                    <div 
-                      key={i} 
-                      className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-xl cursor-pointer transition-all border border-transparent hover:border-slate-100 group"
-                      onClick={() => { setTopAgentsModalOpen(false); openObservationModal(agent.name); }}
-                    >
+                {topAgents.slice(0, 10).map((agent, i) => (
+                  <div 
+                    key={i} 
+                    className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-xl cursor-pointer transition-all border border-transparent hover:border-slate-100 group"
+                    onClick={() => { setTopAgentsModalOpen(false); openObservationModal(agent.name); }}
+                  >
                       <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm ${i === 0 ? 'bg-amber-100 text-amber-600' : i === 1 ? 'bg-slate-100 text-slate-600' : i === 2 ? 'bg-orange-50 text-orange-600' : 'bg-slate-50 text-slate-400'}`}>
                         {i + 1}
                       </div>
@@ -1773,15 +1773,15 @@ export default function Dashboard() {
                       <div className="w-16 text-center text-sm font-bold text-slate-400">{agent.lastWeek}</div>
                       <div className="w-16 text-center text-sm font-bold text-brand-blue bg-blue-50/50 rounded-md py-1">{agent.month}</div>
                       <div className="w-16 flex justify-end">
-                        <div className={`px-2 py-1 rounded-md text-[10px] font-black ${wowColor} min-w-[40px] text-center`}>
+                        <div className={`px-2 py-1 rounded-md text-[10px] font-black ${agent.wow > 0 ? 'text-emerald-500 bg-emerald-50' : agent.wow < 0 ? 'text-rose-500 bg-rose-50' : 'text-slate-400 bg-slate-50'} min-w-[40px] text-center`}>
                           {agent.wow > 0 ? '▲' : agent.wow < 0 ? '▼' : '—'}
                           {agent.wow !== 0 && Math.abs(agent.wow)}
                         </div>
                       </div>
                     </div>
                   ))}
+                </div>
               </div>
-            </div>
             
             <div className="p-4 border-t border-slate-100 text-center">
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Ranked by Total Observations This Month</p>
