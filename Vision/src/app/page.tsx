@@ -397,7 +397,7 @@ export default function Dashboard() {
     
     // Search Observations by ID
     allObservations.forEach(obs => {
-      const shortId = obs._id.slice(-6).toUpperCase();
+      const shortId = obs._id.slice(-8).toUpperCase();
       if (shortId.includes(q.toUpperCase()) || obs.agentName.toLowerCase().includes(q)) {
         results.push({ 
           type: 'observation', 
@@ -560,12 +560,33 @@ export default function Dashboard() {
 
   const closeModals = () => {
     setModalOpen(false);
-    setRatingModalOpen(false);
   };
 
-  const proceedToRating = () => {
-    setModalOpen(false);
-    setRatingModalOpen(true);
+  const handleSaveObservation = async () => {
+    if (selectedAgent) {
+      const agentCoach = AGENTS.find(a => a.name === selectedAgent)?.coach || 'Unknown';
+      await createObservation({
+        agentName: selectedAgent,
+        coachName: agentCoach,
+        department: formData.department,
+        otherDepartment: formData.otherDepartment || undefined,
+        date: formData.date,
+        sessionType: formData.sessionType,
+        categories: formData.categories,
+        otherCategory: formData.otherCategory || undefined,
+        strengths: formData.strengths || undefined,
+        areasOfOpportunity: formData.areasOfOpportunity || undefined,
+        rootCause: formData.rootCause || undefined,
+        actionPlan: formData.actionPlan || undefined,
+        overallRating: formData.overallRating,
+        otherFeedback: formData.otherFeedback || undefined,
+        orderNumber: formData.orderNumber || undefined,
+        teamLeadFeedback: formData.teamLeadFeedback || undefined,
+        rating: 0, // No longer used but kept for schema compatibility
+        observedBy: 'JG (Current User)',
+      });
+    }
+    closeModals();
   };
 
   const openRichTextEditor = (fieldId: keyof typeof formData) => {
@@ -1194,12 +1215,11 @@ export default function Dashboard() {
               </div>
 
               <div className="bg-white rounded-2xl shadow-[var(--shadow-sm)] border border-[var(--border-light)] overflow-hidden">
-                <div className="p-4 border-b border-slate-50 bg-slate-50/50 grid grid-cols-6 gap-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">
+                <div className="p-4 border-b border-slate-50 bg-slate-50/50 grid grid-cols-5 gap-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">
                   <div className="text-left pl-4">ID</div>
                   <div className="text-left">Agent</div>
                   <div className="text-left">Coach</div>
                   <div>Date</div>
-                  <div>Rating</div>
                   <div className="text-right pr-4">LOB</div>
                 </div>
 
@@ -1208,17 +1228,12 @@ export default function Dashboard() {
                     <div 
                       key={obs._id} 
                       onClick={() => setSelectedObs(obs)}
-                      className="grid grid-cols-6 gap-4 items-center p-4 border-b border-slate-50 last:border-b-0 hover:bg-blue-50/30 cursor-pointer transition-all group"
+                      className="grid grid-cols-5 gap-4 items-center p-4 border-b border-slate-50 last:border-b-0 hover:bg-blue-50/30 cursor-pointer transition-all group"
                     >
-                      <div className="text-xs font-black text-brand-blue bg-blue-50 px-2 py-1 rounded w-fit">{obs._id.slice(-6).toUpperCase()}</div>
+                      <div className="text-xs font-black text-brand-blue bg-blue-50 px-2 py-1 rounded w-fit">{obs._id.slice(-8).toUpperCase()}</div>
                       <div className="font-bold text-sm text-slate-700 truncate">{obs.agentName}</div>
                       <div className="text-sm text-slate-500 truncate">{obs.coachName}</div>
                       <div className="text-sm text-slate-400 text-center">{obs.date}</div>
-                      <div className="text-center">
-                        <span className={`text-sm font-bold ${obs.rating >= 9 ? 'text-emerald-500' : obs.rating >= 7 ? 'text-brand-blue' : 'text-rose-500'}`}>
-                          {obs.rating}/10
-                        </span>
-                      </div>
                       <div className="text-right pr-4">
                         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${
                           obs.department.includes('Sales') ? 'bg-blue-50 text-blue-600' : obs.department.includes('Support') ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
@@ -1431,10 +1446,10 @@ export default function Dashboard() {
             </div>
             
             <div className="p-6 border-t border-[var(--border-light)] flex justify-end gap-3 bg-slate-50/50 rounded-b-2xl shrink-0">
-              <button onClick={closeModals} className="px-5 py-2.5 rounded-lg font-semibold text-slate-600 hover:bg-slate-200 transition-colors">
+              <button onClick={() => setModalOpen(false)} className="px-5 py-2.5 rounded-lg font-semibold text-slate-600 hover:bg-slate-200 transition-colors">
                 Cancel
               </button>
-              <button onClick={proceedToRating} className="px-5 py-2.5 rounded-lg font-semibold bg-brand-blue text-white shadow-md shadow-brand-blue/20 hover:bg-brand-blue-hover transition-all hover:-translate-y-0.5">
+              <button onClick={handleSaveObservation} className="px-5 py-2.5 rounded-lg font-semibold bg-brand-blue text-white shadow-md shadow-brand-blue/20 hover:bg-brand-blue-hover transition-all hover:-translate-y-0.5">
                 Save Observation
               </button>
             </div>
@@ -1442,83 +1457,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Rating Modal */}
-      {ratingModalOpen && selectedAgent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
-          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" onClick={closeModals}></div>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[500px] flex flex-col relative z-10 animate-in zoom-in-95 duration-200">
-            <div className="p-6 border-b border-[var(--border-light)] flex justify-between items-center">
-              <h2 className="text-xl font-bold">Rate Observation</h2>
-              <button onClick={closeModals} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors">
-                <X size={20} />
-              </button>
-            </div>
-            
-            <div className="p-8 flex flex-col items-center">
-              <div 
-                className="w-20 h-20 rounded-full flex items-center justify-center text-white font-bold text-2xl shadow-md mb-4"
-                style={{ backgroundColor: getAvatarColor(selectedAgent) }}
-              >
-                {getInitials(selectedAgent)}
-              </div>
-              <h3 className="text-xl font-bold mb-1">{selectedAgent}</h3>
-              <p className="text-sm text-slate-500 mb-8">Set the observation score below.</p>
-              
-              <div className="text-5xl font-black text-brand-blue mb-6 tracking-tighter">
-                {rating}
-              </div>
-              
-              <input 
-                type="range" 
-                min="0" max="10" 
-                value={rating} 
-                onChange={(e) => setRating(parseInt(e.target.value))}
-                className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-brand-blue mb-8"
-              />
-              
-              <div className="flex justify-between w-full text-xs font-bold text-slate-400">
-                <span>0</span>
-                <span>5</span>
-                <span>10</span>
-              </div>
-            </div>
-            
-            <div className="p-6 border-t border-[var(--border-light)] flex justify-end gap-3 bg-slate-50 rounded-b-2xl">
-              <button onClick={closeModals} className="px-5 py-2.5 rounded-lg font-semibold text-slate-600 hover:bg-slate-200 transition-colors">
-                Cancel
-              </button>
-              <button onClick={async () => {
-                if (selectedAgent) {
-                  const agentCoach = AGENTS.find(a => a.name === selectedAgent)?.coach || 'Unknown';
-                  await createObservation({
-                    agentName: selectedAgent,
-                    coachName: agentCoach,
-                    department: formData.department,
-                    otherDepartment: formData.otherDepartment || undefined,
-                    date: formData.date,
-                    sessionType: formData.sessionType,
-                    categories: formData.categories,
-                    otherCategory: formData.otherCategory || undefined,
-                    strengths: formData.strengths || undefined,
-                    areasOfOpportunity: formData.areasOfOpportunity || undefined,
-                    rootCause: formData.rootCause || undefined,
-                    actionPlan: formData.actionPlan || undefined,
-                    overallRating: formData.overallRating,
-                    otherFeedback: formData.otherFeedback || undefined,
-                    orderNumber: formData.orderNumber || undefined,
-                    teamLeadFeedback: formData.teamLeadFeedback || undefined,
-                    rating: rating,
-                    observedBy: 'JG (Current User)',
-                  });
-                }
-                closeModals();
-              }} className="px-5 py-2.5 rounded-lg font-semibold bg-brand-blue text-white shadow-md shadow-brand-blue/20 hover:bg-brand-blue-hover transition-all hover:-translate-y-0.5">
-                Submit Rating
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {/* Rich Text Editor Modal */}
       {editModalOpen && selectedAgent && (
@@ -1736,7 +1675,7 @@ export default function Dashboard() {
                           <h4 className="font-bold text-slate-800 truncate">{obs.agentName}</h4>
                           <span className="text-[10px] font-bold px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded uppercase">MTD</span>
                         </div>
-                        <span className="text-[10px] font-black text-brand-blue bg-blue-50 px-2 py-0.5 rounded uppercase">ID: {obs._id.slice(-6).toUpperCase()}</span>
+                        <span className="text-[10px] font-black text-brand-blue bg-blue-50 px-2 py-0.5 rounded uppercase">ID: {obs._id.slice(-8).toUpperCase()}</span>
                       </div>
                       <p className="text-xs text-slate-500 mt-0.5">Coached by <span className="font-semibold text-slate-700">{obs.coachName}</span></p>
                       <p className="text-[10px] text-slate-400 mt-1 font-medium flex items-center gap-1">
@@ -1791,20 +1730,9 @@ export default function Dashboard() {
                   <h2 className="text-2xl font-black text-slate-800">{selectedObs.agentName}</h2>
                   <p className="text-slate-500 font-medium">Observation by {selectedObs.coachName}</p>
                 </div>
-                <div className="bg-blue-50 px-4 py-2 rounded-2xl text-center border border-blue-100">
-                  <div className="text-2xl font-black text-brand-blue leading-none">{selectedObs.rating}%</div>
-                  <div className="text-[10px] font-bold text-brand-blue/60 uppercase tracking-tighter mt-1">Final Score</div>
-                </div>
               </div>
 
               <div className="space-y-6">
-                <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 block">Observation Notes</label>
-                  <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 text-slate-700 text-sm leading-relaxed whitespace-pre-wrap italic shadow-inner">
-                    "{selectedObs.notes || 'No specific notes recorded for this observation.'}"
-                  </div>
-                </div>
-
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                     <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Date Recorded</div>
@@ -1817,6 +1745,32 @@ export default function Dashboard() {
                     <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Observation ID</div>
                     <div className="text-sm font-mono font-bold text-slate-700 truncate">
                       {selectedObs._id.slice(-8).toUpperCase()}
+                    </div>
+                  </div>
+                </div>
+
+                {/* All Filed Details */}
+                <div className="space-y-4">
+                  {[
+                    { label: 'Strengths', value: (selectedObs as any).strengths },
+                    { label: 'Areas of Opportunity', value: (selectedObs as any).areasOfOpportunity },
+                    { label: 'Root Cause', value: (selectedObs as any).rootCause },
+                    { label: 'Action Plan', value: (selectedObs as any).actionPlan },
+                    { label: 'Other Feedback', value: (selectedObs as any).otherFeedback },
+                    { label: 'Team Lead Feedback', value: (selectedObs as any).teamLeadFeedback }
+                  ].map(field => field.value && (
+                    <div key={field.label} className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                      <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-2">{field.label}</div>
+                      <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{field.value}</div>
+                    </div>
+                  ))}
+
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-2">Metadata</div>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedObs.department.map((d: string) => <span key={d} className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-[10px] font-bold uppercase">{d}</span>)}
+                      {selectedObs.sessionType.map((s: string) => <span key={s} className="px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded text-[10px] font-bold uppercase">{s}</span>)}
+                      {selectedObs.categories.map((c: string) => <span key={c} className="px-2 py-0.5 bg-amber-50 text-amber-600 rounded text-[10px] font-bold uppercase">{c}</span>)}
                     </div>
                   </div>
                 </div>
