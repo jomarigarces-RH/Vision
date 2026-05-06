@@ -12,50 +12,217 @@ import {
 
 // --- Mock Data ---
 
-const AVATAR_URLS = [
-  'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&crop=face',
-  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face',
-  'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop&crop=face',
-  'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=face',
-  'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop&crop=face',
-  'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop&crop=face',
+// --- Data Mappings from References ---
+const COACHES = [
+  { name: 'Chui Ling Villafuerte Goh', dept: 'Sales' },
+  { name: 'Xavier Bertril Nuico Cuerpo', dept: 'Service Recovery' },
+  { name: 'Gazelle Broniola Bulalacao', dept: 'Support' },
+  { name: 'Zaira Mae Regino Kinol', dept: 'Support' },
+  { name: 'Charbel Rado Mahinay', dept: 'Support' },
+  { name: 'Karl Jasper Lorejo Mag-usara', dept: 'Support' },
+  { name: 'Erwin Verano', dept: 'Sales' },
+  { name: 'Kyla Serion', dept: 'Sales' },
+  { name: 'May-Ann Alabata Montegrejo', dept: 'Service Recovery' },
+  { name: 'Ma. Mikaela Lalamonan Barrera', dept: 'Support' },
+  { name: 'Joe Mari Torda Piñero', dept: 'Service Recovery' },
+  { name: 'John Rey Aspacio Ortega', dept: 'Support' },
+  { name: 'Korina Kim Romeo Alcantara', dept: 'Service Recovery' },
+  { name: 'Elaine De Leon Roxas', dept: 'Service Recovery' },
+  { name: 'Irene Villarin Estravela', dept: 'Support' },
+  { name: 'Shanne Juliet Credo Diputado', dept: 'Support' },
+  { name: 'Maria Fatima Serrano Buenviaje', dept: 'Service Recovery' },
+  { name: 'Alyssa Sandel Reyes', dept: 'Service Recovery' },
+  { name: 'Joenesse Vhem Laraya Bonghanoy', dept: 'Sales' },
+  { name: 'Krishia May Capuyan Saldivar', dept: 'Service Recovery' },
 ];
 
-const coachesData = [
-  { name: 'Sarah Mitchell', desc: 'Staff observation & coaching line acts & courses', badge: '09', badgeColor: 'bg-brand-blue text-white' },
-  { name: 'James Cooper', desc: 'Observation Score from coaching', badge: '09', badgeColor: 'bg-brand-blue text-white' },
-  { name: 'Emily Chen', desc: 'Staff creation Agency Scores more specific data & analysis', badge: '09', badgeColor: 'bg-accent-red text-white' },
+const AGENTS = [
+  { name: 'Abegail Lariosa Ingco', coach: 'Chui Ling Villafuerte Goh' },
+  { name: 'Aiva Paquira Abalos', coach: 'Xavier Bertril Nuico Cuerpo' },
+  { name: 'Alina Amaya Zelaya', coach: 'Gazelle Broniola Bulalacao' },
+  { name: 'Alvin Cajipo Saguban', coach: 'Zaira Mae Regino Kinol' },
+  { name: 'Alvin Portallo Gemira', coach: 'Charbel Rado Mahinay' },
+  { name: 'Alyanna Juhl Soledad Aquino', coach: 'Karl Jasper Lorejo Mag-usara' },
+  { name: 'Angel Reyes Guarin', coach: 'Charbel Rado Mahinay' },
+  { name: 'Ann Kimberly Vidal Ablir', coach: 'Erwin Verano' },
+  { name: 'Anne June Mariño Dumaldal', coach: 'Kyla Serion' },
+  { name: 'Arcelie Macatunog Patula', coach: 'May-Ann Alabata Montegrejo' },
+  { name: 'Archie Ferrolino Osa', coach: 'Ma. Mikaela Lalamonan Barrera' },
+  { name: 'Argie Dialino Cayetano', coach: 'Charbel Rado Mahinay' },
+  { name: 'Ariane Mae Tercio Ib-Ib', coach: 'Chui Ling Villafuerte Goh' },
+  { name: 'Arlita Trinidad Calingacion', coach: 'Joe Mari Torda Piñero' },
+  { name: 'Arzy Llemit', coach: 'Joe Mari Torda Piñero' },
+  { name: 'Ashley Barrera Adalid', coach: 'John Rey Aspacio Ortega' },
+  { name: 'Bello Isah Egano Habibulla', coach: 'May-Ann Alabata Montegrejo' },
+  { name: 'Belmarie Manggon Zamora', coach: 'Karl Jasper Lorejo Mag-usara' },
+  { name: 'Cesar Joseph Hernandez Unabia', coach: 'May-Ann Alabata Montegrejo' },
+  { name: 'Charlyn Acabal Cambio', coach: 'Ma. Mikaela Lalamonan Barrera' },
+  { name: 'Chiran Solamillo Tortogo Jr.', coach: 'Xavier Bertril Nuico Cuerpo' },
+  { name: 'Christin Sanchez', coach: 'Gazelle Broniola Bulalacao' },
+  { name: 'Christine Gywneth Naval Estomagulang', coach: 'Irene Villarin Estravela' },
+  { name: 'Christofer Dumaran Perocho', coach: 'Charbel Rado Mahinay' },
+  { name: 'Clint Ybonne Ronato Anadon', coach: 'John Rey Aspacio Ortega' },
+  { name: 'Cris-Ann Ruado Relox', coach: 'Shanne Juliet Credo Diputado' },
+  { name: 'Crystal Jycel Longno Beron', coach: 'Shanne Juliet Credo Diputado' },
+  { name: 'Cyril Brondial Santos', coach: 'Korina Kim Romeo Alcantara' },
+  { name: 'Darwin Levin Lope Data', coach: 'Shanne Juliet Credo Diputado' },
+  { name: 'Daryll Tulod Bentulan', coach: 'Maria Fatima Serrano Buenviaje' },
+  { name: 'Daven Paul Manlupig Dorimon', coach: 'Korina Kim Romeo Alcantara' },
+  { name: 'Devielyn Kaye Diola Trangia', coach: 'Elaine De Leon Roxas' },
+  { name: 'Dexter Dumaog Japay', coach: 'Karl Jasper Lorejo Mag-usara' },
+  { name: 'Diana Sojor Solibio', coach: 'Karl Jasper Lorejo Mag-usara' },
+  { name: 'Dinalyn Macasinag Villalon', coach: 'John Rey Aspacio Ortega' },
+  { name: 'Dino Amiel Lojo Balaga', coach: 'Maria Fatima Serrano Buenviaje' },
+  { name: 'Dominique Eurika Portada Katada', coach: 'Xavier Bertril Nuico Cuerpo' },
+  { name: 'Donna Amores', coach: 'Joenesse Vhem Laraya Bonghanoy' },
+  { name: 'Drea Timonan Surbito', coach: 'Karl Jasper Lorejo Mag-usara' },
+  { name: 'Dwaynee Chan Benignos', coach: 'Zaira Mae Regino Kinol' },
+  { name: 'Edeson Alabata Abo-Abo', coach: 'John Rey Aspacio Ortega' },
+  { name: 'Edwin Zabala Dizon', coach: 'Zaira Mae Regino Kinol' },
+  { name: 'Elenie Villaro Tito', coach: 'Gazelle Broniola Bulalacao' },
+  { name: 'Emiliano Alexie Casaje San Pedro Jr.', coach: 'Irene Villarin Estravela' },
+  { name: 'Eva Mae Gerardo Violeta', coach: 'Karl Jasper Lorejo Mag-usara' },
+  { name: 'Farah Mae Lope Torres', coach: 'Korina Kim Romeo Alcantara' },
+  { name: 'Felori Baguihon Siplao', coach: 'Elaine De Leon Roxas' },
+  { name: 'Flora May Carcusia Cagampang', coach: 'Ma. Mikaela Lalamonan Barrera' },
+  { name: 'Frances Bryle Millan Gelvoria', coach: 'Korina Kim Romeo Alcantara' },
+  { name: 'Francose Marie Partosa Estrada', coach: 'Irene Villarin Estravela' },
+  { name: 'Genilyn Bautista Aseñas', coach: 'Jake Vergel Gonzales Cajes' },
+  { name: 'Gina Panaligan Bautista', coach: 'Zaira Mae Regino Kinol' },
+  { name: 'Haissam Rohann Bocanegra Morton', coach: 'John Rey Aspacio Ortega' },
+  { name: 'Heinz Harald Pagon Acson', coach: 'Kyla Serion' },
+  { name: 'Honey Ege Radoc', coach: 'Elaine De Leon Roxas' },
+  { name: 'Honeylen Landisa', coach: 'Shanne Juliet Credo Diputado' },
+  { name: 'Irene Ann Cadallo Bahandi', coach: 'Kyla Serion' },
+  { name: 'Irene Dagoy Rolandong', coach: 'Korina Kim Romeo Alcantara' },
+  { name: 'Iris Mae Recaldo Timbal', coach: 'Krizha Mae Gamalando Abia' },
+  { name: 'Ivan Allan Bungcasan', coach: 'Kyla Serion' },
+  { name: 'Jade Marian Daarol Gabunilas', coach: 'Zaira Mae Regino Kinol' },
+  { name: 'Jamaica Arranchado Veriña', coach: 'Maria Fatima Serrano Buenviaje' },
+  { name: 'James Saycon Buagas', coach: 'Karl Jasper Lorejo Mag-usara' },
+  { name: 'Jan August Delfin Villamor', coach: 'May-Ann Alabata Montegrejo' },
+  { name: 'Jana Esperanza Sun Dalleda', coach: 'Joenesse Vhem Laraya Bonghanoy' },
+  { name: 'Jared Xavierre Giron Manuel', coach: 'Xavier Bertril Nuico Cuerpo' },
+  { name: 'Jay Mark Almonte Tuayon', coach: 'Irene Villarin Estravela' },
+  { name: 'Jayrilyn Devero Alberto', coach: 'Ma. Mikaela Lalamonan Barrera' },
+  { name: 'Jayson Saycon Caminos', coach: 'Ma. Mikaela Lalamonan Barrera' },
+  { name: 'Jeff Cantina Dela Cruz', coach: 'Maria Fatima Serrano Buenviaje' },
+  { name: 'Jefford Lu-Ang Algoso', coach: 'Krizha Mae Gamalando Abia' },
+  { name: 'Jeizel Eringe Mapula', coach: 'Erwin Verano' },
+  { name: 'Jeniefe Tubac Garcia', coach: 'John Rey Aspacio Ortega' },
+  { name: 'Jenifer Alatan Balanay', coach: 'Zaira Mae Regino Kinol' },
+  { name: 'Jerald Anqui Olasiman', coach: 'Irene Villarin Estravela' },
+  { name: 'Jeremy Capalad Albina', coach: 'Shanne Juliet Credo Diputado' },
+  { name: 'Jeremy Ruso Arnaiz', coach: 'Zaira Mae Regino Kinol' },
+  { name: 'Jerome Makasilhig Olarte', coach: 'Krizha Mae Gamalando Abia' },
+  { name: 'Jesmar Borromeo Maxino', coach: 'Xavier Bertril Nuico Cuerpo' },
+  { name: 'Jessa Dee Silva Romero', coach: 'Xavier Bertril Nuico Cuerpo' },
+  { name: 'Jessa Galve Amparado', coach: 'Shanne Juliet Credo Diputado' },
+  { name: 'Jessa Kadusale Casido', coach: 'Charbel Rado Mahinay' },
+  { name: 'Jesselaine Hinaut Siglos', coach: 'Erwin Verano' },
+  { name: 'Jessica Causing Montecillo', coach: 'Zaira Mae Regino Kinol' },
+  { name: 'Jessica Cuizon Catubig', coach: 'Irene Villarin Estravela' },
+  { name: 'Jessuelle Zaira Patrimonio', coach: 'Zaira Mae Regino Kinol' },
+  { name: 'Jimboy Tortusa Corciega', coach: 'Kyla Serion' },
+  { name: 'Joan Catinggan', coach: 'John Rey Aspacio Ortega' },
+  { name: 'Joann Torres Balasabas', coach: 'Irene Villarin Estravela' },
+  { name: 'Johann Pabayos Aran', coach: 'Gazelle Broniola Bulalacao' },
+  { name: 'John Christopher Ang Tismo', coach: 'Karl Jasper Lorejo Mag-usara' },
+  { name: 'John Patrick Gutierrez Diaz', coach: 'Elaine De Leon Roxas' },
+  { name: 'John Paul Jabas Romano', coach: 'Kyla Serion' },
+  { name: 'John Philip Bulagao', coach: 'John Rey Aspacio Ortega' },
+  { name: 'John Ric Carabaña Vallejos', coach: 'Erwin Verano' },
+  { name: 'Johnnas Vidanes Morales', coach: 'Korina Kim Romeo Alcantara' },
+  { name: 'Jolina Tinaytina Lopez', coach: 'Kyla Serion' },
+  { name: 'Joriel Duran Elloren', coach: 'Erwin Verano' },
+  { name: 'Jose Louise Varona Anda', coach: 'Charbel Rado Mahinay' },
+  { name: 'Jose Yael Inocente', coach: 'Zaira Mae Regino Kinol' },
+  { name: 'Josephine Belaro Olbes', coach: 'Gazelle Broniola Bulalacao' },
+  { name: 'Jostuart Stanley Monsole Gunter', coach: 'Erwin Verano' },
+  { name: 'June Solamillo Lucilla', coach: 'Krizha Mae Gamalando Abia' },
+  { name: 'Karl Elmer Ii Cavite Piamonte', coach: 'Gazelle Broniola Bulalacao' },
+  { name: 'Karla Louise Claud Ramos', coach: 'Ma. Mikaela Lalamonan Barrera' },
+  { name: 'Kay Ann Apurado Quio', coach: 'Charbel Rado Mahinay' },
+  { name: 'Kevin Berino Elumba', coach: 'Erwin Verano' },
+  { name: 'Kimberly Anne Siquijor Garol', coach: 'Chui Ling Villafuerte Goh' },
+  { name: 'Kimberly Nicole Lim Cachero', coach: 'Xavier Bertril Nuico Cuerpo' },
+  { name: 'Kristine Garcia Ramos', coach: 'Ma. Mikaela Lalamonan Barrera' },
+  { name: 'Kyla Saracia Abalos', coach: 'John Rey Aspacio Ortega' },
+  { name: 'Kylle Elaine Econg Manninen', coach: 'Irene Villarin Estravela' },
+  { name: 'Lenie Jane Tarog', coach: 'John Rey Aspacio Ortega' },
+  { name: 'Lourdes Apple Calidguid Unajan', coach: 'Chui Ling Villafuerte Goh' },
+  { name: 'Luther Maglinte Dalura', coach: 'Krizha Mae Gamalando Abia' },
+  { name: 'Ma Reynaline Canseco Barona', coach: 'Charbel Rado Mahinay' },
+  { name: 'Mae Jumawan Sasil', coach: 'Charbel Rado Mahinay' },
+  { name: 'Maevel Cruz Umalza', coach: 'Charbel Rado Mahinay' },
+  { name: 'Maricel Morquida', coach: 'John Rey Aspacio Ortega' },
+  { name: 'Marichu Bornillo Acar', coach: 'Chui Ling Villafuerte Goh' },
+  { name: 'Marion Jean Espero Vital', coach: 'Xavier Bertril Nuico Cuerpo' },
+  { name: 'Marites Taburnal Agustin', coach: 'Irene Villarin Estravela' },
+  { name: 'Marlo Villarin Labrador', coach: 'Ma. Mikaela Lalamonan Barrera' },
+  { name: 'Marry Jen Villieta Catubig', coach: 'John Rey Aspacio Ortega' },
+  { name: 'Marth Joseph Dayao Enopia', coach: 'Erwin Verano' },
+  { name: 'Mary Caribelle Anne Miculob', coach: 'Joe Mari Torda Piñero' },
+  { name: 'Mary Vella Paltinca', coach: 'Joenesse Vhem Laraya Bonghanoy' },
+  { name: 'Meguela Angela Bisco Dagoy', coach: 'Gazelle Broniola Bulalacao' },
+  { name: 'Melissa Tan Capulong', coach: 'Gazelle Broniola Bulalacao' },
+  { name: 'Merbelyn Magbanua Mancia', coach: 'Erwin Verano' },
+  { name: 'Michael Angelo Bisabis Taub', coach: 'Xavier Bertril Nuico Cuerpo' },
+  { name: 'Michelle Guzman Plazos', coach: 'Korina Kim Romeo Alcantara' },
+  { name: 'Michelle Zamora Ortiz', coach: 'Xavier Bertril Nuico Cuerpo' },
+  { name: 'Mickel Arvin Lloyd Noay', coach: 'Charbel Rado Mahinay' },
+  { name: 'Mitch Vianca Ferenal Bajenting', coach: 'John Rey Aspacio Ortega' },
+  { name: 'Neil Brent Norico Barte', coach: 'Karl Jasper Lorejo Mag-usara' },
+  { name: 'Nhova Kristy Catubig Venenoso', coach: 'Chui Ling Villafuerte Goh' },
+  { name: 'Nica Diona Algadepe Segara', coach: 'Ma. Mikaela Lalamonan Barrera' },
+  { name: 'Niño Kim Daniel Frutas Legaspi', coach: 'Joe Mari Torda Piñero' },
+  { name: 'Noel John Callao Canoy', coach: 'Ma. Mikaela Lalamonan Barrera' },
+  { name: 'Oliver Jr Gilhang Soriano', coach: 'Krizha Mae Gamalando Abia' },
+  { name: 'Paul Vincent Dispe Valerio', coach: 'Erwin Verano' },
+  { name: 'Precious Jewel Salazar', coach: 'Shanne Juliet Credo Diputado' },
+  { name: 'Princess Shaine Mimis Asidera', coach: 'Alyssa Sandel Reyes' },
+  { name: 'Rey Eufronio Laguitao Buagas', coach: 'Karl Jasper Lorejo Mag-usara' },
+  { name: 'Reynold Abejero Mariño', coach: 'John Rey Aspacio Ortega' },
+  { name: 'Reza Lindayao Lumjod', coach: 'Krizha Mae Gamalando Abia' },
+  { name: 'Riza Venales Kilapkilap', coach: 'Ma. Mikaela Lalamonan Barrera' },
+  { name: 'Rizza Jean Fernandez', coach: 'Elaine De Leon Roxas' },
+  { name: 'Rolando Busbus Daohog', coach: 'Alyssa Sandel Reyes' },
+  { name: 'Rona May Beatingo Astillar', coach: 'Gazelle Broniola Bulalacao' },
+  { name: 'Rose Ann Laque Bangcat', coach: 'Irene Villarin Estravela' },
+  { name: 'Rosean Mae Valencia Lambayan', coach: 'Shanne Juliet Credo Diputado' },
+  { name: 'Roselyn Montecino Laure', coach: 'Chui Ling Villafuerte Goh' },
+  { name: 'Rosenia Nieves', coach: 'Joe Mari Torda Piñero' },
+  { name: 'Roxy Salveron Maquiling', coach: 'Gazelle Broniola Bulalacao' },
+  { name: 'Ryan Amoma Vios', coach: 'Joe Mari Torda Piñero' },
+  { name: 'Sajilli Renz Balucan Bacallo', coach: 'Ma. Mikaela Lalamonan Barrera' },
+  { name: 'Sandae Manaban Placer', coach: 'Gazelle Broniola Bulalacao' },
+  { name: 'Sanny Boy Erot Duran', coach: 'Chui Ling Villafuerte Goh' },
+  { name: 'Shan Mae Ragpa Gajegan', coach: 'Krizha Mae Gamalando Abia' },
+  { name: 'Shazia Jamil Pirzada', coach: 'Zaira Mae Regino Kinol' },
+  { name: 'Sheena Estoconing Bugais', coach: 'Shanne Juliet Credo Diputado' },
+  { name: 'Shelamae Cadiz Bohol', coach: 'Irene Villarin Estravela' },
+  { name: 'Shella Mae Legarde Cagatin', coach: 'Korina Kim Romeo Alcantara' },
+  { name: 'Sky Sagario Gravador', coach: 'Krizha Mae Gamalando Abia' },
+  { name: 'Sylysdley Lasola Gutierrez', coach: 'May-Ann Alabata Montegrejo' },
+  { name: 'Thelma Evangelista Laurena', coach: 'Charbel Rado Mahinay' },
+  { name: 'Trisha Mae Abayao Bianado', coach: 'Shanne Juliet Credo Diputado' },
+  { name: 'Valerie Ann Trasona Delicano', coach: 'Krizha Mae Gamalando Abia' },
+  { name: 'Vica Kay Esoy Verden', coach: 'Shanne Juliet Credo Diputado' },
+  { name: 'Victor Iligan Liu', coach: 'Erwin Verano' },
+  { name: 'Vincent Cafino Banlat', coach: 'Kyla Serion' },
+  { name: 'Vincent Jonas Gallendo', coach: 'Kyla Serion' },
+  { name: 'Vincent Paul Villa Malagar', coach: 'Korina Kim Romeo Alcantara' },
+  { name: 'Wilma Gaso Rodriguez', coach: 'Erwin Verano' },
+  { name: 'Wisdom K Patron Alama', coach: 'Charbel Rado Mahinay' },
+  { name: 'Xyza Rae Alipio', coach: 'Jake Vergel Gonzales Cajes' },
 ];
 
-const assignedAgentsData = [
-  { name: 'Laura Kim', desc: 'Staff analysis & for target development in teams', badge: '09', badgeColor: 'bg-accent-red text-white' },
-  { name: 'Marcus Webb', desc: 'Staff creation Agency Scores more specific data & analysis', badge: '09', badgeColor: 'bg-brand-blue text-white' },
-  { name: 'Diana Ross', desc: 'Staff creation Agency Scores more specific data & analysis', badge: '09', badgeColor: 'bg-accent-red text-white' },
-  { name: 'Tyler James', desc: 'Staff creation Agency Scores more specific data & analysis', badge: '09', badgeColor: 'bg-brand-blue text-white' },
-];
-
-const staffData = [
-  { name: 'Jake Cajes', desc: 'Observation Scores', pct: '1.35%', meta: 'Coach 330 (15%)' },
-  { name: 'Mikaela Barrera', desc: 'Line Observation Activity scoring', pct: '1.55%', meta: 'Coaches' },
-  { name: 'John Ortega', desc: 'Line Compliance & aging results...', pct: '1.35%', meta: 'Coaches' },
-  { name: 'Chui Goh', desc: 'Enter Compliance & co-range coaching', pct: '1.45%', meta: '-4.90' },
-  { name: 'Kyla Serion', desc: 'Enter Coordination controls notes...', pct: '1.38%', meta: '+125.8 3% Ins' },
-  { name: 'Zaira Kinol', desc: 'Center & operate adv trans...', pct: '1.17%', meta: '13%' },
-  { name: 'Irene Estravela', desc: 'Observation Activity scoring', pct: '1.42%', meta: 'Coach 210 (12%)' },
-  { name: 'Krizha Abia', desc: 'Line Compliance & scoring', pct: '1.28%', meta: 'Coaches' },
-  { name: 'Korina Alcantara', desc: 'Observation Scores analysis', pct: '1.60%', meta: '+8% above' },
-  { name: 'Charbel Mahinay', desc: 'Staff coaching session notes', pct: '1.33%', meta: 'Coach 115 (9%)' },
-  { name: 'Erwin Verano', desc: 'Compliance & quality review', pct: '1.50%', meta: '+12.3%' },
-  { name: 'JM Piñero', desc: 'Enter Coordination controls notes...', pct: '1.22%', meta: '-2.10' },
-  { name: 'Karl Mag-usara', desc: 'Center & operate adv trans...', pct: '1.38%', meta: 'Coaches' },
-  { name: 'Shiela Bologa', desc: 'Line Observation Activity scoring', pct: '1.47%', meta: '+6% above' },
-  { name: 'Gazelle Bulalacao', desc: 'Observation Scores review', pct: '1.55%', meta: 'Coach 220 (14%)' },
-  { name: 'Joenesse Bonghanoy', desc: 'Staff coaching & compliance', pct: '1.40%', meta: '+9.5%' },
-  { name: 'Alyssa Reyes', desc: 'Line Compliance & aging results...', pct: '1.31%', meta: 'Coaches' },
-  { name: 'Elaine Roxas', desc: 'Center & quality coaching', pct: '1.25%', meta: '-1.80' },
-  { name: 'May-Ann Montegrejo', desc: 'Enter Compliance & co-range coaching', pct: '1.52%', meta: '+11% above' },
-  { name: 'Xavy Cuerpo', desc: 'Observation Activity & scoring', pct: '1.44%', meta: 'Coach 190 (10%)' },
-];
+const staffData = COACHES.map(c => ({
+  name: c.name,
+  desc: `${c.dept} Department Coach`,
+  pct: (Math.random() * 2 + 1).toFixed(2) + '%',
+  meta: c.dept
+}));
 
 const barData1 = [
   { name: 'Jan', val: 35 }, { name: 'Feb', val: 50 }, { name: 'Mar', val: 28 },
@@ -106,6 +273,24 @@ export default function Dashboard() {
   const [ratingModalOpen, setRatingModalOpen] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [rating, setRating] = useState(0);
+
+  // Filter and Data Helpers
+  const getCoachDept = (coachName: string) => COACHES.find(c => c.name === coachName)?.dept || 'Other';
+  const getAgentCoach = (agentName: string) => AGENTS.find(a => a.name === agentName)?.coach || 'None';
+  
+  const coachesData = COACHES.slice(0, 3).map(c => ({
+    name: c.name,
+    desc: `${c.dept} Department Coach`,
+    badge: '09',
+    badgeColor: c.dept === 'Sales' ? 'bg-brand-blue text-white' : 'bg-accent-red text-white'
+  }));
+
+  const assignedAgentsData = AGENTS.slice(0, 4).map(a => ({
+    name: a.name,
+    desc: `Coach: ${a.coach}`,
+    badge: '09',
+    badgeColor: getCoachDept(a.coach) === 'Sales' ? 'bg-brand-blue text-white' : 'bg-accent-red text-white'
+  }));
 
   // Form State
   const [formData, setFormData] = useState({
@@ -245,11 +430,36 @@ export default function Dashboard() {
             </div>
             
             {/* Submenu */}
-            <div className={`overflow-hidden transition-all duration-300 ${!sidebarCollapsed && agentsOpen ? 'max-h-64 opacity-100 mt-1' : 'max-h-0 opacity-0'}`}>
-              <div className="pl-11 pr-3 flex flex-col gap-1 border-l-2 border-slate-100 ml-5 py-1">
-                {['All Agents', 'Sales Agents', 'Support Agents', 'Service Recovery', 'Other'].map(item => (
-                  <div key={item} className="px-3 py-2 text-[13px] text-[var(--text-secondary)] hover:text-[var(--brand-blue)] hover:bg-slate-50 rounded-md cursor-pointer transition-colors">
-                    {item}
+            <div className={`overflow-hidden transition-all duration-300 ${!sidebarCollapsed && agentsOpen ? 'max-h-[800px] opacity-100 mt-1' : 'max-h-0 opacity-0'}`}>
+              <div className="pl-6 pr-3 flex flex-col gap-1 border-l-2 border-slate-100 ml-5 py-1">
+                {['Sales', 'Support', 'Service Recovery', 'Other'].map(dept => (
+                  <div key={dept} className="flex flex-col gap-1">
+                    <div className="px-3 py-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                      {dept}
+                    </div>
+                    {COACHES.filter(c => c.dept === dept).map(coach => (
+                      <div key={coach.name} className="group/coach relative">
+                        <div className="px-3 py-1.5 text-[13px] text-[var(--text-secondary)] hover:text-[var(--brand-blue)] hover:bg-slate-50 rounded-md cursor-pointer transition-colors flex items-center justify-between">
+                          <span className="truncate pr-2">{coach.name.split(' ')[0]} {coach.name.split(' ').slice(-1)}</span>
+                          <ChevronDown size={12} className="-rotate-90 opacity-0 group-hover/coach:opacity-100" />
+                        </div>
+                        {/* Hover Agents List */}
+                        <div className="hidden group-hover/coach:block absolute left-full top-0 ml-2 bg-white border border-[var(--border-light)] rounded-xl shadow-xl z-50 p-2 min-w-[200px]">
+                          <div className="text-[10px] font-bold text-slate-400 mb-2 px-2 uppercase tracking-tight border-b border-slate-50 pb-1">Agents under {coach.name.split(' ')[0]}</div>
+                          <div className="max-h-60 overflow-y-auto custom-scrollbar">
+                            {AGENTS.filter(a => a.coach === coach.name).map(agent => (
+                              <div 
+                                key={agent.name} 
+                                onClick={() => openObservationModal(agent.name)}
+                                className="px-2 py-1.5 text-[12px] text-slate-600 hover:bg-brand-blue-light hover:text-brand-blue rounded cursor-pointer transition-colors"
+                              >
+                                {agent.name}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 ))}
               </div>
@@ -895,6 +1105,15 @@ function MultiSelect({ options, selected, onChange, placeholder }: { options: st
     </div>
   );
 }
+
+const AVATAR_URLS = [
+  'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&crop=face',
+  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face',
+  'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop&crop=face',
+  'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=face',
+  'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop&crop=face',
+  'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop&crop=face',
+];
 
 function AgentRow({ coach, idx, onClick }: { coach: { name: string, desc: string, badge?: string, badgeColor?: string }, idx: number, onClick: () => void }) {
   return (
