@@ -1,10 +1,29 @@
-import { mutation, query } from "./_generated/server";
+import { mutation, query, action } from "./_generated/server";
 import { v } from "convex/values";
 import { AGENTS, COACHES } from "./constants";
 
 // Helper for fuzzy matching names
 function resolveName(shortName: string, list: string[]) {
   if (!shortName) return null;
+  
+  const exactMappings: Record<string, string> = {
+    '@edmar baylon': 'Edmar Muyco Baylon',
+    '@jimgirl corciega': 'Jimboy Tortusa Corciega',
+    '@ej samson': 'Ej Gabrielle Samson Fua',
+    '@lyndel verzano': 'Lyndel Mae Baguio Verzano',
+    '@shanne diputado': 'Shanne Juliet Credo Diputado',
+    '@erwin verano': 'Erwin Verano',
+    '@felrose magalso': 'Felrose Quisel Magalso'
+  };
+
+  const raw = shortName.trim().toLowerCase();
+  if (exactMappings[raw]) {
+    // Return the mapped name if it exists in the provided list, otherwise return the mapped string directly
+    const found = list.find(full => full.toLowerCase() === exactMappings[raw].toLowerCase());
+    if (found) return found;
+    return exactMappings[raw]; 
+  }
+
   const clean = shortName.replace('@', '').toLowerCase().trim();
   const parts = clean.split(' ').filter(p => p.length > 0);
   return list.find(full => {
@@ -131,15 +150,31 @@ export const getByCoach = query({
   },
 });
 
-// Get observed agent names since a specific date (for weekly/monthly tracking)
+// Get observed agent names in a specific date range
 export const getObservedAgents = query({
-  args: { sinceDate: v.optional(v.string()) },
+  args: { 
+    sinceDate: v.optional(v.string()),
+    endDate: v.optional(v.string())
+  },
   handler: async (ctx, args) => {
-    const q = args.sinceDate
-      ? ctx.db.query("observations").withIndex("by_date", (idx) => idx.gte("date", args.sinceDate!))
-      : ctx.db.query("observations");
+    let observations;
+    
+    if (args.sinceDate && args.endDate) {
+      observations = await ctx.db.query("observations").withIndex("by_date", (idx) => 
+        idx.gte("date", args.sinceDate!).lte("date", args.endDate!)
+      ).collect();
+    } else if (args.sinceDate) {
+      observations = await ctx.db.query("observations").withIndex("by_date", (idx) => 
+        idx.gte("date", args.sinceDate!)
+      ).collect();
+    } else if (args.endDate) {
+      observations = await ctx.db.query("observations").withIndex("by_date", (idx) => 
+        idx.lte("date", args.endDate!)
+      ).collect();
+    } else {
+      observations = await ctx.db.query("observations").collect();
+    }
 
-    const observations = await q.collect();
     const agentNames = new Set(observations.map((o) => o.agentName));
     return Array.from(agentNames);
   },
@@ -193,4 +228,25 @@ export const deleteMany = mutation({
       await ctx.db.delete(id);
     }
   },
+});
+
+export const syncToGoogleSheet = action({
+  args: { payload: v.string() },
+  handler: async (ctx, args) => {
+    const GOOGLE_WEB_APP_URL = "https://script.google.com/a/macros/residenthome.com/s/AKfycbytg3mR_q3gBaVRhH8UIfuNb1hYUFvew5WuzJ1DQsAD7nv0Pw7y6c13VHd0QjqbgsLQ/exec";
+    try {
+      const res = await fetch(GOOGLE_WEB_APP_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: args.payload
+      });
+      if (!res.ok) {
+        throw new Error(`Google Sheets responded with status: ${res.status}`);
+      }
+      return await res.text();
+    } catch (err: any) {
+      console.error("Sync failed:", err.message || err);
+      return `Action failed: ${err.message || err}`;
+    }
+  }
 });

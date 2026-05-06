@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { 
-  Menu, LayoutDashboard, Users, UserCog, HandHeart, HelpCircle, 
+import {
+  Menu, LayoutDashboard, Users, UserCog, HandHeart, HelpCircle,
   Settings, ChevronDown, Check, X, Bell, Edit3, Search, Calendar, Filter, History, BarChart as BarChartIcon, BookOpen
 } from "lucide-react";
-import { 
+import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, PieChart, Pie, Cell
 } from "recharts";
@@ -261,75 +261,21 @@ function getInitials(name: string) {
 }
 
 function getAvatarColor(name: string) {
-  const colors = ['#4F7DF3','#F59E0B','#10B981','#EF4444','#8B5CF6','#EC4899','#06B6D4','#F97316','#14B8A6','#6366F1'];
+  const colors = ['#4F7DF3', '#F59E0B', '#10B981', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#F97316', '#14B8A6', '#6366F1'];
   let hash = 0;
   for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
   return colors[Math.abs(hash) % colors.length];
 }
 
-function getMondayEST() {
-  // Get current date in New York (EST/EDT)
-  const now = new Date();
-  const formatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/New_York',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  });
-  
-  const parts = formatter.formatToParts(now);
-  const year = parts.find(p => p.type === 'year')?.value;
-  const month = parts.find(p => p.type === 'month')?.value;
-  const day = parts.find(p => p.type === 'day')?.value;
-  
-  // Base date object in EST
-  const estDate = new Date(`${year}-${month}-${day}T00:00:00`);
-  
-  // Sunday is 0, Monday is 1, ...
-  const dayOfWeek = estDate.getDay();
-  // If today is Sunday (0), we go back 6 days. If Monday (1), 0 days.
-  const diff = (dayOfWeek === 0 ? 6 : dayOfWeek - 1);
-  
-  const monday = new Date(estDate);
-  monday.setDate(estDate.getDate() - diff);
-  
-  // Format as YYYY-MM-DD
-  const y = monday.getFullYear();
-  const m = String(monday.getMonth() + 1).padStart(2, '0');
-  const d = String(monday.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
 
-function ActiveTimer({ startTime }: { startTime: number }) {
-  const [elapsed, setElapsed] = useState(0);
 
-  useEffect(() => {
-    const updateElapsed = () => {
-      setElapsed(Math.floor((Date.now() - startTime) / 1000));
-    };
-    updateElapsed();
-    const interval = setInterval(updateElapsed, 1000);
-    return () => clearInterval(interval);
-  }, [startTime]);
-
-  const formatTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m}:${s.toString().padStart(2, '0')}`;
-  };
-
-  return <span>{formatTime(elapsed)}</span>;
-}
 
 export default function Dashboard() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [agentsOpen, setAgentsOpen] = useState(false);
   const [activeView, setActiveView] = useState("dashboard");
   const [selectedDept, setSelectedDept] = useState<string>('Sales');
-  const [modalOpen, setModalOpen] = useState(false);
-  const [ratingModalOpen, setRatingModalOpen] = useState(false);
-  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
-  const [rating, setRating] = useState(0);
+
   const [coachModalOpen, setCoachModalOpen] = useState(false);
   const [selectedCoach, setSelectedCoach] = useState<string | null>(null);
 
@@ -337,17 +283,11 @@ export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   const [dateFilterModalOpen, setDateFilterModalOpen] = useState(false);
-  const [filterSinceDate, setFilterSinceDate] = useState(getMondayEST());
+  const [filterPeriod, setFilterPeriod] = useState<'TW' | 'LW' | 'TM' | 'LM'>('TW');
   const [globalPeriod, setGlobalPeriod] = useState<'TW' | 'LW' | 'ALL'>('TW');
   const [notObsDept, setNotObsDept] = useState('Sales');
 
-  // Convex: fetch observations from database
-  const observedAgentsList = useQuery(api.observations.getObservedAgents, { sinceDate: filterSinceDate }) ?? [];
-  const observedAgents = useMemo(() => new Set(observedAgentsList), [observedAgentsList]);
   const allObservations = useQuery(api.observations.list) ?? [];
-  const activeObservations = useQuery(api.observations.listActive) ?? [];
-  const createObservation = useMutation(api.observations.create);
-  const startObservation = useMutation(api.observations.start);
   const deleteManyObservations = useMutation(api.observations.deleteMany);
 
   const [deleteMode, setDeleteMode] = useState(false);
@@ -356,7 +296,7 @@ export default function Dashboard() {
   const [recentObsModalOpen, setRecentObsModalOpen] = useState(false);
   const [wowChartsModalOpen, setWowChartsModalOpen] = useState(false);
   const [selectedObs, setSelectedObs] = useState<any>(null);
-  const [expandedNote, setExpandedNote] = useState<{label: string, content: string} | null>(null);
+  const [expandedNote, setExpandedNote] = useState<{ label: string, content: string } | null>(null);
 
   const recentObservations = useMemo(() => allObservations.slice(0, 20), [allObservations]);
 
@@ -380,6 +320,27 @@ export default function Dashboard() {
     return { thisWeekStart, lastWeekStart, lastWeekEnd, monthStart };
   }, []);
 
+  const filterDates = useMemo(() => {
+    switch (filterPeriod) {
+      case 'TW': return { sinceDate: weekStats.thisWeekStart, endDate: undefined };
+      case 'LW': return { sinceDate: weekStats.lastWeekStart, endDate: weekStats.lastWeekEnd };
+      case 'TM': return { sinceDate: weekStats.monthStart, endDate: undefined };
+      case 'LM': {
+        const d = new Date(weekStats.monthStart);
+        d.setDate(0); // Last day of previous month
+        const lmEnd = d.toISOString().split('T')[0];
+        d.setDate(1); // First day of previous month
+        const lmStart = d.toISOString().split('T')[0];
+        return { sinceDate: lmStart, endDate: lmEnd };
+      }
+      default: return { sinceDate: weekStats.thisWeekStart, endDate: undefined };
+    }
+  }, [filterPeriod, weekStats]);
+
+  // Convex: fetch observations from database
+  const observedAgentsList = useQuery(api.observations.getObservedAgents, filterDates) ?? [];
+  const observedAgents = useMemo(() => new Set(observedAgentsList), [observedAgentsList]);
+
   const getCoachPeriodCount = (coachName: string, start: string, end?: string) => {
     return allObservations.filter(o => {
       if (o.coachName !== coachName) return false;
@@ -391,7 +352,7 @@ export default function Dashboard() {
 
   const wowChartsData = useMemo(() => {
     const agentStats: Record<string, { thisWeek: number, lastWeek: number, month: number }> = {};
-    
+
     AGENTS.forEach(a => {
       agentStats[a.name] = {
         thisWeek: allObservations.filter(o => o.agentName === a.name && o.date >= weekStats.thisWeekStart).length,
@@ -424,16 +385,16 @@ export default function Dashboard() {
     if (!searchQuery.trim()) return [];
     const q = searchQuery.toLowerCase();
     const results: any[] = [];
-    
+
     // Search Observations by ID
     allObservations.forEach(obs => {
       const shortId = obs._id.slice(-8).toUpperCase();
       if (shortId.includes(q.toUpperCase()) || obs.agentName.toLowerCase().includes(q)) {
-        results.push({ 
-          type: 'observation', 
-          name: `ID: ${shortId} - ${obs.agentName}`, 
-          path: `History > ${obs.agentName} > ${obs.date}`, 
-          value: obs 
+        results.push({
+          type: 'observation',
+          name: `ID: ${shortId} - ${obs.agentName}`,
+          path: `History > ${obs.agentName} > ${obs.date}`,
+          value: obs
         });
       }
     });
@@ -475,15 +436,13 @@ export default function Dashboard() {
       setSelectedCoach(result.value);
       setCoachModalOpen(true);
       setActiveView('coaches');
-    } else if (result.type === 'agent') {
-      openObservationModal(result.value);
     } else if (result.type === 'observation') {
       setSelectedObs(result.value);
     }
   };
 
   // Derive agents by department (agent → coach → coach's LOB)
-  const getAgentsByDept = (dept: string) => 
+  const getAgentsByDept = (dept: string) =>
     AGENTS.filter(a => {
       const coach = COACHES.find(c => c.name === a.coach);
       return coach?.dept === dept;
@@ -492,11 +451,11 @@ export default function Dashboard() {
   // Completion statistics for Dashboard
   const lobsStats = useMemo(() => {
     const lobs = ['Sales', 'Support', 'Specialty'];
-    
+
     // Period selection logic
     let start = weekStats.thisWeekStart;
     let end: string | undefined = undefined;
-    
+
     if (globalPeriod === 'LW') {
       start = weekStats.lastWeekStart;
       end = weekStats.lastWeekEnd;
@@ -509,7 +468,7 @@ export default function Dashboard() {
       if (end && o.date > end) return false;
       return true;
     });
-    
+
     const observedSet = new Set(periodObservations.map(o => o.agentName));
 
     return lobs.map(dept => {
@@ -517,31 +476,41 @@ export default function Dashboard() {
       const total = deptAgents.length;
       const observed = deptAgents.filter(a => observedSet.has(a.name)).length;
       const percent = total > 0 ? Math.round((observed / total) * 100) : 0;
-      return { 
-        name: dept, 
-        total, 
-        observed, 
-        value: percent, 
-        color: dept === 'Sales' ? '#4F7DF3' : dept === 'Support' ? '#10B981' : '#F59E0B' 
+      return {
+        name: dept,
+        total,
+        observed,
+        value: percent,
+        color: dept === 'Sales' ? '#4F7DF3' : dept === 'Support' ? '#10B981' : '#F59E0B'
       };
     });
   }, [allObservations, weekStats, globalPeriod]);
 
   const notObservedStats = useMemo(() => {
-    let start = weekStats.thisWeekStart;
-    let end: string | undefined = undefined;
-    if (globalPeriod === 'LW') {
-      start = weekStats.lastWeekStart;
-      end = weekStats.lastWeekEnd;
+    let weeks: { start: string, end: string }[] = [];
+    if (globalPeriod === 'TW') {
+      weeks = [{ start: weekStats.thisWeekStart, end: '9999-12-31' }];
+    } else if (globalPeriod === 'LW') {
+      weeks = [{ start: weekStats.lastWeekStart, end: weekStats.lastWeekEnd }];
     } else if (globalPeriod === 'ALL') {
-      start = "2000-01-01";
-    }
+      if (allObservations.length > 0) {
+        const oldestDate = allObservations.reduce((min, o) => o.date < min ? o.date : min, allObservations[0].date);
+        let currentMon = new Date(oldestDate);
+        const d = currentMon.getDay();
+        const diff = currentMon.getDate() - d + (d === 0 ? -6 : 1);
+        currentMon.setDate(diff);
 
-    const periodObserved = new Set(
-      allObservations
-        .filter(o => o.date >= start && (!end || o.date <= end))
-        .map(o => o.agentName)
-    );
+        const now = new Date();
+        while (currentMon <= now) {
+          const wStart = currentMon.toISOString().split('T')[0];
+          const wEndObj = new Date(currentMon);
+          wEndObj.setDate(wEndObj.getDate() + 6);
+          const wEnd = wEndObj.toISOString().split('T')[0];
+          weeks.push({ start: wStart, end: wEnd });
+          currentMon.setDate(currentMon.getDate() + 7);
+        }
+      }
+    }
 
     const relevantAgents = AGENTS.filter(a => {
       const coach = COACHES.find(c => c.name === a.coach);
@@ -551,14 +520,19 @@ export default function Dashboard() {
 
     const coachStats: Record<string, number> = {};
     relevantAgents.forEach(a => {
-       if (!periodObserved.has(a.name)) {
-          coachStats[a.coach] = (coachStats[a.coach] || 0) + 1;
-       }
+      let missedWeeks = 0;
+      weeks.forEach(w => {
+        const hasObs = allObservations.some(o => o.agentName === a.name && o.date >= w.start && o.date <= w.end);
+        if (!hasObs) missedWeeks++;
+      });
+      if (missedWeeks > 0) {
+        coachStats[a.coach] = (coachStats[a.coach] || 0) + missedWeeks;
+      }
     });
 
     return Object.entries(coachStats)
       .map(([name, val]) => ({ name: name.split(' ')[0], fullName: name, val }))
-      .sort((a,b) => b.val - a.val);
+      .sort((a, b) => b.val - a.val);
   }, [allObservations, globalPeriod, notObsDept, weekStats]);
 
   const observationTrendData = useMemo(() => {
@@ -578,29 +552,29 @@ export default function Dashboard() {
     });
 
     const dateMap = new Map<string, any>();
-    
+
     if (globalPeriod === 'TW' || globalPeriod === 'LW') {
-       const dStart = new Date(start);
-       for (let i = 0; i < 7; i++) {
-         const d = new Date(dStart);
-         d.setDate(d.getDate() + i);
-         const dateStr = d.toISOString().split('T')[0];
-         dateMap.set(dateStr, { day: dateStr.slice(5), Sales: 0, Support: 0, Specialty: 0 });
-       }
+      const dStart = new Date(start);
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(dStart);
+        d.setDate(d.getDate() + i);
+        const dateStr = d.toISOString().split('T')[0];
+        dateMap.set(dateStr, { day: dateStr.slice(5), Sales: 0, Support: 0, Specialty: 0 });
+      }
     }
 
     periodObs.forEach(o => {
-       const dateStr = o.date;
-       if (!dateMap.has(dateStr)) {
-         dateMap.set(dateStr, { day: dateStr.slice(5), Sales: 0, Support: 0, Specialty: 0 });
-       }
-       const entry = dateMap.get(dateStr)!;
-       if (o.department.includes('Sales')) entry.Sales++;
-       if (o.department.includes('Support')) entry.Support++;
-       if (o.department.includes('Specialty')) entry.Specialty++;
+      const dateStr = o.date;
+      if (!dateMap.has(dateStr)) {
+        dateMap.set(dateStr, { day: dateStr.slice(5), Sales: 0, Support: 0, Specialty: 0 });
+      }
+      const entry = dateMap.get(dateStr)!;
+      if (o.department.includes('Sales')) entry.Sales++;
+      if (o.department.includes('Support')) entry.Support++;
+      if (o.department.includes('Specialty')) entry.Specialty++;
     });
 
-    return Array.from(dateMap.values()).sort((a,b) => a.day.localeCompare(b.day));
+    return Array.from(dateMap.values()).sort((a, b) => a.day.localeCompare(b.day));
   }, [allObservations, globalPeriod, weekStats]);
 
   const overallCompletion = useMemo(() => {
@@ -610,7 +584,7 @@ export default function Dashboard() {
   }, [lobsStats]);
 
   const getAgentsForCoach = (coachName: string) => AGENTS.filter(a => a.coach === coachName);
-  
+
   const getCoachCompletionRate = (coachName: string) => {
     const agents = getAgentsForCoach(coachName);
     if (agents.length === 0) return 0;
@@ -639,7 +613,7 @@ export default function Dashboard() {
 
   const getCoachDept = (coachName: string) => COACHES.find(c => c.name === coachName)?.dept || 'Other';
   const getAgentCoach = (agentName: string) => AGENTS.find(a => a.name === agentName)?.coach || 'None';
-  
+
   const coachesData = COACHES.map(c => ({
     name: c.name,
     desc: `${c.dept} Department Coach`,
@@ -654,31 +628,11 @@ export default function Dashboard() {
     badgeColor: getCoachDept(a.coach) === 'Sales' ? 'bg-brand-blue text-white' : 'bg-accent-red text-white'
   }));
 
-  // Form State
-  const [formData, setFormData] = useState({
-    department: '',
-    otherDepartment: '',
-    date: new Date().toISOString().split('T')[0],
-    coachName: 'Jake Cajes', // Example default
-    sessionType: [] as string[],
-    categories: [] as string[],
-    otherCategory: '',
-    strengths: '',
-    areasOfOpportunity: '',
-    rootCause: '',
-    actionPlan: '',
-    overallRating: [] as string[],
-    otherFeedback: '',
-    orderNumber: '',
-    teamLeadFeedback: '',
-    startTime: null as number | null
-  });
+
 
   // Responsive state
   const [isMobile, setIsMobile] = useState(false);
-  const [editModalOpen, setEditModalOpen] = useState(false);
-  const [activeRichTextField, setActiveRichTextField] = useState<keyof typeof formData | null>(null);
-  const [observationText, setObservationText] = useState("");
+
 
   useEffect(() => {
     const checkMobile = () => {
@@ -691,101 +645,21 @@ export default function Dashboard() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  const openObservationModal = (name: string) => {
-    setSelectedAgent(name);
-    setFormData({
-      department: '',
-      otherDepartment: '',
-      date: new Date().toISOString().split('T')[0],
-      coachName: 'JG (Current User)',
-      sessionType: [],
-      categories: [],
-      otherCategory: '',
-      strengths: '',
-      areasOfOpportunity: '',
-      rootCause: '',
-      actionPlan: '',
-      overallRating: [],
-      otherFeedback: '',
-      orderNumber: '',
-      teamLeadFeedback: '',
-      startTime: Date.now()
-    } as any);
-    setModalOpen(true);
-  };
 
-  const handleStartObservation = async (agentName: string) => {
-    const agentCoach = AGENTS.find(a => a.name === agentName)?.coach || 'Unknown';
-    await startObservation({ agentName, coachName: agentCoach });
-    openObservationModal(agentName);
-    // Find the startTime from active observations after a short delay or just use current
-    const active = activeObservations.find(o => o.agentName === agentName);
-    if (active) {
-       setFormData(prev => ({ ...prev, startTime: active.startTime }));
-    }
-  };
-
-  const closeModals = () => {
-    setModalOpen(false);
-  };
-
-  const handleSaveObservation = async () => {
-    if (selectedAgent) {
-      const agentCoach = AGENTS.find(a => a.name === selectedAgent)?.coach || 'Unknown';
-      await createObservation({
-        agentName: selectedAgent,
-        coachName: agentCoach,
-        department: [formData.department],
-        otherDepartment: formData.otherDepartment || undefined,
-        date: formData.date,
-        sessionType: formData.sessionType,
-        categories: formData.categories,
-        otherCategory: formData.otherCategory || undefined,
-        strengths: formData.strengths || undefined,
-        areasOfOpportunity: formData.areasOfOpportunity || undefined,
-        rootCause: formData.rootCause || undefined,
-        actionPlan: formData.actionPlan || undefined,
-        overallRating: formData.overallRating,
-        otherFeedback: formData.otherFeedback || undefined,
-        orderNumber: formData.orderNumber || undefined,
-        teamLeadFeedback: formData.teamLeadFeedback || undefined,
-        rating: 0, // No longer used but kept for schema compatibility
-        observedBy: 'JG (Current User)',
-        duration: formData.startTime ? Math.floor((Date.now() - (formData.startTime as any)) / 1000) : undefined
-      });
-    }
-    closeModals();
-  };
-
-  const openRichTextEditor = (fieldId: keyof typeof formData) => {
-    const value = formData[fieldId];
-    if (typeof value === 'string') {
-      setActiveRichTextField(fieldId);
-      setObservationText(value);
-      setEditModalOpen(true);
-    }
-  };
-
-  const saveRichText = () => {
-    if (activeRichTextField && typeof formData[activeRichTextField] === 'string') {
-      setFormData(prev => ({ ...prev, [activeRichTextField]: observationText }));
-    }
-    setEditModalOpen(false);
-  };
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-[var(--bg-body)] font-sans text-[var(--text-primary)] relative">
-      
+
       {/* Mobile Sidebar Overlay */}
       {isMobile && !sidebarCollapsed && (
-        <div 
+        <div
           className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-20"
           onClick={() => setSidebarCollapsed(true)}
         />
       )}
 
       {/* --- SIDEBAR --- */}
-      <aside 
+      <aside
         className={`bg-white border-r border-[var(--border-light)] flex flex-col transition-all duration-300 z-30 shadow-[var(--shadow-sm)] h-full
           absolute md:relative
           ${sidebarCollapsed ? '-translate-x-full md:translate-x-0 md:w-[72px]' : 'translate-x-0 w-[260px]'}`}
@@ -793,23 +667,23 @@ export default function Dashboard() {
         <div className="p-5 flex justify-center items-center">
           <div className={`bg-white rounded-xl flex items-center justify-center shadow-sm overflow-hidden transition-all duration-300 ${sidebarCollapsed ? 'w-10 h-10 p-1' : 'w-[60px] h-[66px] p-1.5'}`}>
             <svg width={sidebarCollapsed ? "24" : "36"} height={sidebarCollapsed ? "28" : "44"} viewBox="0 0 120 148" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 8 L12 100 L30 100 L30 68 L58 68 L78 100 L98 100 L74 64 C88 58 96 46 96 32 C96 14 82 8 62 8 Z M30 24 L58 24 C72 24 78 28 78 38 C78 48 72 54 58 54 L30 54 Z" fill="#1E293B"/>
+              <path d="M12 8 L12 100 L30 100 L30 68 L58 68 L78 100 L98 100 L74 64 C88 58 96 46 96 32 C96 14 82 8 62 8 Z M30 24 L58 24 C72 24 78 28 78 38 C78 48 72 54 58 54 L30 54 Z" fill="#1E293B" />
               {(!sidebarCollapsed || isMobile) && <text x="60" y="132" textAnchor="middle" fontFamily="Inter, sans-serif" fontWeight="800" fontSize="22" letterSpacing="3" fill="#1E293B">RESIDENT</text>}
             </svg>
           </div>
         </div>
 
         <nav className="flex-1 px-3 py-2 flex flex-col gap-1 overflow-y-auto hide-scrollbar">
-          <NavItem 
-            icon={<LayoutDashboard size={20} />} 
-            label="Dashboard" 
-            collapsed={sidebarCollapsed} 
+          <NavItem
+            icon={<LayoutDashboard size={20} />}
+            label="Dashboard"
+            collapsed={sidebarCollapsed}
             active={activeView === "dashboard"}
             onClick={() => setActiveView("dashboard")}
           />
 
           <div className="my-1">
-            <div 
+            <div
               className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer text-[var(--text-secondary)] font-medium hover:bg-slate-50 transition-colors ${sidebarCollapsed ? 'justify-center' : ''}`}
               onClick={() => {
                 if (sidebarCollapsed) {
@@ -829,7 +703,7 @@ export default function Dashboard() {
                 <ChevronDown size={16} className={`transition-transform duration-200 ${agentsOpen ? 'rotate-180' : ''}`} />
               )}
             </div>
-            
+
             {/* Submenu */}
             <div className={`overflow-hidden transition-all duration-300 ${!sidebarCollapsed && agentsOpen ? 'max-h-[200px] opacity-100 mt-1' : 'max-h-0 opacity-0'}`}>
               <div className="pl-4 pr-3 flex flex-col gap-0.5 border-l-2 border-slate-100 ml-5 py-1">
@@ -837,16 +711,15 @@ export default function Dashboard() {
                   const deptAgents = getAgentsByDept(dept);
                   const isActive = activeView === 'agents' && selectedDept === dept;
                   return (
-                    <div 
+                    <div
                       key={dept}
                       className={`px-3 py-2 text-[13px] font-medium cursor-pointer rounded-md transition-colors flex items-center justify-between
                         ${isActive ? 'bg-brand-blue-light text-brand-blue font-semibold' : 'text-[var(--text-secondary)] hover:bg-slate-50 hover:text-[var(--brand-blue)]'}`}
                       onClick={() => { setSelectedDept(dept); setActiveView('agents'); }}
                     >
                       <span className="flex items-center gap-2">
-                        <span className={`w-2 h-2 rounded-full ${
-                          dept === 'Sales' ? 'bg-blue-500' : dept === 'Support' ? 'bg-emerald-500' : 'bg-amber-500'
-                        }`} />
+                        <span className={`w-2 h-2 rounded-full ${dept === 'Sales' ? 'bg-blue-500' : dept === 'Support' ? 'bg-emerald-500' : 'bg-amber-500'
+                          }`} />
                         {dept}
                       </span>
                       <span className="text-[10px] text-slate-400 font-normal">{deptAgents.length}</span>
@@ -856,20 +729,20 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
-          <NavItem 
-            icon={<UserCog size={20} />} 
-            label="Coaches" 
-            collapsed={sidebarCollapsed} 
+          <NavItem
+            icon={<UserCog size={20} />}
+            label="Coaches"
+            collapsed={sidebarCollapsed}
             active={activeView === "coaches"}
             onClick={() => setActiveView("coaches")}
           />
         </nav>
 
         <div className="p-3 border-t border-[var(--border-light)] flex flex-col gap-1">
-          <NavItem 
-            icon={<History size={20} />} 
-            label="History" 
-            collapsed={sidebarCollapsed} 
+          <NavItem
+            icon={<History size={20} />}
+            label="History"
+            collapsed={sidebarCollapsed}
             active={activeView === "history"}
             onClick={() => setActiveView("history")}
           />
@@ -879,11 +752,11 @@ export default function Dashboard() {
 
       {/* --- MAIN CONTENT --- */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-        
+
         {/* HEADER */}
         <header className="h-[72px] bg-white border-b border-[var(--border-light)] flex items-center justify-between px-3 sm:px-6 shrink-0 z-40 shadow-sm">
           <div className="flex items-center gap-2 sm:gap-4 min-w-0">
-            <button 
+            <button
               onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
               className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors shrink-0"
             >
@@ -892,25 +765,25 @@ export default function Dashboard() {
             <h1 className="text-base sm:text-xl font-bold tracking-tight text-[var(--text-primary)] flex items-center truncate">
               <span className="hidden sm:inline">Resident Home</span>
               <span className="sm:hidden">Resident</span>
-              <span className="text-[var(--text-tertiary)] font-medium mx-1 sm:mx-2">|</span> 
+              <span className="text-[var(--text-tertiary)] font-medium mx-1 sm:mx-2">|</span>
               <span className="truncate">Vision</span>
             </h1>
           </div>
-          
+
           <div className="flex items-center gap-3 sm:gap-6 flex-1 max-w-2xl px-4 sm:px-8">
             <div className="relative flex-1 group">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <Search size={18} className="text-slate-400 group-focus-within:text-brand-blue transition-colors" />
               </div>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 placeholder="Search agents, coaches, or departments..."
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue focus:bg-white transition-all"
                 value={searchQuery}
                 onChange={(e) => { setSearchQuery(e.target.value); setShowSearchDropdown(true); }}
                 onFocus={() => setShowSearchDropdown(true)}
               />
-              
+
               {/* Search Results Dropdown */}
               {showSearchDropdown && searchResults.length > 0 && (
                 <>
@@ -918,16 +791,15 @@ export default function Dashboard() {
                   <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
                     <div className="max-h-[400px] overflow-y-auto p-2">
                       {searchResults.map((result, i) => (
-                        <div 
+                        <div
                           key={i}
                           onClick={() => handleSearchResultClick(result)}
                           className="p-3 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors border-b last:border-0 border-slate-50"
                         >
                           <div className="flex items-center justify-between">
                             <span className="font-bold text-sm text-slate-800">{result.name}</span>
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${
-                              result.type === 'dept' ? 'bg-blue-50 text-blue-600' : result.type === 'coach' ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'
-                            }`}>{result.type}</span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${result.type === 'dept' ? 'bg-blue-50 text-blue-600' : result.type === 'coach' ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'
+                              }`}>{result.type}</span>
                           </div>
                           <div className="text-[11px] text-slate-400 mt-0.5 font-medium">{result.path}</div>
                         </div>
@@ -938,7 +810,7 @@ export default function Dashboard() {
               )}
             </div>
           </div>
-          
+
           <div className="flex items-center gap-2 sm:gap-4 shrink-0">
             <div className="hidden sm:flex bg-slate-100 p-1 rounded-lg">
               {[
@@ -946,7 +818,7 @@ export default function Dashboard() {
                 { id: 'LW', label: 'Last Week' },
                 { id: 'ALL', label: 'All Time' }
               ].map(p => (
-                <button 
+                <button
                   key={p.id}
                   onClick={() => setGlobalPeriod(p.id as any)}
                   className={`px-3 py-1.5 text-[11px] font-black rounded-md transition-all ${globalPeriod === p.id ? 'bg-white text-brand-blue shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
@@ -955,25 +827,80 @@ export default function Dashboard() {
                 </button>
               ))}
             </div>
-            
-            <button 
-              onClick={() => setDateFilterModalOpen(true)}
-              className="flex items-center gap-2 px-3 py-2 text-sm font-semibold rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-all shadow-sm active:scale-95"
-            >
-              <Calendar size={18} className="text-brand-blue" />
-              <span className="hidden sm:inline">
-                {filterSinceDate === getMondayEST() ? 'Current Week' : `From ${filterSinceDate}`}
-              </span>
-              <Filter size={14} className="text-slate-400" />
-            </button>
-            
+
+            <div className="relative">
+              <button
+                onClick={() => setDateFilterModalOpen(!dateFilterModalOpen)}
+                className="flex items-center gap-2 px-3 py-2 text-sm font-semibold rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-all shadow-sm active:scale-95"
+              >
+                <Calendar size={18} className="text-brand-blue" />
+                <span className="hidden sm:inline">
+                  {filterPeriod === 'TW' ? 'Current Week' : filterPeriod === 'LW' ? 'Last Week' : filterPeriod === 'TM' ? 'Current Month' : 'Last Month'}
+                </span>
+                <Filter size={14} className="text-slate-400" />
+              </button>
+
+              {dateFilterModalOpen && (
+                <>
+                  <div className="fixed inset-0 z-[40]" onClick={() => setDateFilterModalOpen(false)} />
+                  <div className="absolute right-0 top-full mt-2 w-[220px] bg-slate-900 border border-slate-800 rounded-xl shadow-xl shadow-slate-900/20 z-[50] py-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <button
+                      className="w-full text-left px-4 py-2.5 text-[13px] font-semibold hover:bg-slate-800 transition-colors flex items-center justify-between group"
+                      onClick={() => { setFilterPeriod('TW'); setDateFilterModalOpen(false); }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Calendar size={16} className={filterPeriod === 'TW' ? 'text-brand-blue' : 'text-slate-400'} />
+                        <span className={filterPeriod === 'TW' ? 'text-white' : 'text-slate-300 group-hover:text-white'}>Current Week</span>
+                      </div>
+                      {filterPeriod === 'TW' && <Check size={14} className="text-brand-blue" />}
+                    </button>
+
+                    <button
+                      className="w-full text-left px-4 py-2.5 text-[13px] font-semibold hover:bg-slate-800 transition-colors flex items-center justify-between group"
+                      onClick={() => { setFilterPeriod('LW'); setDateFilterModalOpen(false); }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Calendar size={16} className={filterPeriod === 'LW' ? 'text-brand-blue' : 'text-slate-400'} />
+                        <span className={filterPeriod === 'LW' ? 'text-white' : 'text-slate-300 group-hover:text-white'}>Last Week</span>
+                      </div>
+                      {filterPeriod === 'LW' && <Check size={14} className="text-brand-blue" />}
+                    </button>
+
+                    <div className="h-px bg-slate-800 my-1 mx-4"></div>
+
+                    <button
+                      className="w-full text-left px-4 py-2.5 text-[13px] font-semibold hover:bg-slate-800 transition-colors flex items-center justify-between group"
+                      onClick={() => { setFilterPeriod('TM'); setDateFilterModalOpen(false); }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Calendar size={16} className={filterPeriod === 'TM' ? 'text-brand-blue' : 'text-slate-400'} />
+                        <span className={filterPeriod === 'TM' ? 'text-white' : 'text-slate-300 group-hover:text-white'}>Current Month</span>
+                      </div>
+                      {filterPeriod === 'TM' && <Check size={14} className="text-brand-blue" />}
+                    </button>
+
+                    <button
+                      className="w-full text-left px-4 py-2.5 text-[13px] font-semibold hover:bg-slate-800 transition-colors flex items-center justify-between group"
+                      onClick={() => { setFilterPeriod('LM'); setDateFilterModalOpen(false); }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Calendar size={16} className={filterPeriod === 'LM' ? 'text-brand-blue' : 'text-slate-400'} />
+                        <span className={filterPeriod === 'LM' ? 'text-white' : 'text-slate-300 group-hover:text-white'}>Last Month</span>
+                      </div>
+                      {filterPeriod === 'LM' && <Check size={14} className="text-brand-blue" />}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+
             <div className="hidden sm:block h-8 w-[1px] bg-slate-200"></div>
-            
+
             <button className="relative p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors shrink-0">
               <Bell size={20} />
               <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
             </button>
-            
+
             <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gradient-to-tr from-brand-blue to-indigo-400 text-white flex items-center justify-center font-bold text-xs sm:text-sm shadow-sm cursor-pointer shrink-0">
               JG
             </div>
@@ -982,12 +909,12 @@ export default function Dashboard() {
 
         {/* SCROLLABLE VIEW AREA */}
         <main className="flex-1 overflow-y-auto p-6 scroll-smooth">
-          
+
           {/* VIEW: DASHBOARD */}
           {activeView === "dashboard" && (
             <div className="max-w-[1400px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                
+
                 {/* Column 1 */}
                 <div className="flex flex-col gap-6">
                   {/* Card: Observation Data */}
@@ -995,7 +922,7 @@ export default function Dashboard() {
                     <div className="flex justify-between items-center mb-4">
                       <h2 className="font-bold text-lg">Observation Data</h2>
                     </div>
-                    
+
                     <div className="w-full">
                       <table className="w-full text-left border-collapse">
                         <thead>
@@ -1011,9 +938,8 @@ export default function Dashboard() {
                             <tr key={i} className="hover:bg-slate-50/50 transition-colors group">
                               <td className="py-3 px-2">
                                 <div className="flex items-center gap-2">
-                                  <div className={`w-1.5 h-1.5 rounded-full ${
-                                    row.name === 'Sales' ? 'bg-brand-blue' : row.name === 'Support' ? 'bg-emerald-500' : 'bg-amber-500'
-                                  }`} />
+                                  <div className={`w-1.5 h-1.5 rounded-full ${row.name === 'Sales' ? 'bg-brand-blue' : row.name === 'Support' ? 'bg-emerald-500' : 'bg-amber-500'
+                                    }`} />
                                   <span className="text-sm font-bold text-slate-700">{row.name}</span>
                                 </div>
                               </td>
@@ -1051,31 +977,30 @@ export default function Dashboard() {
                   <div className="bg-white rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
                     <div className="flex justify-between items-center mb-4">
                       <h2 className="font-bold text-lg">Missing Observation</h2>
-                        <div className="w-32">
-                          <Select 
-                            options={['Sales', 'Support', 'Specialty']}
-                            selected={notObsDept}
-                            onChange={setNotObsDept}
-                            placeholder="LOB..."
-                          />
-                        </div>
+                      <div className="w-32">
+                        <Select
+                          options={['Sales', 'Support', 'Specialty']}
+                          selected={notObsDept}
+                          onChange={setNotObsDept}
+                          placeholder="LOB..."
+                        />
                       </div>
                     </div>
                     <div className="h-[200px] w-full">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={notObservedStats} barGap={2}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
-                          <Tooltip 
-                            cursor={{fill: '#F8FAFC'}} 
-                            contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)'}}
+                          <Tooltip
+                            cursor={{ fill: '#F8FAFC' }}
+                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                             formatter={(val: any, name: any, props: any) => [`${val} Agents`, props.payload.fullName]}
                           />
                           <Bar dataKey="val" fill="#EF4444" radius={[2, 2, 0, 0]} barSize={16} />
-                          <XAxis 
-                            dataKey="name" 
-                            axisLine={false} 
-                            tickLine={false} 
-                            tick={{fontSize: 8, fontWeight: 700, fill: '#64748b'}}
+                          <XAxis
+                            dataKey="name"
+                            axisLine={false}
+                            tickLine={false}
+                            tick={{ fontSize: 8, fontWeight: 700, fill: '#64748b' }}
                             interval={0}
                           />
                         </BarChart>
@@ -1087,7 +1012,7 @@ export default function Dashboard() {
                   <div className="bg-white rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
                     <div className="flex justify-between items-center mb-4">
                       <h2 className="font-bold text-lg">Recent Observations</h2>
-                      <button 
+                      <button
                         onClick={() => setRecentObsModalOpen(true)}
                         className="text-xs font-semibold text-brand-blue bg-brand-blue-light px-2.5 py-1 rounded-full hover:bg-brand-blue hover:text-white transition-colors"
                       >
@@ -1096,8 +1021,8 @@ export default function Dashboard() {
                     </div>
                     <div className="flex flex-col gap-3">
                       {recentObservations.slice(0, 3).map((obs, i) => (
-                        <div 
-                          key={i} 
+                        <div
+                          key={i}
                           className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-xl cursor-pointer transition-colors group"
                           onClick={() => setSelectedObs(obs)}
                         >
@@ -1132,12 +1057,12 @@ export default function Dashboard() {
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={observationTrendData}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
-                          <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 700, fill: '#64748b'}} />
-                          <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 700, fill: '#64748b'}} />
-                          <Tooltip contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)'}} />
-                          <Line type="monotone" dataKey="Sales" stroke="#4F7DF3" strokeWidth={2} dot={{r: 2}} name="Sales" />
-                          <Line type="monotone" dataKey="Support" stroke="#10B981" strokeWidth={2} dot={{r: 2}} name="Support" />
-                          <Line type="monotone" dataKey="Specialty" stroke="#F59E0B" strokeWidth={2} dot={{r: 2}} name="Specialty" />
+                          <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#64748b' }} />
+                          <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#64748b' }} />
+                          <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
+                          <Line type="monotone" dataKey="Sales" stroke="#4F7DF3" strokeWidth={2} dot={{ r: 2 }} name="Sales" />
+                          <Line type="monotone" dataKey="Support" stroke="#10B981" strokeWidth={2} dot={{ r: 2 }} name="Support" />
+                          <Line type="monotone" dataKey="Specialty" stroke="#F59E0B" strokeWidth={2} dot={{ r: 2 }} name="Specialty" />
                         </LineChart>
                       </ResponsiveContainer>
                     </div>
@@ -1151,14 +1076,14 @@ export default function Dashboard() {
                     <div className="h-[200px] w-full flex items-center justify-center relative">
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
-                          <Pie 
-                            data={lobsStats} 
-                            cx="50%" 
-                            cy="50%" 
-                            innerRadius={60} 
-                            outerRadius={85} 
-                            paddingAngle={5} 
-                            dataKey="value" 
+                          <Pie
+                            data={lobsStats}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={60}
+                            outerRadius={85}
+                            paddingAngle={5}
+                            dataKey="value"
                             stroke="none"
                           >
                             {lobsStats.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
@@ -1185,14 +1110,14 @@ export default function Dashboard() {
                   <div className="bg-white rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
                     <div className="flex justify-between items-center mb-4">
                       <h2 className="font-bold text-lg">WOW Charts</h2>
-                      <button 
+                      <button
                         onClick={() => setWowChartsModalOpen(true)}
                         className="text-[10px] font-bold text-brand-blue bg-blue-50 px-2 py-0.5 rounded border border-blue-100 hover:bg-brand-blue hover:text-white transition-colors"
                       >
                         VIEW RANKINGS
                       </button>
                     </div>
-                    
+
                     <div className="flex flex-col">
                       {/* Mini Header */}
                       <div className="grid grid-cols-5 gap-1 mb-2 px-1 text-[9px] font-bold text-slate-400 uppercase tracking-tighter">
@@ -1201,12 +1126,12 @@ export default function Dashboard() {
                         <div className="text-center">LW</div>
                         <div className="text-right">WoW</div>
                       </div>
-                      
+
                       <div className="flex flex-col gap-1.5">
                         {wowChartsData.slice(0, 10).map((agent, i) => {
                           const wowColor = agent.wow > 0 ? 'text-emerald-500' : agent.wow < 0 ? 'text-rose-500' : 'text-slate-300';
                           return (
-                            <div key={i} className="grid grid-cols-5 gap-1 items-center p-2 hover:bg-slate-50 rounded-lg transition-colors border border-transparent hover:border-slate-100 group cursor-pointer" onClick={() => openObservationModal(agent.name)}>
+                            <div key={i} className="grid grid-cols-5 gap-1 items-center p-2 hover:bg-slate-50 rounded-lg transition-colors border border-transparent hover:border-slate-100 group">
                               <div className="col-span-2 flex items-center gap-2 min-w-0">
                                 <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${i < 3 ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-600'}`}>
                                   {i + 1}
@@ -1232,52 +1157,7 @@ export default function Dashboard() {
 
                 {/* Column 3 */}
                 <div className="flex flex-col gap-6">
-                  {/* Card: Compliance Analytics */}
-                  <div className="bg-[var(--text-primary)] text-white rounded-2xl p-5 shadow-[var(--shadow-md)] relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-bl-full -mr-10 -mt-10 pointer-events-none"></div>
-                    <div className="flex justify-between items-center mb-4 relative z-10">
-                      <h2 className="font-bold text-lg">Active Observation</h2>
-                      <div className="flex items-center gap-1.5">
-                        <span className="relative flex h-2 w-2">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                        </span>
-                        <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Live</span>
-                      </div>
-                    </div>
-                    <div className="flex flex-col gap-3 min-h-[200px] max-h-[300px] overflow-y-auto custom-scrollbar relative z-10">
-                      {activeObservations.map((active, i) => (
-                        <div key={i} className="bg-white/10 backdrop-blur-md border border-white/10 rounded-xl p-3 flex items-center justify-between group hover:bg-white/20 transition-all">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center font-bold text-xs">
-                              {getInitials(active.agentName)}
-                            </div>
-                            <div>
-                              <div className="text-sm font-bold truncate max-w-[120px]">{active.agentName}</div>
-                              <div className="text-[10px] text-white/50">Coach: {active.coachName}</div>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-xs font-mono font-bold text-emerald-400">
-                              <ActiveTimer startTime={active.startTime} />
-                            </div>
-                            <button 
-                              onClick={() => openObservationModal(active.agentName)}
-                              className="text-[9px] font-black uppercase bg-white text-slate-900 px-2 py-0.5 rounded mt-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                            >
-                              Resume
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                      {activeObservations.length === 0 && (
-                        <div className="flex-1 flex flex-col items-center justify-center text-white/30 italic py-10">
-                          <Users size={32} className="mb-2 opacity-20" />
-                          <p className="text-xs">No active observations</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+
 
                   {/* Card: Completion Scores */}
                   <div className="bg-white rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
@@ -1290,8 +1170,8 @@ export default function Dashboard() {
                             <span className="text-slate-500 font-medium">{stat.observed} / {stat.total}</span>
                           </div>
                           <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden shadow-inner">
-                            <div 
-                              className="h-full rounded-full transition-all duration-1000 ease-out" 
+                            <div
+                              className="h-full rounded-full transition-all duration-1000 ease-out"
                               style={{ width: `${stat.value}%`, backgroundColor: stat.color }}
                             />
                           </div>
@@ -1341,21 +1221,21 @@ export default function Dashboard() {
                   {COACHES.map((coach, i) => {
                     const initials = getInitials(coach.name);
                     const color = getAvatarColor(coach.name);
-                    
+
                     const thisWeek = getCoachPeriodCount(coach.name, weekStats.thisWeekStart);
                     const lastWeek = getCoachPeriodCount(coach.name, weekStats.lastWeekStart, weekStats.lastWeekEnd);
                     const month = getCoachPeriodCount(coach.name, weekStats.monthStart);
-                    
+
                     const wow = thisWeek - lastWeek;
                     const wowColor = wow > 0 ? 'text-emerald-600 bg-emerald-50' : wow < 0 ? 'text-rose-600 bg-rose-50' : 'text-slate-400 bg-slate-50';
 
                     return (
-                      <div 
-                        key={i} 
+                      <div
+                        key={i}
                         onClick={() => { setSelectedCoach(coach.name); setCoachModalOpen(true); }}
                         className="flex items-center gap-4 p-4 border-b border-slate-50 last:border-b-0 hover:bg-blue-50/30 cursor-pointer transition-all group"
                       >
-                        <div 
+                        <div
                           className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-sm group-hover:scale-110 transition-transform"
                           style={{ backgroundColor: color }}
                         >
@@ -1364,9 +1244,8 @@ export default function Dashboard() {
                         <div className="flex-1 min-w-0">
                           <h3 className="font-bold text-slate-800 truncate group-hover:text-brand-blue transition-colors">{coach.name}</h3>
                           <div className="flex items-center gap-2">
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${
-                              coach.dept === 'Sales' ? 'bg-blue-50 text-blue-600' : coach.dept === 'Support' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
-                            }`}>{coach.dept}</span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${coach.dept === 'Sales' ? 'bg-blue-50 text-blue-600' : coach.dept === 'Support' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
+                              }`}>{coach.dept}</span>
                           </div>
                         </div>
 
@@ -1376,7 +1255,7 @@ export default function Dashboard() {
                           <div className="text-sm font-bold text-slate-700">{month}</div>
                           <div className="flex justify-end">
                             <div className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-black ${wowColor} min-w-[50px] justify-center`}>
-                              {wow > 0 ? '▲' : wow < 0 ? '▼' : '—'} 
+                              {wow > 0 ? '▲' : wow < 0 ? '▼' : '—'}
                               {wow !== 0 && Math.abs(wow)}
                             </div>
                           </div>
@@ -1403,14 +1282,13 @@ export default function Dashboard() {
                 </div>
                 <div className="flex items-center gap-2">
                   {['Sales', 'Support', 'Specialty'].map(dept => (
-                    <button 
+                    <button
                       key={dept}
                       onClick={() => setSelectedDept(dept)}
-                      className={`px-3 py-1.5 text-sm font-semibold rounded-lg transition-colors ${
-                        selectedDept === dept 
-                          ? 'bg-brand-blue text-white shadow-sm' 
+                      className={`px-3 py-1.5 text-sm font-semibold rounded-lg transition-colors ${selectedDept === dept
+                          ? 'bg-brand-blue text-white shadow-sm'
                           : 'bg-white border border-[var(--border-light)] text-slate-600 hover:bg-slate-50'
-                      }`}
+                        }`}
                     >
                       {dept}
                     </button>
@@ -1434,41 +1312,39 @@ export default function Dashboard() {
                   {getAgentsByDept(selectedDept).map((agent, i) => {
                     const initials = getInitials(agent.name);
                     const color = getAvatarColor(agent.name);
-                    
+
                     const thisWeek = getAgentPeriodCount(agent.name, weekStats.thisWeekStart);
                     const lastWeek = getAgentPeriodCount(agent.name, weekStats.lastWeekStart, weekStats.lastWeekEnd);
                     const month = getAgentPeriodCount(agent.name, weekStats.monthStart);
-                    
+
                     const wow = thisWeek - lastWeek;
                     const wowColor = wow > 0 ? 'text-emerald-600 bg-emerald-50' : wow < 0 ? 'text-rose-600 bg-rose-50' : 'text-slate-400 bg-slate-50';
 
                     return (
-                      <div 
-                        key={i} 
+                      <div
+                        key={i}
                         className="flex items-center gap-4 p-4 border-b border-[var(--border-light)] last:border-b-0 hover:bg-blue-50/30 transition-all group"
                       >
-                        <div 
+                        <div
                           className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-sm"
                           style={{ backgroundColor: color }}
                         >
                           {initials}
                         </div>
-                        <div className="flex-1 min-w-0" onClick={() => openObservationModal(agent.name)}>
+                        <div className="flex-1 min-w-0">
                           <h3 className="font-bold text-[var(--text-primary)] truncate group-hover:text-brand-blue transition-colors">{agent.name}</h3>
                           <p className="text-xs text-[var(--text-secondary)] truncate">Coach: {agent.coach}</p>
                         </div>
-                        
+
                         <div className="hidden sm:grid grid-cols-4 gap-4 flex-1 max-w-[450px] items-center text-center">
                           <div className="text-sm font-bold text-slate-700">{thisWeek}</div>
                           <div className="text-sm font-bold text-slate-400">{lastWeek}</div>
                           <div className="text-sm font-bold text-slate-700">{month}</div>
                           <div className="flex justify-end">
-                            <button 
-                              onClick={() => handleStartObservation(agent.name)}
-                              className="px-3 py-1 bg-brand-blue text-white text-[10px] font-black uppercase rounded shadow-sm hover:bg-brand-blue-hover transition-all active:scale-95"
-                            >
-                              {activeObservations.some(o => o.agentName === agent.name) ? 'Resume' : 'Start'}
-                            </button>
+                            <div className={`px-2 py-1 rounded-md text-[10px] font-black ${wowColor} min-w-[40px] text-center`}>
+                              {wow > 0 ? '▲ ' : wow < 0 ? '▼ ' : '—'}
+                              {wow !== 0 && Math.abs(wow)}
+                            </div>
                           </div>
                         </div>
 
@@ -1482,7 +1358,7 @@ export default function Dashboard() {
               </div>
             </div>
           )}
-          
+
           {/* VIEW: HISTORY (ALL OBSERVATIONS) */}
           {activeView === "history" && (
             <div className="max-w-[1100px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -1493,7 +1369,7 @@ export default function Dashboard() {
                 </div>
                 <div className="flex gap-3">
                   {deleteMode && (
-                    <button 
+                    <button
                       onClick={() => {
                         if (selectedForDeletion.size === allObservations.length) {
                           setSelectedForDeletion(new Set());
@@ -1507,7 +1383,7 @@ export default function Dashboard() {
                     </button>
                   )}
                   {deleteMode && selectedForDeletion.size > 0 && (
-                    <button 
+                    <button
                       onClick={() => {
                         if (confirm(`Are you sure you want to delete ${selectedForDeletion.size} observations?`)) {
                           deleteManyObservations({ ids: Array.from(selectedForDeletion) as any });
@@ -1520,7 +1396,7 @@ export default function Dashboard() {
                       Delete {selectedForDeletion.size} Selected
                     </button>
                   )}
-                  <button 
+                  <button
                     onClick={() => {
                       setDeleteMode(!deleteMode);
                       setSelectedForDeletion(new Set());
@@ -1545,8 +1421,8 @@ export default function Dashboard() {
                   {allObservations.map((obs, i) => {
                     const isSelected = selectedForDeletion.has(obs._id);
                     return (
-                      <div 
-                        key={obs._id} 
+                      <div
+                        key={obs._id}
                         onClick={() => {
                           if (deleteMode) {
                             const newSet = new Set(selectedForDeletion);
@@ -1557,22 +1433,20 @@ export default function Dashboard() {
                             setSelectedObs(obs);
                           }
                         }}
-                        className={`grid grid-cols-5 gap-4 items-center p-4 border-b border-slate-50 last:border-b-0 cursor-pointer transition-all group ${
-                          isSelected ? 'bg-red-50/80 border-l-4 border-l-red-500' : 'hover:bg-blue-50/30 border-l-4 border-l-transparent'
-                        }`}
+                        className={`grid grid-cols-5 gap-4 items-center p-4 border-b border-slate-50 last:border-b-0 cursor-pointer transition-all group ${isSelected ? 'bg-red-50/80 border-l-4 border-l-red-500' : 'hover:bg-blue-50/30 border-l-4 border-l-transparent'
+                          }`}
                       >
-                      <div className="text-xs font-black text-brand-blue bg-blue-50 px-2 py-1 rounded w-fit">{obs._id.slice(-8).toUpperCase()}</div>
-                      <div className="font-bold text-sm text-slate-700 truncate">{obs.agentName}</div>
-                      <div className="text-sm text-slate-500 truncate">{obs.coachName}</div>
-                      <div className="text-sm text-slate-400 text-center">{obs.date}</div>
-                      <div className="text-right pr-4">
-                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${
-                          obs.department.includes('Sales') ? 'bg-blue-50 text-blue-600' : obs.department.includes('Support') ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
-                        }`}>
-                          {obs.department[0]}
-                        </span>
+                        <div className="text-xs font-black text-brand-blue bg-blue-50 px-2 py-1 rounded w-fit">{obs._id.slice(-8).toUpperCase()}</div>
+                        <div className="font-bold text-sm text-slate-700 truncate">{obs.agentName}</div>
+                        <div className="text-sm text-slate-500 truncate">{obs.coachName}</div>
+                        <div className="text-sm text-slate-400 text-center">{obs.date}</div>
+                        <div className="text-right pr-4">
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${obs.department.includes('Sales') ? 'bg-blue-50 text-blue-600' : obs.department.includes('Support') ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
+                            }`}>
+                            {obs.department[0]}
+                          </span>
+                        </div>
                       </div>
-                    </div>
                     );
                   })}
                   {allObservations.length === 0 && (
@@ -1587,245 +1461,8 @@ export default function Dashboard() {
       </div>
 
       {/* --- MODALS --- */}
-      
-      {/* Observation Modal */}
-      {modalOpen && selectedAgent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
-          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" onClick={closeModals}></div>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[800px] flex flex-col max-h-[90vh] relative z-10 animate-in zoom-in-95 duration-200">
-            <div className="p-6 border-b border-[var(--border-light)] flex justify-between items-center bg-slate-50/50 rounded-t-2xl shrink-0">
-              <div>
-                <h2 className="text-xl font-bold">Observation Form</h2>
-                <p className="text-sm text-[var(--text-secondary)] mt-1">Complete the observation details below.</p>
-              </div>
-              <button onClick={closeModals} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors">
-                <X size={20} />
-              </button>
-            </div>
-            
-            <div className="p-6 overflow-y-auto flex-1 custom-scrollbar">
-              {/* Grid 1: Basic Info */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5 mb-8">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Department</label>
-                  <Select 
-                    options={['Sales', 'Support', 'Specialty']}
-                    selected={formData.department}
-                    onChange={val => setFormData({...formData, department: val})}
-                    placeholder="Select Department..."
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Date of Observation</label>
-                  <input 
-                    type="date" 
-                    className="w-full bg-slate-50 border border-[var(--border-light)] rounded-lg px-4 py-2.5 text-slate-600 cursor-not-allowed"
-                    value={formData.date} disabled
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Coach Name</label>
-                  <input 
-                    type="text" 
-                    className="w-full bg-slate-50 border border-[var(--border-light)] rounded-lg px-4 py-2.5 text-slate-600 cursor-not-allowed"
-                    value={formData.coachName} disabled
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Agent Name</label>
-                  <div className="w-full bg-slate-50 border border-[var(--border-light)] rounded-lg px-4 py-2.5 font-semibold text-brand-blue">
-                    {selectedAgent}
-                  </div>
-                </div>
-              </div>
-
-              {/* Grid 2: Observation Types */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5 mb-8">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Session Type</label>
-                  <MultiSelect 
-                    options={[
-                      'Remote Observation', 
-                      'Side-by-Side', 
-                      'Real-time Guidance', 
-                      'Observation - 1:1 Follow-up needed'
-                    ]}
-                    selected={formData.sessionType}
-                    onChange={vals => setFormData({...formData, sessionType: vals})}
-                    placeholder="Select Type..."
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Categories</label>
-                  <MultiSelect 
-                    options={[
-                      'Problem-Solving/Resolution',
-                      'Product/Process Knowledge',
-                      'Customer Handling Skills',
-                      'Platform Mastery',
-                      'Call Control/Time Management',
-                      'Communication Skills',
-                      'Compliance/Policy Adherence',
-                      'Adherence to Call Flow',
-                      'Documentation Accuracy',
-                      'Process Execution & Accuracy',
-                      'Others'
-                    ]}
-                    selected={formData.categories}
-                    onChange={vals => setFormData({...formData, categories: vals})}
-                    placeholder="Select Category..."
-                  />
-                  {formData.categories.includes('Others') && (
-                    <div className="mt-2 animate-in fade-in slide-in-from-top-1 duration-200">
-                      <input 
-                        type="text"
-                        placeholder="Type category..."
-                        className="w-full bg-white border border-[var(--border-light)] rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue"
-                        value={formData.otherCategory}
-                        onChange={e => setFormData({...formData, otherCategory: e.target.value})}
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Rich Text Areas */}
-              <div className="flex flex-col gap-6 mb-8">
-                {[
-                  { id: 'strengths', label: 'Strengths' },
-                  { id: 'areasOfOpportunity', label: 'Areas of Opportunity' },
-                  { id: 'rootCause', label: 'Root Cause Identification' },
-                  { id: 'actionPlan', label: 'Action Plan' },
-                ].map(field => (
-                  <div key={field.id}>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">{field.label}</label>
-                      <button 
-                        onClick={() => openRichTextEditor(field.id as keyof typeof formData)}
-                        className="text-xs font-bold text-brand-blue hover:text-brand-blue-hover flex items-center gap-1 bg-brand-blue-light px-2 py-1 rounded-md"
-                      >
-                        <Edit3 size={12} /> Edit Details
-                      </button>
-                    </div>
-                    <div 
-                      className="w-full min-h-[80px] bg-white border border-[var(--border-light)] rounded-lg p-4 text-[14px] text-slate-700 cursor-text hover:border-slate-400 transition-colors empty:before:content-['Click_Edit_Details_to_add_content...'] empty:before:text-slate-400"
-                      onClick={() => openRichTextEditor(field.id as keyof typeof formData)}
-                    >
-                      {formData[field.id as keyof typeof formData]}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Grid 3: Rating & Additional */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5 mb-8">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Overall Performance Rating</label>
-                  <MultiSelect 
-                    options={['Meets Expectations', 'Exceeds Expectations', 'Needs Improvement']}
-                    selected={formData.overallRating}
-                    onChange={vals => setFormData({...formData, overallRating: vals})}
-                    placeholder="Select Rating..."
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Order Number, Phone, or Email</label>
-                  <input 
-                    type="text" 
-                    placeholder="Enter reference..."
-                    className="w-full bg-white border border-[var(--border-light)] rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue"
-                    value={formData.orderNumber} onChange={e => setFormData({...formData, orderNumber: e.target.value})}
-                  />
-                </div>
-              </div>
-
-              {/* Final Text Areas */}
-              <div className="flex flex-col gap-6">
-                {[
-                  { id: 'otherFeedback', label: 'Other Feedback, Comments and Insights' },
-                  { id: 'teamLeadFeedback', label: 'Team Lead Feedback' }
-                ].map(field => (
-                  <div key={field.id}>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">{field.label}</label>
-                      <button 
-                        onClick={() => openRichTextEditor(field.id as keyof typeof formData)}
-                        className="text-xs font-bold text-brand-blue hover:text-brand-blue-hover flex items-center gap-1 bg-brand-blue-light px-2 py-1 rounded-md"
-                      >
-                        <Edit3 size={12} /> Edit Details
-                      </button>
-                    </div>
-                    <div 
-                      className="w-full min-h-[80px] bg-white border border-[var(--border-light)] rounded-lg p-4 text-[14px] text-slate-700 cursor-text hover:border-slate-400 transition-colors empty:before:content-['Click_Edit_Details_to_add_content...'] empty:before:text-slate-400"
-                      onClick={() => openRichTextEditor(field.id as keyof typeof formData)}
-                    >
-                      {formData[field.id as keyof typeof formData]}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            
-            <div className="p-6 border-t border-[var(--border-light)] flex justify-end gap-3 bg-slate-50/50 rounded-b-2xl shrink-0">
-              <button onClick={() => setModalOpen(false)} className="px-5 py-2.5 rounded-lg font-semibold text-slate-600 hover:bg-slate-200 transition-colors">
-                Cancel
-              </button>
-              <button onClick={handleSaveObservation} className="px-5 py-2.5 rounded-lg font-semibold bg-brand-blue text-white shadow-md shadow-brand-blue/20 hover:bg-brand-blue-hover transition-all hover:-translate-y-0.5">
-                Save Observation
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
 
-
-      {/* Rich Text Editor Modal */}
-      {editModalOpen && selectedAgent && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={() => setEditModalOpen(false)}></div>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[700px] flex flex-col relative z-10 animate-in zoom-in-95 duration-200">
-            <div className="p-4 border-b border-[var(--border-light)] flex justify-between items-center bg-slate-50/50 rounded-t-2xl">
-              <h2 className="text-lg font-bold">Edit Observation Details</h2>
-              <button onClick={() => setEditModalOpen(false)} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors">
-                <X size={18} />
-              </button>
-            </div>
-            
-            <div className="p-0 flex flex-col">
-              {/* Toolbar */}
-              <div className="flex items-center gap-1 p-2 border-b border-[var(--border-light)] bg-slate-50">
-                <button className="p-1.5 hover:bg-slate-200 rounded text-slate-700 font-bold w-8">B</button>
-                <button className="p-1.5 hover:bg-slate-200 rounded text-slate-700 italic font-serif w-8">I</button>
-                <button className="p-1.5 hover:bg-slate-200 rounded text-slate-700 underline w-8">U</button>
-                <div className="w-[1px] h-5 bg-slate-300 mx-1"></div>
-                <button className="p-1.5 hover:bg-slate-200 rounded text-slate-700 w-8">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
-                </button>
-                <button className="p-1.5 hover:bg-slate-200 rounded text-slate-700 w-8">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="21" y1="6" x2="3" y2="6"></line><line x1="21" y1="12" x2="9" y2="12"></line><line x1="21" y1="18" x2="7" y2="18"></line></svg>
-                </button>
-              </div>
-              
-              <textarea 
-                className="w-full h-[300px] p-4 resize-none focus:outline-none text-[var(--text-primary)]"
-                placeholder="Write your observation notes here... Use the toolbar to format."
-                value={observationText}
-                onChange={(e) => setObservationText(e.target.value)}
-              />
-            </div>
-            
-            <div className="p-4 border-t border-[var(--border-light)] flex justify-end gap-2 bg-slate-50/50 rounded-b-2xl">
-              <button onClick={() => setEditModalOpen(false)} className="px-4 py-2 rounded-lg font-semibold text-sm text-slate-600 hover:bg-slate-200 transition-colors">
-                Cancel
-              </button>
-              <button onClick={saveRichText} className="px-4 py-2 rounded-lg font-semibold text-sm bg-brand-blue text-white shadow-md shadow-brand-blue/20 hover:bg-brand-blue-hover transition-all hover:-translate-y-0.5">
-                Save Changes
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Coach Detail Modal */}
       {coachModalOpen && selectedCoach && (() => {
@@ -1841,7 +1478,7 @@ export default function Dashboard() {
               <div className="p-6 border-b border-[var(--border-light)] bg-slate-50/50 rounded-t-2xl shrink-0">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-4">
-                    <div 
+                    <div
                       className="w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-md"
                       style={{ backgroundColor: getAvatarColor(selectedCoach) }}
                     >
@@ -1860,12 +1497,12 @@ export default function Dashboard() {
                 {/* Completion Bar */}
                 <div className="mt-4 flex items-center gap-3">
                   <div className="flex-1 h-3 bg-slate-200 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full rounded-full transition-all duration-500" 
-                      style={{ 
-                        width: `${completionRate}%`, 
-                        backgroundColor: completionRate === 100 ? '#10B981' : completionRate > 50 ? '#F59E0B' : '#EF4444' 
-                      }} 
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{
+                        width: `${completionRate}%`,
+                        backgroundColor: completionRate === 100 ? '#10B981' : completionRate > 50 ? '#F59E0B' : '#EF4444'
+                      }}
                     />
                   </div>
                   <span className={`text-sm font-bold ${completionRate === 100 ? 'text-emerald-500' : completionRate > 50 ? 'text-amber-500' : 'text-red-400'}`}>
@@ -1880,12 +1517,12 @@ export default function Dashboard() {
                   {coachAgents.map((agent, i) => {
                     const isObserved = observedAgents.has(agent.name);
                     return (
-                      <div 
+                      <div
                         key={i}
                         className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors group"
-                        onClick={() => { setCoachModalOpen(false); openObservationModal(agent.name); }}
+                        onClick={() => { setCoachModalOpen(false); }}
                       >
-                        <div 
+                        <div
                           className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-xs shrink-0"
                           style={{ backgroundColor: getAvatarColor(agent.name) }}
                         >
@@ -1894,11 +1531,10 @@ export default function Dashboard() {
                         <div className="flex-1 min-w-0">
                           <h4 className="font-semibold text-sm text-[var(--text-primary)] truncate">{agent.name}</h4>
                         </div>
-                        <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full shrink-0 ${
-                          isObserved 
-                            ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' 
+                        <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full shrink-0 ${isObserved
+                            ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
                             : 'bg-slate-100 text-slate-500 border border-slate-200'
-                        }`}>
+                          }`}>
                           {isObserved ? '✓ Observed' : 'Pending'}
                         </span>
                         <ChevronDown className="-rotate-90 text-slate-300 group-hover:text-brand-blue transition-colors" size={16} />
@@ -1919,52 +1555,7 @@ export default function Dashboard() {
         );
       })()}
 
-      {/* Date Filter Modal */}
-      {dateFilterModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setDateFilterModalOpen(false)}></div>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[400px] flex flex-col relative z-10 animate-in zoom-in-95 duration-200">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-              <h2 className="text-xl font-bold flex items-center gap-2">
-                <Calendar className="text-brand-blue" size={20} />
-                Filter Period
-              </h2>
-              <button onClick={() => setDateFilterModalOpen(false)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-colors">
-                <X size={20} />
-              </button>
-            </div>
-            
-            <div className="p-6 flex flex-col gap-4">
-              <div 
-                className={`p-4 border-2 rounded-xl cursor-pointer transition-all ${filterSinceDate === getMondayEST() ? 'border-brand-blue bg-blue-50/50' : 'border-slate-100 hover:border-slate-200'}`}
-                onClick={() => { setFilterSinceDate(getMondayEST()); setDateFilterModalOpen(false); }}
-              >
-                <div className="font-bold text-slate-800">Current Week</div>
-                <div className="text-xs text-slate-500 mt-1">Reset every Monday EST (Monday, {getMondayEST()})</div>
-              </div>
 
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Custom Since Date</label>
-                <input 
-                  type="date" 
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue"
-                  value={filterSinceDate}
-                  onChange={(e) => setFilterSinceDate(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="p-6 border-t border-slate-100 flex justify-end">
-              <button 
-                onClick={() => setDateFilterModalOpen(false)}
-                className="w-full py-3 bg-brand-blue text-white rounded-xl font-bold shadow-lg shadow-brand-blue/20 hover:bg-brand-blue-hover transition-all active:scale-[0.98]"
-              >
-                Apply Filter
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       {/* Recent Observations List Modal */}
       {recentObsModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -1982,8 +1573,8 @@ export default function Dashboard() {
             <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
               <div className="space-y-3">
                 {recentObservations.map((obs, i) => (
-                  <div 
-                    key={i} 
+                  <div
+                    key={i}
                     className="flex items-center gap-4 p-4 hover:bg-slate-50 rounded-2xl cursor-pointer transition-all border border-transparent hover:border-slate-200 group"
                     onClick={() => setSelectedObs(obs)}
                   >
@@ -2034,7 +1625,7 @@ export default function Dashboard() {
                 <X size={20} />
               </button>
             </div>
-            
+
             <div className="p-6 overflow-y-auto flex-1 custom-scrollbar">
               {/* Grid 1: Basic Info (Same as form) */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5 mb-8">
@@ -2059,7 +1650,7 @@ export default function Dashboard() {
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Agent Name</label>
                   <div className="w-full bg-slate-50 border border-[var(--border-light)] rounded-lg px-4 py-2.5 flex items-center gap-3">
-                    <div 
+                    <div
                       className="w-7 h-7 rounded-full flex items-center justify-center text-white font-bold text-[10px] shadow-sm shrink-0"
                       style={{ backgroundColor: getAvatarColor(selectedObs.agentName) }}
                     >
@@ -2134,10 +1725,10 @@ export default function Dashboard() {
                 ))}
               </div>
             </div>
-            
+
             <div className="p-6 border-t border-[var(--border-light)] flex justify-end gap-3 bg-slate-50/50 rounded-b-2xl shrink-0">
-              <button 
-                onClick={() => setSelectedObs(null)} 
+              <button
+                onClick={() => setSelectedObs(null)}
                 className="px-6 py-2.5 rounded-xl font-bold bg-slate-900 text-white shadow-xl shadow-slate-200 hover:bg-black transition-all active:scale-[0.98]"
               >
                 Close History
@@ -2161,7 +1752,7 @@ export default function Dashboard() {
                 <X size={20} />
               </button>
             </div>
-            
+
             <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center gap-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">
               <div className="w-10">Rank</div>
               <div className="flex-1 text-left">Agent</div>
@@ -2174,34 +1765,34 @@ export default function Dashboard() {
             <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
               <div className="space-y-1">
                 {wowChartsData.slice(0, 10).map((agent, i) => (
-                  <div 
-                    key={i} 
+                  <div
+                    key={i}
                     className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-xl cursor-pointer transition-all border border-transparent hover:border-slate-100 group"
-                    onClick={() => { setWowChartsModalOpen(false); openObservationModal(agent.name); }}
+                    onClick={() => { setWowChartsModalOpen(false); }}
                   >
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm ${i === 0 ? 'bg-amber-100 text-amber-600' : i === 1 ? 'bg-slate-100 text-slate-600' : i === 2 ? 'bg-orange-50 text-orange-600' : 'bg-slate-50 text-slate-400'}`}>
-                        {i + 1}
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm ${i === 0 ? 'bg-amber-100 text-amber-600' : i === 1 ? 'bg-slate-100 text-slate-600' : i === 2 ? 'bg-orange-50 text-orange-600' : 'bg-slate-50 text-slate-400'}`}>
+                      {i + 1}
+                    </div>
+                    <div className="flex-1 flex items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs" style={{ backgroundColor: getAvatarColor(agent.name) }}>
+                        {getInitials(agent.name)}
                       </div>
-                      <div className="flex-1 flex items-center gap-3 min-w-0">
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs" style={{ backgroundColor: getAvatarColor(agent.name) }}>
-                          {getInitials(agent.name)}
-                        </div>
-                        <span className="font-bold text-slate-700 truncate group-hover:text-brand-blue transition-colors">{agent.name}</span>
-                      </div>
-                      <div className="w-16 text-center text-sm font-bold text-slate-800">{agent.thisWeek}</div>
-                      <div className="w-16 text-center text-sm font-bold text-slate-400">{agent.lastWeek}</div>
-                      <div className="w-16 text-center text-sm font-bold text-brand-blue bg-blue-50/50 rounded-md py-1">{agent.month}</div>
-                      <div className="w-16 flex justify-end">
-                        <div className={`px-2 py-1 rounded-md text-[10px] font-black ${agent.wow > 0 ? 'text-emerald-500 bg-emerald-50' : agent.wow < 0 ? 'text-rose-500 bg-rose-50' : 'text-slate-400 bg-slate-50'} min-w-[40px] text-center`}>
-                          {agent.wow > 0 ? '▲' : agent.wow < 0 ? '▼' : '—'}
-                          {agent.wow !== 0 && Math.abs(agent.wow)}
-                        </div>
+                      <span className="font-bold text-slate-700 truncate group-hover:text-brand-blue transition-colors">{agent.name}</span>
+                    </div>
+                    <div className="w-16 text-center text-sm font-bold text-slate-800">{agent.thisWeek}</div>
+                    <div className="w-16 text-center text-sm font-bold text-slate-400">{agent.lastWeek}</div>
+                    <div className="w-16 text-center text-sm font-bold text-brand-blue bg-blue-50/50 rounded-md py-1">{agent.month}</div>
+                    <div className="w-16 flex justify-end">
+                      <div className={`px-2 py-1 rounded-md text-[10px] font-black ${agent.wow > 0 ? 'text-emerald-500 bg-emerald-50' : agent.wow < 0 ? 'text-rose-500 bg-rose-50' : 'text-slate-400 bg-slate-50'} min-w-[40px] text-center`}>
+                        {agent.wow > 0 ? '▲' : agent.wow < 0 ? '▼' : '—'}
+                        {agent.wow !== 0 && Math.abs(agent.wow)}
                       </div>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
               </div>
-            
+            </div>
+
             <div className="p-4 border-t border-slate-100 text-center">
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Ranked by Total Observations This Month</p>
             </div>
@@ -2228,7 +1819,7 @@ export default function Dashboard() {
                 <X size={20} />
               </button>
             </div>
-            
+
             <div className="p-8 overflow-y-auto flex-1 custom-scrollbar">
               <div className="text-slate-700 text-base leading-relaxed whitespace-pre-wrap font-medium">
                 {expandedNote.content}
@@ -2236,7 +1827,7 @@ export default function Dashboard() {
             </div>
 
             <div className="p-6 border-t border-slate-100 bg-slate-50/30">
-              <button 
+              <button
                 onClick={() => setExpandedNote(null)}
                 className="w-full py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-black transition-all"
               >
@@ -2255,7 +1846,7 @@ export default function Dashboard() {
 
 function NavItem({ icon, label, collapsed, active, onClick }: { icon: React.ReactNode, label: string, collapsed: boolean, active?: boolean, onClick?: () => void }) {
   return (
-    <div 
+    <div
       className={`flex items-center px-3 py-2.5 rounded-lg cursor-pointer font-medium transition-colors
         ${active ? 'bg-brand-blue-light text-brand-blue' : 'text-[var(--text-secondary)] hover:bg-slate-50'}
         ${collapsed ? 'justify-center' : 'gap-3'}`}
@@ -2273,7 +1864,7 @@ function Select({ options, selected, onChange, placeholder }: { options: string[
 
   return (
     <div className="relative">
-      <div 
+      <div
         className="w-full bg-white border border-[var(--border-light)] rounded-lg px-4 py-2.5 flex items-center justify-between cursor-pointer focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue min-h-[46px]"
         onClick={() => setIsOpen(!isOpen)}
       >
@@ -2288,7 +1879,7 @@ function Select({ options, selected, onChange, placeholder }: { options: string[
           <div className="fixed inset-0 z-[60]" onClick={() => setIsOpen(false)} />
           <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-[var(--border-light)] rounded-xl shadow-xl z-[70] py-1 max-h-60 overflow-y-auto custom-scrollbar animate-in slide-in-from-top-2 duration-200">
             {options.map(option => (
-              <div 
+              <div
                 key={option}
                 className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between
                   ${selected === option ? 'bg-brand-blue-light text-brand-blue font-semibold' : 'text-slate-600 hover:bg-slate-50'}`}
@@ -2318,7 +1909,7 @@ function MultiSelect({ options, selected, onChange, placeholder }: { options: st
 
   return (
     <div className="relative">
-      <div 
+      <div
         className="w-full bg-white border border-[var(--border-light)] rounded-lg px-4 py-2.5 flex items-center justify-between cursor-pointer focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue min-h-[46px]"
         onClick={() => setIsOpen(!isOpen)}
       >
@@ -2344,7 +1935,7 @@ function MultiSelect({ options, selected, onChange, placeholder }: { options: st
             {options.map(option => {
               const isSelected = selected.includes(option);
               return (
-                <div 
+                <div
                   key={option}
                   className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between
                     ${isSelected ? 'bg-brand-blue-light text-brand-blue font-semibold' : 'text-slate-600 hover:bg-slate-50'}`}

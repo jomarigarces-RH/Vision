@@ -90,3 +90,40 @@ function bulkSyncAll() {
   if (batch.length > 0) sendToConvex(batch);
   SpreadsheetApp.getUi().alert("Bulk Sync Complete!");
 }
+
+/**
+ * RECEIVE DATA FROM NEXT.JS DASHBOARD
+ * This requires the script to be deployed as a "Web App"
+ */
+function doPost(e) {
+  try {
+    const data = JSON.parse(e.postData.contents);
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    
+    // Construct the row array (A to N) matching the sheet columns
+    const newRow = [
+      data.department ? data.department[0] : "", // A: LOB
+      data.date || "", // B: Date
+      data.coachName || "", // C: Coach
+      data.agentName || "", // D: Agent
+      data.sessionType ? data.sessionType.join(", ") : "", // E: Session Type
+      data.categories ? data.categories.join(", ") : "", // F: Categories
+      data.strengths || "", // G: Strengths
+      data.areasOfOpportunity || "", // H: Areas of Opp
+      data.rootCause || "", // I: Root Cause
+      data.actionPlan || "", // J: Action Plan
+      data.overallRating ? data.overallRating.join(", ") : "", // K: Rating
+      data.otherFeedback || "", // L: Other Feedback
+      data.orderNumber || "", // M: Order Number
+      data.teamLeadFeedback || "" // N: TL Feedback
+    ];
+    
+    sheet.appendRow(newRow);
+    
+    return ContentService.createTextOutput(JSON.stringify({ status: "success" }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (error) {
+    return ContentService.createTextOutput(JSON.stringify({ status: "error", message: error.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
