@@ -317,6 +317,7 @@ export default function Dashboard() {
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   const [dateFilterModalOpen, setDateFilterModalOpen] = useState(false);
   const [filterSinceDate, setFilterSinceDate] = useState(getMondayEST());
+  const [completionPeriod, setCompletionPeriod] = useState<'TW' | 'LW' | 'MTD'>('TW');
 
   // Convex: fetch observations from database
   const observedAgentsList = useQuery(api.observations.getObservedAgents, { sinceDate: filterSinceDate }) ?? [];
@@ -462,20 +463,46 @@ export default function Dashboard() {
   // Completion statistics for Dashboard
   const lobsStats = useMemo(() => {
     const lobs = ['Sales', 'Support', 'Specialty'];
+    
+    // Period selection logic
+    let start = weekStats.thisWeekStart;
+    let end: string | undefined = undefined;
+    
+    if (completionPeriod === 'LW') {
+      start = weekStats.lastWeekStart;
+      end = weekStats.lastWeekEnd;
+    } else if (completionPeriod === 'MTD') {
+      start = weekStats.monthStart;
+    }
+
+    const periodObservations = allObservations.filter(o => {
+      if (o.date < start) return false;
+      if (end && o.date > end) return false;
+      return true;
+    });
+    
+    const observedSet = new Set(periodObservations.map(o => o.agentName));
+
     return lobs.map(dept => {
       const deptAgents = getAgentsByDept(dept);
       const total = deptAgents.length;
-      const observed = deptAgents.filter(a => observedAgents.has(a.name)).length;
+      const observed = deptAgents.filter(a => observedSet.has(a.name)).length;
       const percent = total > 0 ? Math.round((observed / total) * 100) : 0;
-      return { name: dept, total, observed, value: percent, color: dept === 'Sales' ? '#4F7DF3' : dept === 'Support' ? '#10B981' : '#F59E0B' };
+      return { 
+        name: dept, 
+        total, 
+        observed, 
+        value: percent, 
+        color: dept === 'Sales' ? '#4F7DF3' : dept === 'Support' ? '#10B981' : '#F59E0B' 
+      };
     });
-  }, [observedAgents]);
+  }, [allObservations, weekStats, completionPeriod]);
 
   const overallCompletion = useMemo(() => {
-    const total = AGENTS.length;
-    const observed = AGENTS.filter(a => observedAgents.has(a.name)).length;
+    const total = lobsStats.reduce((acc, curr) => acc + curr.total, 0);
+    const observed = lobsStats.reduce((acc, curr) => acc + curr.observed, 0);
     return total > 0 ? Math.round((observed / total) * 100) : 0;
-  }, [observedAgents]);
+  }, [lobsStats]);
 
   const getAgentsForCoach = (coachName: string) => AGENTS.filter(a => a.coach === coachName);
   
@@ -542,19 +569,23 @@ export default function Dashboard() {
 
   const openObservationModal = (name: string) => {
     setSelectedAgent(name);
-    // Reset form with automated fields
-    setFormData(prev => ({
-      ...prev,
-      date: new Date().toISOString().split('T')[0],
-      coachName: 'JG (Current User)', 
-      agentName: name,
+    setFormData({
       department: [],
       otherDepartment: '',
+      date: new Date().toISOString().split('T')[0],
+      coachName: 'JG (Current User)',
       sessionType: [],
       categories: [],
       otherCategory: '',
-      overallRating: []
-    }));
+      strengths: '',
+      areasOfOpportunity: '',
+      rootCause: '',
+      actionPlan: '',
+      overallRating: [],
+      otherFeedback: '',
+      orderNumber: '',
+      teamLeadFeedback: ''
+    } as any);
     setModalOpen(true);
   };
 
@@ -900,7 +931,24 @@ export default function Dashboard() {
 
                   {/* Card: LOB Completion Status */}
                   <div className="bg-white rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
-                    <h2 className="font-bold text-lg mb-2">LOB Completion</h2>
+                    <div className="flex justify-between items-center mb-2">
+                      <h2 className="font-bold text-lg">LOB Completion</h2>
+                      <div className="flex bg-slate-100 p-1 rounded-lg">
+                        {[
+                          { id: 'TW', label: 'TW' },
+                          { id: 'LW', label: 'LW' },
+                          { id: 'MTD', label: 'Month' }
+                        ].map(p => (
+                          <button 
+                            key={p.id}
+                            onClick={() => setCompletionPeriod(p.id as any)}
+                            className={`px-2 py-1 text-[10px] font-black rounded-md transition-all ${completionPeriod === p.id ? 'bg-white text-brand-blue shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                          >
+                            {p.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                     <div className="h-[200px] w-full flex items-center justify-center relative">
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
@@ -1752,25 +1800,39 @@ export default function Dashboard() {
                 {/* All Filed Details */}
                 <div className="space-y-4">
                   {[
-                    { label: 'Strengths', value: (selectedObs as any).strengths },
-                    { label: 'Areas of Opportunity', value: (selectedObs as any).areasOfOpportunity },
-                    { label: 'Root Cause', value: (selectedObs as any).rootCause },
-                    { label: 'Action Plan', value: (selectedObs as any).actionPlan },
-                    { label: 'Other Feedback', value: (selectedObs as any).otherFeedback },
-                    { label: 'Team Lead Feedback', value: (selectedObs as any).teamLeadFeedback }
-                  ].map(field => field.value && (
+                    { label: 'Strengths', value: selectedObs.strengths },
+                    { label: 'Areas of Opportunity', value: selectedObs.areasOfOpportunity },
+                    { label: 'Root Cause', value: selectedObs.rootCause },
+                    { label: 'Action Plan', value: selectedObs.actionPlan },
+                    { label: 'Other Feedback', value: selectedObs.otherFeedback },
+                    { label: 'Team Lead Feedback', value: selectedObs.teamLeadFeedback }
+                  ].map(field => field.value && field.value.trim() !== "" && (
                     <div key={field.label} className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                       <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-2">{field.label}</div>
                       <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{field.value}</div>
                     </div>
                   ))}
 
+                  {![
+                    selectedObs.strengths, 
+                    selectedObs.areasOfOpportunity, 
+                    selectedObs.rootCause, 
+                    selectedObs.actionPlan, 
+                    selectedObs.otherFeedback, 
+                    selectedObs.teamLeadFeedback
+                  ].some(v => v && v.trim() !== "") && (
+                    <div className="text-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                      <p className="text-sm text-slate-400 italic">No detailed notes recorded for this session.</p>
+                    </div>
+                  )}
+
                   <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                    <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-2">Metadata</div>
+                    <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-3">Context & Categories</div>
                     <div className="flex flex-wrap gap-2">
-                      {selectedObs.department.map((d: string) => <span key={d} className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-[10px] font-bold uppercase">{d}</span>)}
-                      {selectedObs.sessionType.map((s: string) => <span key={s} className="px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded text-[10px] font-bold uppercase">{s}</span>)}
-                      {selectedObs.categories.map((c: string) => <span key={c} className="px-2 py-0.5 bg-amber-50 text-amber-600 rounded text-[10px] font-bold uppercase">{c}</span>)}
+                      {selectedObs.department.map((d: string) => <span key={d} className="px-2 py-1 bg-blue-50 text-blue-600 border border-blue-100 rounded text-[9px] font-black uppercase">{d}</span>)}
+                      {selectedObs.sessionType.map((s: string) => <span key={s} className="px-2 py-1 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded text-[9px] font-black uppercase">{s}</span>)}
+                      {selectedObs.categories.map((c: string) => <span key={c} className="px-2 py-1 bg-amber-50 text-amber-600 border border-amber-100 rounded text-[9px] font-black uppercase">{c}</span>)}
+                      {selectedObs.overallRating.map((r: string) => <span key={r} className="px-2 py-1 bg-slate-900 text-white rounded text-[9px] font-black uppercase">{r}</span>)}
                     </div>
                   </div>
                 </div>
