@@ -5,7 +5,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { 
   Menu, LayoutDashboard, Users, UserCog, HandHeart, HelpCircle, 
-  Settings, ChevronDown, Check, X, Bell, Edit3, Search, Calendar, Filter
+  Settings, ChevronDown, Check, X, Bell, Edit3, Search, Calendar, Filter, History
 } from "lucide-react";
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -318,10 +318,41 @@ export default function Dashboard() {
   const [dateFilterModalOpen, setDateFilterModalOpen] = useState(false);
   const [filterSinceDate, setFilterSinceDate] = useState(getMondayEST());
 
-  // Convex: fetch observed agents from database (Reset every Monday EST)
+  // Convex: fetch observations from database
   const observedAgentsList = useQuery(api.observations.getObservedAgents, { sinceDate: filterSinceDate }) ?? [];
   const observedAgents = useMemo(() => new Set(observedAgentsList), [observedAgentsList]);
+  const allObservations = useQuery(api.observations.list) ?? [];
   const createObservation = useMutation(api.observations.create);
+
+  const [recentObsModalOpen, setRecentObsModalOpen] = useState(false);
+  const [selectedObs, setSelectedObs] = useState<any>(null);
+
+  const recentObservations = useMemo(() => allObservations.slice(0, 20), [allObservations]);
+
+  const topAgents = useMemo(() => {
+    const now = new Date();
+    const firstOfMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    
+    const monthlyObs = allObservations.filter(o => o.date >= firstOfMonth);
+    const agentScores: Record<string, { total: number, count: number }> = {};
+
+    monthlyObs.forEach(obs => {
+      if (!agentScores[obs.agentName]) {
+        agentScores[obs.agentName] = { total: 0, count: 0 };
+      }
+      agentScores[obs.agentName].total += obs.rating;
+      agentScores[obs.agentName].count += 1;
+    });
+
+    return Object.entries(agentScores)
+      .map(([name, data]) => ({
+        name,
+        avg: Math.round(data.total / data.count),
+        count: data.count
+      }))
+      .sort((a, b) => b.avg - a.avg)
+      .slice(0, 5);
+  }, [allObservations]);
 
   // Search Logic
   const searchResults = useMemo(() => {
@@ -732,16 +763,40 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  {/* Card: Recent Coaches */}
+                  {/* Card: Recent Observations */}
                   <div className="bg-white rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
                     <div className="flex justify-between items-center mb-4">
-                      <h2 className="font-bold text-lg">Recent Coaches</h2>
-                      <span className="text-xs font-semibold text-brand-blue bg-brand-blue-light px-2.5 py-1 rounded-full">View All</span>
+                      <h2 className="font-bold text-lg">Recent Observations</h2>
+                      <button 
+                        onClick={() => setRecentObsModalOpen(true)}
+                        className="text-xs font-semibold text-brand-blue bg-brand-blue-light px-2.5 py-1 rounded-full hover:bg-brand-blue hover:text-white transition-colors"
+                      >
+                        View All
+                      </button>
                     </div>
                     <div className="flex flex-col gap-3">
-                      {coachesData.map((coach, i) => (
-                        <AgentRow key={i} coach={coach} idx={i} onClick={() => openObservationModal(coach.name)} />
+                      {recentObservations.slice(0, 3).map((obs, i) => (
+                        <div 
+                          key={i} 
+                          className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-xl cursor-pointer transition-colors group"
+                          onClick={() => setSelectedObs(obs)}
+                        >
+                          <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-xs" style={{ backgroundColor: getAvatarColor(obs.agentName) }}>
+                            {getInitials(obs.agentName)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-bold text-sm text-slate-800 truncate">{obs.agentName}</h4>
+                            <p className="text-[11px] text-slate-400 font-medium">By {obs.coachName} • {obs.date}</p>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm font-bold text-brand-blue">{obs.rating}%</div>
+                            <div className="text-[9px] font-bold text-slate-400 uppercase">Score</div>
+                          </div>
+                        </div>
                       ))}
+                      {recentObservations.length === 0 && (
+                        <div className="text-center py-6 text-slate-400 text-sm italic">No recent observations</div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -801,13 +856,35 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  {/* Card: Assigned Agents */}
+                  {/* Card: Top Charts (Month to Date) */}
                   <div className="bg-white rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
-                    <h2 className="font-bold text-lg mb-4">Assigned Agents</h2>
+                    <div className="flex justify-between items-center mb-4">
+                      <h2 className="font-bold text-lg">Top Charts</h2>
+                      <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">MONTH TO DATE</span>
+                    </div>
                     <div className="flex flex-col gap-3">
-                      {assignedAgentsData.map((agent, i) => (
-                        <AgentRow key={i} coach={agent} idx={i+3} onClick={() => openObservationModal(agent.name)} />
+                      {topAgents.map((agent, i) => (
+                        <div key={i} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-xl transition-colors group">
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${i === 0 ? 'bg-amber-100 text-amber-600' : i === 1 ? 'bg-slate-100 text-slate-600' : i === 2 ? 'bg-orange-50 text-orange-600' : 'bg-slate-50 text-slate-400'}`}>
+                            #{i+1}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-bold text-sm text-slate-800 truncate">{agent.name}</h4>
+                            <p className="text-[10px] text-slate-400 font-medium">{agent.count} observations this month</p>
+                          </div>
+                          <div className="flex flex-col items-end">
+                            <span className={`text-sm font-bold ${agent.avg >= 90 ? 'text-emerald-500' : agent.avg >= 80 ? 'text-brand-blue' : 'text-slate-700'}`}>
+                              {agent.avg}%
+                            </span>
+                            <div className="w-16 h-1 bg-slate-100 rounded-full mt-1 overflow-hidden">
+                              <div className="h-full bg-emerald-400 rounded-full" style={{ width: `${agent.avg}%` }}></div>
+                            </div>
+                          </div>
+                        </div>
                       ))}
+                      {topAgents.length === 0 && (
+                        <div className="text-center py-6 text-slate-400 text-sm italic">No data for this month yet</div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1454,6 +1531,132 @@ export default function Dashboard() {
                 className="w-full py-3 bg-brand-blue text-white rounded-xl font-bold shadow-lg shadow-brand-blue/20 hover:bg-brand-blue-hover transition-all active:scale-[0.98]"
               >
                 Apply Filter
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Recent Observations List Modal */}
+      {recentObsModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setRecentObsModalOpen(false)}></div>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[600px] flex flex-col max-h-[80vh] relative z-10 animate-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 rounded-t-2xl">
+              <h2 className="text-xl font-bold flex items-center gap-2 text-slate-800">
+                <History className="text-brand-blue" size={22} />
+                Recent Observations
+              </h2>
+              <button onClick={() => setRecentObsModalOpen(false)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+              <div className="space-y-3">
+                {recentObservations.map((obs, i) => (
+                  <div 
+                    key={i} 
+                    className="flex items-center gap-4 p-4 hover:bg-slate-50 rounded-2xl cursor-pointer transition-all border border-transparent hover:border-slate-200 group"
+                    onClick={() => setSelectedObs(obs)}
+                  >
+                    <div className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-sm" style={{ backgroundColor: getAvatarColor(obs.agentName) }}>
+                      {getInitials(obs.agentName)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold text-slate-800 truncate">{obs.agentName}</h4>
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded uppercase">MTD</span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5">Coached by <span className="font-semibold text-slate-700">{obs.coachName}</span></p>
+                      <p className="text-[10px] text-slate-400 mt-1 font-medium flex items-center gap-1">
+                        <Calendar size={10} /> {obs.date}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end">
+                      <div className="text-lg font-black text-brand-blue">{obs.rating}%</div>
+                      <div className="flex gap-0.5">
+                        {[1, 2, 3, 4, 5].map((s) => (
+                          <div key={s} className={`w-1 h-1 rounded-full ${s <= (obs.rating / 20) ? 'bg-brand-blue' : 'bg-slate-200'}`}></div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Observation Detail Modal */}
+      {selectedObs && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setSelectedObs(null)}></div>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-[500px] flex flex-col relative z-10 animate-in zoom-in-95 duration-300">
+            <div className="relative h-32 bg-gradient-to-br from-brand-blue to-indigo-600 rounded-t-3xl overflow-hidden shrink-0">
+              <div className="absolute inset-0 opacity-10">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-white rounded-full -mr-20 -mt-20"></div>
+                <div className="absolute bottom-0 left-0 w-32 h-32 bg-white rounded-full -ml-10 -mb-10"></div>
+              </div>
+              <button 
+                onClick={() => setSelectedObs(null)}
+                className="absolute top-4 right-4 p-2 bg-black/10 hover:bg-black/20 text-white rounded-full backdrop-blur-md transition-colors"
+              >
+                <X size={18} />
+              </button>
+              <div className="absolute -bottom-10 left-8">
+                <div 
+                  className="w-20 h-20 rounded-2xl flex items-center justify-center text-white font-bold text-2xl shadow-xl border-4 border-white"
+                  style={{ backgroundColor: getAvatarColor(selectedObs.agentName) }}
+                >
+                  {getInitials(selectedObs.agentName)}
+                </div>
+              </div>
+            </div>
+            
+            <div className="pt-14 p-8 flex-1">
+              <div className="flex justify-between items-start mb-6">
+                <div>
+                  <h2 className="text-2xl font-black text-slate-800">{selectedObs.agentName}</h2>
+                  <p className="text-slate-500 font-medium">Observation by {selectedObs.coachName}</p>
+                </div>
+                <div className="bg-blue-50 px-4 py-2 rounded-2xl text-center border border-blue-100">
+                  <div className="text-2xl font-black text-brand-blue leading-none">{selectedObs.rating}%</div>
+                  <div className="text-[10px] font-bold text-brand-blue/60 uppercase tracking-tighter mt-1">Final Score</div>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 block">Observation Notes</label>
+                  <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 text-slate-700 text-sm leading-relaxed whitespace-pre-wrap italic shadow-inner">
+                    "{selectedObs.notes || 'No specific notes recorded for this observation.'}"
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Date Recorded</div>
+                    <div className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                      <Calendar size={14} className="text-brand-blue" />
+                      {selectedObs.date}
+                    </div>
+                  </div>
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Observation ID</div>
+                    <div className="text-sm font-mono font-bold text-slate-700 truncate">
+                      {selectedObs._id.slice(-8).toUpperCase()}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-8 pt-0">
+              <button 
+                onClick={() => setSelectedObs(null)}
+                className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold hover:bg-black transition-all active:scale-[0.98] shadow-xl shadow-slate-200"
+              >
+                Close Details
               </button>
             </div>
           </div>
