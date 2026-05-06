@@ -172,13 +172,16 @@ export default function Dashboard() {
   };
 
   const openRichTextEditor = (fieldId: keyof typeof formData) => {
-    setActiveRichTextField(fieldId);
-    setObservationText(formData[fieldId]);
-    setEditModalOpen(true);
+    const value = formData[fieldId];
+    if (typeof value === 'string') {
+      setActiveRichTextField(fieldId);
+      setObservationText(value);
+      setEditModalOpen(true);
+    }
   };
 
   const saveRichText = () => {
-    if (activeRichTextField) {
+    if (activeRichTextField && typeof formData[activeRichTextField] === 'string') {
       setFormData(prev => ({ ...prev, [activeRichTextField]: observationText }));
     }
     setEditModalOpen(false);
