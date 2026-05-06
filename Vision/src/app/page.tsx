@@ -15,25 +15,25 @@ import {
 // --- Data Mappings from References ---
 const COACHES = [
   { name: 'Chui Ling Villafuerte Goh', dept: 'Sales' },
-  { name: 'Xavier Bertril Nuico Cuerpo', dept: 'Service Recovery' },
+  { name: 'Xavier Bertril Nuico Cuerpo', dept: 'Specialty' },
   { name: 'Gazelle Broniola Bulalacao', dept: 'Support' },
   { name: 'Zaira Mae Regino Kinol', dept: 'Support' },
   { name: 'Charbel Rado Mahinay', dept: 'Support' },
   { name: 'Karl Jasper Lorejo Mag-usara', dept: 'Support' },
   { name: 'Erwin Verano', dept: 'Sales' },
   { name: 'Kyla Serion', dept: 'Sales' },
-  { name: 'May-Ann Alabata Montegrejo', dept: 'Service Recovery' },
+  { name: 'May-Ann Alabata Montegrejo', dept: 'Specialty' },
   { name: 'Ma. Mikaela Lalamonan Barrera', dept: 'Support' },
-  { name: 'Joe Mari Torda Piñero', dept: 'Service Recovery' },
+  { name: 'Joe Mari Torda Piñero', dept: 'Specialty' },
   { name: 'John Rey Aspacio Ortega', dept: 'Support' },
-  { name: 'Korina Kim Romeo Alcantara', dept: 'Service Recovery' },
-  { name: 'Elaine De Leon Roxas', dept: 'Service Recovery' },
+  { name: 'Korina Kim Romeo Alcantara', dept: 'Specialty' },
+  { name: 'Elaine De Leon Roxas', dept: 'Specialty' },
   { name: 'Irene Villarin Estravela', dept: 'Support' },
   { name: 'Shanne Juliet Credo Diputado', dept: 'Support' },
-  { name: 'Maria Fatima Serrano Buenviaje', dept: 'Service Recovery' },
-  { name: 'Alyssa Sandel Reyes', dept: 'Service Recovery' },
+  { name: 'Maria Fatima Serrano Buenviaje', dept: 'Specialty' },
+  { name: 'Alyssa Sandel Reyes', dept: 'Specialty' },
   { name: 'Joenesse Vhem Laraya Bonghanoy', dept: 'Sales' },
-  { name: 'Krishia May Capuyan Saldivar', dept: 'Service Recovery' },
+  { name: 'Krishia May Capuyan Saldivar', dept: 'Specialty' },
 ];
 
 const AGENTS = [
@@ -268,11 +268,19 @@ function getAvatarColor(name: string) {
 export default function Dashboard() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [agentsOpen, setAgentsOpen] = useState(false);
+  const [expandedDept, setExpandedDept] = useState<string | null>(null);
   const [activeView, setActiveView] = useState("dashboard");
   const [modalOpen, setModalOpen] = useState(false);
   const [ratingModalOpen, setRatingModalOpen] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [rating, setRating] = useState(0);
+
+  // Derive agents by department (agent → coach → coach's LOB)
+  const getAgentsByDept = (dept: string) => 
+    AGENTS.filter(a => {
+      const coach = COACHES.find(c => c.name === a.coach);
+      return coach?.dept === dept;
+    });
 
   // Filter and Data Helpers
   const getCoachDept = (coachName: string) => COACHES.find(c => c.name === coachName)?.dept || 'Other';
@@ -430,38 +438,43 @@ export default function Dashboard() {
             </div>
             
             {/* Submenu */}
-            <div className={`overflow-hidden transition-all duration-300 ${!sidebarCollapsed && agentsOpen ? 'max-h-[800px] opacity-100 mt-1' : 'max-h-0 opacity-0'}`}>
-              <div className="pl-6 pr-3 flex flex-col gap-1 border-l-2 border-slate-100 ml-5 py-1">
-                {['Sales', 'Support', 'Service Recovery', 'Other'].map(dept => (
-                  <div key={dept} className="flex flex-col gap-1">
-                    <div className="px-3 py-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                      {dept}
-                    </div>
-                    {COACHES.filter(c => c.dept === dept).map(coach => (
-                      <div key={coach.name} className="group/coach relative">
-                        <div className="px-3 py-1.5 text-[13px] text-[var(--text-secondary)] hover:text-[var(--brand-blue)] hover:bg-slate-50 rounded-md cursor-pointer transition-colors flex items-center justify-between">
-                          <span className="truncate pr-2">{coach.name.split(' ')[0]} {coach.name.split(' ').slice(-1)}</span>
-                          <ChevronDown size={12} className="-rotate-90 opacity-0 group-hover/coach:opacity-100" />
-                        </div>
-                        {/* Hover Agents List */}
-                        <div className="hidden group-hover/coach:block absolute left-full top-0 ml-2 bg-white border border-[var(--border-light)] rounded-xl shadow-xl z-50 p-2 min-w-[200px]">
-                          <div className="text-[10px] font-bold text-slate-400 mb-2 px-2 uppercase tracking-tight border-b border-slate-50 pb-1">Agents under {coach.name.split(' ')[0]}</div>
-                          <div className="max-h-60 overflow-y-auto custom-scrollbar">
-                            {AGENTS.filter(a => a.coach === coach.name).map(agent => (
-                              <div 
-                                key={agent.name} 
-                                onClick={() => openObservationModal(agent.name)}
-                                className="px-2 py-1.5 text-[12px] text-slate-600 hover:bg-brand-blue-light hover:text-brand-blue rounded cursor-pointer transition-colors"
-                              >
-                                {agent.name}
-                              </div>
-                            ))}
-                          </div>
+            <div className={`overflow-hidden transition-all duration-300 ${!sidebarCollapsed && agentsOpen ? 'max-h-[2000px] opacity-100 mt-1' : 'max-h-0 opacity-0'}`}>
+              <div className="pl-4 pr-3 flex flex-col gap-0.5 border-l-2 border-slate-100 ml-5 py-1">
+                {['Sales', 'Support', 'Specialty'].map(dept => {
+                  const deptAgents = getAgentsByDept(dept);
+                  const isExpanded = expandedDept === dept;
+                  return (
+                    <div key={dept} className="flex flex-col">
+                      <div 
+                        className="px-3 py-2 text-[12px] font-bold text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-50 rounded-md transition-colors flex items-center justify-between"
+                        onClick={() => setExpandedDept(isExpanded ? null : dept)}
+                      >
+                        <span className="flex items-center gap-2">
+                          <span className={`w-2 h-2 rounded-full ${
+                            dept === 'Sales' ? 'bg-blue-500' : dept === 'Support' ? 'bg-emerald-500' : 'bg-amber-500'
+                          }`} />
+                          {dept}
+                          <span className="text-[10px] font-normal text-slate-400">({deptAgents.length})</span>
+                        </span>
+                        <ChevronDown size={14} className={`text-slate-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                      </div>
+                      <div className={`overflow-hidden transition-all duration-300 ${isExpanded ? 'max-h-[1200px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                        <div className="pl-4 flex flex-col gap-0.5 py-1 max-h-[300px] overflow-y-auto custom-scrollbar">
+                          {deptAgents.map(agent => (
+                            <div 
+                              key={agent.name}
+                              onClick={() => openObservationModal(agent.name)}
+                              className="px-3 py-1.5 text-[12px] text-slate-600 hover:bg-brand-blue-light hover:text-brand-blue rounded-md cursor-pointer transition-colors truncate"
+                              title={`${agent.name} — Coach: ${agent.coach}`}
+                            >
+                              {agent.name}
+                            </div>
+                          ))}
                         </div>
                       </div>
-                    ))}
-                  </div>
-                ))}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
