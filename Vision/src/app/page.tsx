@@ -1971,98 +1971,128 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Observation Detail Modal */}
+      {/* Observation Detail Modal (History View) */}
       {selectedObs && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setSelectedObs(null)}></div>
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-[550px] flex flex-col relative z-10 animate-in zoom-in-95 duration-300 max-h-[90vh] overflow-hidden">
-            <div className="relative h-36 bg-gradient-to-br from-indigo-500 via-brand-blue to-purple-600 rounded-t-3xl overflow-hidden shrink-0">
-              <div className="absolute inset-0 opacity-20">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-white rounded-full -mr-20 -mt-20"></div>
-                <div className="absolute bottom-0 left-0 w-32 h-32 bg-white rounded-full -ml-10 -mb-10"></div>
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setSelectedObs(null)}></div>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[800px] flex flex-col max-h-[90vh] relative z-10 animate-in zoom-in-95 duration-200">
+            {/* Header matches Observation Form */}
+            <div className="p-6 border-b border-[var(--border-light)] flex justify-between items-center bg-slate-50/50 rounded-t-2xl shrink-0">
+              <div>
+                <h2 className="text-xl font-bold">Observation History</h2>
+                <p className="text-sm text-[var(--text-secondary)] mt-1">Review the observation details below.</p>
               </div>
-              <button 
-                onClick={() => setSelectedObs(null)}
-                className="absolute top-6 right-6 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full backdrop-blur-md transition-colors"
-              >
+              <button onClick={() => setSelectedObs(null)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors">
                 <X size={20} />
               </button>
-              <div className="absolute -bottom-10 left-8">
-                <div 
-                  className="w-24 h-24 rounded-3xl flex items-center justify-center text-white font-bold text-3xl shadow-2xl border-4 border-white"
-                  style={{ backgroundColor: getAvatarColor(selectedObs.agentName) }}
-                >
-                  {getInitials(selectedObs.agentName)}
-                </div>
-              </div>
             </div>
             
-            <div className="pt-14 p-8 overflow-y-auto flex-1 custom-scrollbar space-y-6">
-              <div className="flex justify-between items-start">
+            <div className="p-6 overflow-y-auto flex-1 custom-scrollbar">
+              {/* Grid 1: Basic Info (Same as form) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5 mb-8">
                 <div>
-                  <h2 className="text-3xl font-black text-slate-800 tracking-tight">{selectedObs.agentName}</h2>
-                  <p className="text-slate-500 font-semibold mt-1">Coaching Session by {selectedObs.coachName}</p>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Department</label>
+                  <div className="w-full bg-slate-50 border border-[var(--border-light)] rounded-lg px-4 py-2.5 text-slate-600 font-medium">
+                    {selectedObs.department.join(', ') || 'Not specified'}
+                  </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-[10px] font-black text-brand-blue bg-blue-50 px-2 py-1 rounded-md uppercase mb-1">ID: {selectedObs._id.slice(-8).toUpperCase()}</div>
-                  <div className="text-[10px] font-bold text-slate-400 uppercase">{selectedObs.date}</div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Date of Observation</label>
+                  <div className="w-full bg-slate-50 border border-[var(--border-light)] rounded-lg px-4 py-2.5 text-slate-600 font-medium">
+                    {selectedObs.date}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Coach Name</label>
+                  <div className="w-full bg-slate-50 border border-[var(--border-light)] rounded-lg px-4 py-2.5 text-slate-600 font-medium">
+                    {selectedObs.coachName}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Agent Name</label>
+                  <div className="w-full bg-slate-50 border border-[var(--border-light)] rounded-lg px-4 py-2.5 flex items-center gap-3">
+                    <div 
+                      className="w-7 h-7 rounded-full flex items-center justify-center text-white font-bold text-[10px] shadow-sm shrink-0"
+                      style={{ backgroundColor: getAvatarColor(selectedObs.agentName) }}
+                    >
+                      {getInitials(selectedObs.agentName)}
+                    </div>
+                    <span className="font-bold text-brand-blue truncate">{selectedObs.agentName}</span>
+                  </div>
                 </div>
               </div>
 
-              {/* Data Cards */}
-              <div className="space-y-4">
+              {/* Grid 2: Observation Types */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5 mb-8">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Session Type</label>
+                  <div className="w-full bg-slate-50 border border-[var(--border-light)] rounded-lg px-4 py-2.5 text-slate-600 font-medium">
+                    {selectedObs.sessionType.join(', ') || 'None'}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Categories</label>
+                  <div className="w-full bg-slate-50 border border-[var(--border-light)] rounded-lg px-4 py-2.5 text-slate-600 font-medium">
+                    {selectedObs.categories.join(', ') || 'None'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Rich Text Areas (Read-Only cards) */}
+              <div className="flex flex-col gap-6 mb-8">
                 {[
                   { label: 'Strengths', value: selectedObs.strengths },
                   { label: 'Areas of Opportunity', value: selectedObs.areasOfOpportunity },
-                  { label: 'Root Cause', value: selectedObs.rootCause },
+                  { label: 'Root Cause Identification', value: selectedObs.rootCause },
                   { label: 'Action Plan', value: selectedObs.actionPlan },
-                  { label: 'Other Feedback', value: selectedObs.otherFeedback },
-                  { label: 'Team Lead Feedback', value: selectedObs.teamLeadFeedback }
-                ].map(field => field.value && field.value.trim() !== "" && (
-                  <div 
-                    key={field.label} 
-                    className="bg-slate-50/80 p-5 rounded-2xl border border-slate-100 hover:border-slate-200 transition-all shadow-sm"
-                  >
-                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">{field.label}</div>
-                    <div className="text-[15px] text-slate-700 leading-relaxed whitespace-pre-wrap font-medium">{field.value}</div>
+                ].map(field => (
+                  <div key={field.label}>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">{field.label}</label>
+                    <div className="w-full min-h-[80px] bg-slate-50/50 border border-[var(--border-light)] rounded-xl p-4 text-[14px] text-slate-700 whitespace-pre-wrap leading-relaxed">
+                      {field.value || <span className="text-slate-400 italic">No notes provided.</span>}
+                    </div>
                   </div>
                 ))}
+              </div>
 
-                {/* Tags Section */}
-                <div className="bg-slate-50/50 p-6 rounded-3xl border border-slate-100/50 space-y-4">
-                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">Context & Categories</div>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedObs.department.map((d: string) => (
-                      <span key={d} className="px-3 py-1.5 bg-white text-brand-blue border border-blue-100 rounded-lg text-[10px] font-black uppercase shadow-sm">
-                        {d}
-                      </span>
-                    ))}
-                    {selectedObs.sessionType.map((s: string) => (
-                      <span key={s} className="px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-lg text-[10px] font-black uppercase shadow-sm">
-                        {s}
-                      </span>
-                    ))}
-                    {selectedObs.categories.map((c: string) => (
-                      <span key={c} className="px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-100 rounded-lg text-[10px] font-black uppercase shadow-sm">
-                        {c}
-                      </span>
-                    ))}
-                    {selectedObs.overallRating.map((r: string) => (
-                      <span key={r} className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-[10px] font-black uppercase shadow-sm">
-                        {r}
-                      </span>
-                    ))}
+              {/* Grid 3: Rating & Additional */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5 mb-8">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Overall Performance Rating</label>
+                  <div className="w-full bg-slate-50 border border-[var(--border-light)] rounded-lg px-4 py-2.5 text-slate-600 font-bold">
+                    {selectedObs.overallRating.join(', ') || 'N/A'}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Order Number, Phone, or Email</label>
+                  <div className="w-full bg-slate-50 border border-[var(--border-light)] rounded-lg px-4 py-2.5 text-slate-600 font-medium">
+                    {selectedObs.orderNumber || 'None'}
                   </div>
                 </div>
               </div>
-            </div>
 
-            <div className="p-8 pt-0 shrink-0">
+              {/* Final Text Areas */}
+              <div className="flex flex-col gap-6">
+                {[
+                  { label: 'Other Feedback, Comments and Insights', value: selectedObs.otherFeedback },
+                  { label: 'Team Lead Feedback', value: selectedObs.teamLeadFeedback }
+                ].map(field => (
+                  <div key={field.label}>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">{field.label}</label>
+                    <div className="w-full min-h-[80px] bg-slate-50/50 border border-[var(--border-light)] rounded-xl p-4 text-[14px] text-slate-700 whitespace-pre-wrap leading-relaxed">
+                      {field.value || <span className="text-slate-400 italic">No additional feedback provided.</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            <div className="p-6 border-t border-[var(--border-light)] flex justify-end gap-3 bg-slate-50/50 rounded-b-2xl shrink-0">
               <button 
-                onClick={() => setSelectedObs(null)}
-                className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-lg hover:bg-black hover:shadow-2xl transition-all active:scale-[0.98] shadow-xl shadow-slate-200"
+                onClick={() => setSelectedObs(null)} 
+                className="px-6 py-2.5 rounded-xl font-bold bg-slate-900 text-white shadow-xl shadow-slate-200 hover:bg-black transition-all active:scale-[0.98]"
               >
-                Close Details
+                Close History
               </button>
             </div>
           </div>
