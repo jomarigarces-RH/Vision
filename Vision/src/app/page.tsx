@@ -5,7 +5,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { 
   Menu, LayoutDashboard, Users, UserCog, HandHeart, HelpCircle, 
-  Settings, ChevronDown, Check, X, Bell, Edit3
+  Settings, ChevronDown, Check, X, Bell, Edit3, Search, Calendar, Filter
 } from "lucide-react";
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -312,11 +312,62 @@ export default function Dashboard() {
   const [coachModalOpen, setCoachModalOpen] = useState(false);
   const [selectedCoach, setSelectedCoach] = useState<string | null>(null);
 
+  // Search & Filter State
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+  const [dateFilterModalOpen, setDateFilterModalOpen] = useState(false);
+  const [filterSinceDate, setFilterSinceDate] = useState(getMondayEST());
+
   // Convex: fetch observed agents from database (Reset every Monday EST)
-  const currentMonday = useMemo(() => getMondayEST(), []);
-  const observedAgentsList = useQuery(api.observations.getObservedAgents, { sinceDate: currentMonday }) ?? [];
+  const observedAgentsList = useQuery(api.observations.getObservedAgents, { sinceDate: filterSinceDate }) ?? [];
   const observedAgents = useMemo(() => new Set(observedAgentsList), [observedAgentsList]);
   const createObservation = useMutation(api.observations.create);
+
+  // Search Logic
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const q = searchQuery.toLowerCase();
+    const results: any[] = [];
+
+    // Search Departments
+    ['Sales', 'Support', 'Specialty'].forEach(dept => {
+      if (dept.toLowerCase().includes(q)) {
+        results.push({ type: 'dept', name: dept, path: dept, value: dept });
+      }
+    });
+
+    // Search Coaches
+    COACHES.forEach(coach => {
+      if (coach.name.toLowerCase().includes(q) || coach.dept.toLowerCase().includes(q)) {
+        results.push({ type: 'coach', name: coach.name, path: `${coach.dept} > ${coach.name}`, value: coach.name, dept: coach.dept });
+      }
+    });
+
+    // Search Agents
+    AGENTS.forEach(agent => {
+      const coach = COACHES.find(c => c.name === agent.coach);
+      if (agent.name.toLowerCase().includes(q) || agent.coach.toLowerCase().includes(q)) {
+        results.push({ type: 'agent', name: agent.name, path: `${coach?.dept} > ${agent.coach} > ${agent.name}`, value: agent.name });
+      }
+    });
+
+    return results.slice(0, 8);
+  }, [searchQuery]);
+
+  const handleSearchResultClick = (result: any) => {
+    setSearchQuery("");
+    setShowSearchDropdown(false);
+    if (result.type === 'dept') {
+      setSelectedDept(result.value);
+      setActiveView('agents');
+    } else if (result.type === 'coach') {
+      setSelectedCoach(result.value);
+      setCoachModalOpen(true);
+      setActiveView('coaches');
+    } else if (result.type === 'agent') {
+      openObservationModal(result.value);
+    }
+  };
 
   // Derive agents by department (agent → coach → coach's LOB)
   const getAgentsByDept = (dept: string) => 
@@ -552,12 +603,59 @@ export default function Dashboard() {
             </h1>
           </div>
           
-          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
-            <div className="hidden sm:flex bg-slate-100 rounded-lg p-1">
-              <button className="px-4 py-1.5 text-sm font-semibold rounded-md bg-white text-[var(--text-primary)] shadow-sm">
-                Coached
-              </button>
+          <div className="flex items-center gap-3 sm:gap-6 flex-1 max-w-2xl px-4 sm:px-8">
+            <div className="relative flex-1 group">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search size={18} className="text-slate-400 group-focus-within:text-brand-blue transition-colors" />
+              </div>
+              <input 
+                type="text" 
+                placeholder="Search agents, coaches, or departments..."
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue focus:bg-white transition-all"
+                value={searchQuery}
+                onChange={(e) => { setSearchQuery(e.target.value); setShowSearchDropdown(true); }}
+                onFocus={() => setShowSearchDropdown(true)}
+              />
+              
+              {/* Search Results Dropdown */}
+              {showSearchDropdown && searchResults.length > 0 && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowSearchDropdown(false)} />
+                  <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="max-h-[400px] overflow-y-auto p-2">
+                      {searchResults.map((result, i) => (
+                        <div 
+                          key={i}
+                          onClick={() => handleSearchResultClick(result)}
+                          className="p-3 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors border-b last:border-0 border-slate-50"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-sm text-slate-800">{result.name}</span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${
+                              result.type === 'dept' ? 'bg-blue-50 text-blue-600' : result.type === 'coach' ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'
+                            }`}>{result.type}</span>
+                          </div>
+                          <div className="text-[11px] text-slate-400 mt-0.5 font-medium">{result.path}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
+          </div>
+          
+          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+            <button 
+              onClick={() => setDateFilterModalOpen(true)}
+              className="flex items-center gap-2 px-3 py-2 text-sm font-semibold rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-all shadow-sm active:scale-95"
+            >
+              <Calendar size={18} className="text-brand-blue" />
+              <span className="hidden sm:inline">
+                {filterSinceDate === getMondayEST() ? 'Current Week' : `From ${filterSinceDate}`}
+              </span>
+              <Filter size={14} className="text-slate-400" />
+            </button>
             
             <div className="hidden sm:block h-8 w-[1px] bg-slate-200"></div>
             
@@ -1271,7 +1369,52 @@ export default function Dashboard() {
             </div>
           </div>
         );
-      })()}
+      {/* Date Filter Modal */}
+      {dateFilterModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setDateFilterModalOpen(false)}></div>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[400px] flex flex-col relative z-10 animate-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <Calendar className="text-brand-blue" size={20} />
+                Filter Period
+              </h2>
+              <button onClick={() => setDateFilterModalOpen(false)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="p-6 flex flex-col gap-4">
+              <div 
+                className={`p-4 border-2 rounded-xl cursor-pointer transition-all ${filterSinceDate === getMondayEST() ? 'border-brand-blue bg-blue-50/50' : 'border-slate-100 hover:border-slate-200'}`}
+                onClick={() => { setFilterSinceDate(getMondayEST()); setDateFilterModalOpen(false); }}
+              >
+                <div className="font-bold text-slate-800">Current Week</div>
+                <div className="text-xs text-slate-500 mt-1">Reset every Monday EST (Monday, {getMondayEST()})</div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Custom Since Date</label>
+                <input 
+                  type="date" 
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue"
+                  value={filterSinceDate}
+                  onChange={(e) => setFilterSinceDate(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-slate-100 flex justify-end">
+              <button 
+                onClick={() => setDateFilterModalOpen(false)}
+                className="w-full py-3 bg-brand-blue text-white rounded-xl font-bold shadow-lg shadow-brand-blue/20 hover:bg-brand-blue-hover transition-all active:scale-[0.98]"
+              >
+                Apply Filter
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

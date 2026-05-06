@@ -62,11 +62,9 @@ export const getByCoach = query({
 export const getObservedAgents = query({
   args: { sinceDate: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    let q = ctx.db.query("observations");
-    
-    if (args.sinceDate) {
-      q = q.withIndex("by_date", (idx) => idx.gte("date", args.sinceDate));
-    }
+    const q = args.sinceDate
+      ? ctx.db.query("observations").withIndex("by_date", (idx) => idx.gte("date", args.sinceDate!))
+      : ctx.db.query("observations");
 
     const observations = await q.collect();
     const agentNames = new Set(observations.map((o) => o.agentName));
