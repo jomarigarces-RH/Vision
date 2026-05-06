@@ -394,6 +394,19 @@ export default function Dashboard() {
     if (!searchQuery.trim()) return [];
     const q = searchQuery.toLowerCase();
     const results: any[] = [];
+    
+    // Search Observations by ID
+    allObservations.forEach(obs => {
+      const shortId = obs._id.slice(-6).toUpperCase();
+      if (shortId.includes(q.toUpperCase()) || obs.agentName.toLowerCase().includes(q)) {
+        results.push({ 
+          type: 'observation', 
+          name: `ID: ${shortId} - ${obs.agentName}`, 
+          path: `History > ${obs.agentName} > ${obs.date}`, 
+          value: obs 
+        });
+      }
+    });
 
     // Search Departments
     ['Sales', 'Support', 'Specialty'].forEach(dept => {
@@ -417,8 +430,8 @@ export default function Dashboard() {
       }
     });
 
-    return results.slice(0, 8);
-  }, [searchQuery]);
+    return results.slice(0, 10);
+  }, [searchQuery, allObservations]);
 
 
 
@@ -434,6 +447,8 @@ export default function Dashboard() {
       setActiveView('coaches');
     } else if (result.type === 'agent') {
       openObservationModal(result.value);
+    } else if (result.type === 'observation') {
+      setSelectedObs(result.value);
     }
   };
 
@@ -660,11 +675,16 @@ export default function Dashboard() {
             active={activeView === "coaches"}
             onClick={() => setActiveView("coaches")}
           />
+          <NavItem 
+            icon={<History size={20} />} 
+            label="History" 
+            collapsed={sidebarCollapsed} 
+            active={activeView === "history"}
+            onClick={() => setActiveView("history")}
+          />
         </nav>
 
         <div className="p-3 border-t border-[var(--border-light)] flex flex-col gap-1">
-          <NavItem icon={<HandHeart size={20} />} label="Support" collapsed={sidebarCollapsed} />
-          <NavItem icon={<HelpCircle size={20} />} label="Help" collapsed={sidebarCollapsed} />
           <NavItem icon={<Settings size={20} />} label="Settings" collapsed={sidebarCollapsed} />
         </div>
       </aside>
@@ -1158,6 +1178,59 @@ export default function Dashboard() {
                       </div>
                     )
                   })}
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* VIEW: HISTORY (ALL OBSERVATIONS) */}
+          {activeView === "history" && (
+            <div className="max-w-[1100px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold text-[var(--text-primary)]">Observation History</h2>
+                  <p className="text-[var(--text-secondary)] mt-1">Global log of all coaching sessions.</p>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl shadow-[var(--shadow-sm)] border border-[var(--border-light)] overflow-hidden">
+                <div className="p-4 border-b border-slate-50 bg-slate-50/50 grid grid-cols-6 gap-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">
+                  <div className="text-left pl-4">ID</div>
+                  <div className="text-left">Agent</div>
+                  <div className="text-left">Coach</div>
+                  <div>Date</div>
+                  <div>Rating</div>
+                  <div className="text-right pr-4">LOB</div>
+                </div>
+
+                <div className="flex flex-col">
+                  {allObservations.map((obs, i) => (
+                    <div 
+                      key={obs._id} 
+                      onClick={() => setSelectedObs(obs)}
+                      className="grid grid-cols-6 gap-4 items-center p-4 border-b border-slate-50 last:border-b-0 hover:bg-blue-50/30 cursor-pointer transition-all group"
+                    >
+                      <div className="text-xs font-black text-brand-blue bg-blue-50 px-2 py-1 rounded w-fit">{obs._id.slice(-6).toUpperCase()}</div>
+                      <div className="font-bold text-sm text-slate-700 truncate">{obs.agentName}</div>
+                      <div className="text-sm text-slate-500 truncate">{obs.coachName}</div>
+                      <div className="text-sm text-slate-400 text-center">{obs.date}</div>
+                      <div className="text-center">
+                        <span className={`text-sm font-bold ${obs.rating >= 9 ? 'text-emerald-500' : obs.rating >= 7 ? 'text-brand-blue' : 'text-rose-500'}`}>
+                          {obs.rating}/10
+                        </span>
+                      </div>
+                      <div className="text-right pr-4">
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${
+                          obs.department.includes('Sales') ? 'bg-blue-50 text-blue-600' : obs.department.includes('Support') ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
+                        }`}>
+                          {obs.department[0]}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                  {allObservations.length === 0 && (
+                    <div className="py-20 text-center text-slate-400 italic">No observations found in history.</div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1658,9 +1731,12 @@ export default function Dashboard() {
                       {getInitials(obs.agentName)}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-bold text-slate-800 truncate">{obs.agentName}</h4>
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded uppercase">MTD</span>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-bold text-slate-800 truncate">{obs.agentName}</h4>
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded uppercase">MTD</span>
+                        </div>
+                        <span className="text-[10px] font-black text-brand-blue bg-blue-50 px-2 py-0.5 rounded uppercase">ID: {obs._id.slice(-6).toUpperCase()}</span>
                       </div>
                       <p className="text-xs text-slate-500 mt-0.5">Coached by <span className="font-semibold text-slate-700">{obs.coachName}</span></p>
                       <p className="text-[10px] text-slate-400 mt-1 font-medium flex items-center gap-1">
