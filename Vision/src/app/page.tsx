@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "../../convex/_generated/api";
 import { 
   Menu, LayoutDashboard, Users, UserCog, HandHeart, HelpCircle, 
   Settings, ChevronDown, Check, X, Bell, Edit3
@@ -276,8 +278,11 @@ export default function Dashboard() {
   const [rating, setRating] = useState(0);
   const [coachModalOpen, setCoachModalOpen] = useState(false);
   const [selectedCoach, setSelectedCoach] = useState<string | null>(null);
-  // Mock observed agents — in production this would come from the database
-  const [observedAgents, setObservedAgents] = useState<Set<string>>(new Set());
+
+  // Convex: fetch observed agents from database
+  const observedAgentsList = useQuery(api.observations.getObservedAgents) ?? [];
+  const observedAgents = useMemo(() => new Set(observedAgentsList), [observedAgentsList]);
+  const createObservation = useMutation(api.observations.create);
 
   // Derive agents by department (agent → coach → coach's LOB)
   const getAgentsByDept = (dept: string) => 
@@ -1062,9 +1067,29 @@ export default function Dashboard() {
               <button onClick={closeModals} className="px-5 py-2.5 rounded-lg font-semibold text-slate-600 hover:bg-slate-200 transition-colors">
                 Cancel
               </button>
-              <button onClick={() => {
+              <button onClick={async () => {
                 if (selectedAgent) {
-                  setObservedAgents(prev => new Set(prev).add(selectedAgent));
+                  const agentCoach = AGENTS.find(a => a.name === selectedAgent)?.coach || 'Unknown';
+                  await createObservation({
+                    agentName: selectedAgent,
+                    coachName: agentCoach,
+                    department: formData.department,
+                    otherDepartment: formData.otherDepartment || undefined,
+                    date: formData.date,
+                    sessionType: formData.sessionType,
+                    categories: formData.categories,
+                    otherCategory: formData.otherCategory || undefined,
+                    strengths: formData.strengths || undefined,
+                    areasOfOpportunity: formData.areasOfOpportunity || undefined,
+                    rootCause: formData.rootCause || undefined,
+                    actionPlan: formData.actionPlan || undefined,
+                    overallRating: formData.overallRating,
+                    otherFeedback: formData.otherFeedback || undefined,
+                    orderNumber: formData.orderNumber || undefined,
+                    teamLeadFeedback: formData.teamLeadFeedback || undefined,
+                    rating: rating,
+                    observedBy: 'JG (Current User)',
+                  });
                 }
                 closeModals();
               }} className="px-5 py-2.5 rounded-lg font-semibold bg-brand-blue text-white shadow-md shadow-brand-blue/20 hover:bg-brand-blue-hover transition-all hover:-translate-y-0.5">
