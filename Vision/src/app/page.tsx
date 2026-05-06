@@ -283,7 +283,7 @@ export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   const [dateFilterModalOpen, setDateFilterModalOpen] = useState(false);
-  const [filterPeriod, setFilterPeriod] = useState<'TW' | 'LW' | 'TM' | 'LM'>('TW');
+  const [filterPeriod, setFilterPeriod] = useState<string>('Past week');
   const [globalPeriod, setGlobalPeriod] = useState<'TW' | 'LW' | 'ALL'>('TW');
   const [notObsDept, setNotObsDept] = useState('Sales');
 
@@ -321,20 +321,71 @@ export default function Dashboard() {
   }, []);
 
   const filterDates = useMemo(() => {
+    const now = new Date();
+    const formatDate = (date: Date) => date.toISOString().split('T')[0];
+    
+    let sinceDate: string | undefined;
+    let endDate: string | undefined;
+
     switch (filterPeriod) {
-      case 'TW': return { sinceDate: weekStats.thisWeekStart, endDate: undefined };
-      case 'LW': return { sinceDate: weekStats.lastWeekStart, endDate: weekStats.lastWeekEnd };
-      case 'TM': return { sinceDate: weekStats.monthStart, endDate: undefined };
-      case 'LM': {
-        const d = new Date(weekStats.monthStart);
-        d.setDate(0); // Last day of previous month
-        const lmEnd = d.toISOString().split('T')[0];
-        d.setDate(1); // First day of previous month
-        const lmStart = d.toISOString().split('T')[0];
-        return { sinceDate: lmStart, endDate: lmEnd };
+      case 'Today':
+        sinceDate = formatDate(now);
+        endDate = sinceDate;
+        break;
+      case 'Yesterday': {
+        const d = new Date(now);
+        d.setDate(d.getDate() - 1);
+        sinceDate = formatDate(d);
+        endDate = sinceDate;
+        break;
       }
-      default: return { sinceDate: weekStats.thisWeekStart, endDate: undefined };
+      case 'Past week': {
+        const d = new Date(now);
+        d.setDate(d.getDate() - 7);
+        sinceDate = formatDate(d);
+        break;
+      }
+      case 'Month to date': {
+        const d = new Date(now);
+        d.setDate(1);
+        sinceDate = formatDate(d);
+        break;
+      }
+      case 'Past 4 weeks': {
+        const d = new Date(now);
+        d.setDate(d.getDate() - 28);
+        sinceDate = formatDate(d);
+        break;
+      }
+      case 'Past 12 weeks': {
+        const d = new Date(now);
+        d.setDate(d.getDate() - 84);
+        sinceDate = formatDate(d);
+        break;
+      }
+      case 'Year to date': {
+        const d = new Date(now);
+        d.setMonth(0, 1);
+        sinceDate = formatDate(d);
+        break;
+      }
+      case 'Past 6 months': {
+        const d = new Date(now);
+        d.setMonth(d.getMonth() - 6);
+        sinceDate = formatDate(d);
+        break;
+      }
+      case 'Past 12 months': {
+        const d = new Date(now);
+        d.setFullYear(d.getFullYear() - 1);
+        sinceDate = formatDate(d);
+        break;
+      }
+      default:
+        sinceDate = weekStats.thisWeekStart;
+        break;
     }
+    return { sinceDate, endDate };
   }, [filterPeriod, weekStats]);
 
   // Convex: fetch observations from database
@@ -835,7 +886,7 @@ export default function Dashboard() {
               >
                 <Calendar size={18} className="text-brand-blue" />
                 <span className="hidden sm:inline">
-                  {filterPeriod === 'TW' ? 'Current Week' : filterPeriod === 'LW' ? 'Last Week' : filterPeriod === 'TM' ? 'Current Month' : 'Last Month'}
+                  {filterPeriod}
                 </span>
                 <Filter size={14} className="text-slate-400" />
               </button>
@@ -844,51 +895,23 @@ export default function Dashboard() {
                 <>
                   <div className="fixed inset-0 z-[40]" onClick={() => setDateFilterModalOpen(false)} />
                   <div className="absolute right-0 top-full mt-2 w-[220px] bg-slate-900 border border-slate-800 rounded-xl shadow-xl shadow-slate-900/20 z-[50] py-2 animate-in fade-in slide-in-from-top-2 duration-200">
-                    <button
-                      className="w-full text-left px-4 py-2.5 text-[13px] font-semibold hover:bg-slate-800 transition-colors flex items-center justify-between group"
-                      onClick={() => { setFilterPeriod('TW'); setDateFilterModalOpen(false); }}
-                    >
-                      <div className="flex items-center gap-3">
-                        <Calendar size={16} className={filterPeriod === 'TW' ? 'text-brand-blue' : 'text-slate-400'} />
-                        <span className={filterPeriod === 'TW' ? 'text-white' : 'text-slate-300 group-hover:text-white'}>Current Week</span>
-                      </div>
-                      {filterPeriod === 'TW' && <Check size={14} className="text-brand-blue" />}
-                    </button>
-
-                    <button
-                      className="w-full text-left px-4 py-2.5 text-[13px] font-semibold hover:bg-slate-800 transition-colors flex items-center justify-between group"
-                      onClick={() => { setFilterPeriod('LW'); setDateFilterModalOpen(false); }}
-                    >
-                      <div className="flex items-center gap-3">
-                        <Calendar size={16} className={filterPeriod === 'LW' ? 'text-brand-blue' : 'text-slate-400'} />
-                        <span className={filterPeriod === 'LW' ? 'text-white' : 'text-slate-300 group-hover:text-white'}>Last Week</span>
-                      </div>
-                      {filterPeriod === 'LW' && <Check size={14} className="text-brand-blue" />}
-                    </button>
-
-                    <div className="h-px bg-slate-800 my-1 mx-4"></div>
-
-                    <button
-                      className="w-full text-left px-4 py-2.5 text-[13px] font-semibold hover:bg-slate-800 transition-colors flex items-center justify-between group"
-                      onClick={() => { setFilterPeriod('TM'); setDateFilterModalOpen(false); }}
-                    >
-                      <div className="flex items-center gap-3">
-                        <Calendar size={16} className={filterPeriod === 'TM' ? 'text-brand-blue' : 'text-slate-400'} />
-                        <span className={filterPeriod === 'TM' ? 'text-white' : 'text-slate-300 group-hover:text-white'}>Current Month</span>
-                      </div>
-                      {filterPeriod === 'TM' && <Check size={14} className="text-brand-blue" />}
-                    </button>
-
-                    <button
-                      className="w-full text-left px-4 py-2.5 text-[13px] font-semibold hover:bg-slate-800 transition-colors flex items-center justify-between group"
-                      onClick={() => { setFilterPeriod('LM'); setDateFilterModalOpen(false); }}
-                    >
-                      <div className="flex items-center gap-3">
-                        <Calendar size={16} className={filterPeriod === 'LM' ? 'text-brand-blue' : 'text-slate-400'} />
-                        <span className={filterPeriod === 'LM' ? 'text-white' : 'text-slate-300 group-hover:text-white'}>Last Month</span>
-                      </div>
-                      {filterPeriod === 'LM' && <Check size={14} className="text-brand-blue" />}
-                    </button>
+                    {[
+                      'Today', 'Yesterday', 'Past week', 'Month to date', 
+                      'Past 4 weeks', 'Past 12 weeks', 'Year to date', 
+                      'Past 6 months', 'Past 12 months'
+                    ].map((period) => (
+                      <button
+                        key={period}
+                        className="w-full text-left px-4 py-2.5 text-[13px] font-semibold hover:bg-slate-800 transition-colors flex items-center justify-between group"
+                        onClick={() => { setFilterPeriod(period); setDateFilterModalOpen(false); }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Calendar size={16} className={filterPeriod === period ? 'text-brand-blue' : 'text-slate-400'} />
+                          <span className={filterPeriod === period ? 'text-white' : 'text-slate-300 group-hover:text-white'}>{period}</span>
+                        </div>
+                        {filterPeriod === period && <Check size={14} className="text-brand-blue" />}
+                      </button>
+                    ))}
                   </div>
                 </>
               )}
