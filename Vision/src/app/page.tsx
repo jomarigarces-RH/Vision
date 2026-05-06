@@ -385,6 +385,35 @@ export default function Dashboard() {
     return results.slice(0, 8);
   }, [searchQuery]);
 
+  const weekStats = useMemo(() => {
+    const now = new Date();
+    const thisMon = new Date(now);
+    const d = thisMon.getDay();
+    const diff = thisMon.getDate() - d + (d === 0 ? -6 : 1);
+    thisMon.setDate(diff);
+    const thisWeekStart = thisMon.toISOString().split('T')[0];
+
+    const lastMon = new Date(thisMon);
+    lastMon.setDate(thisMon.getDate() - 7);
+    const lastWeekStart = lastMon.toISOString().split('T')[0];
+    const lastSun = new Date(thisMon);
+    lastSun.setDate(thisMon.getDate() - 1);
+    const lastWeekEnd = lastSun.toISOString().split('T')[0];
+
+    const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+
+    return { thisWeekStart, lastWeekStart, lastWeekEnd, monthStart };
+  }, []);
+
+  const getCoachPeriodCount = (coachName: string, start: string, end?: string) => {
+    return allObservations.filter(o => {
+      if (o.coachName !== coachName) return false;
+      if (o.date < start) return false;
+      if (end && o.date > end) return false;
+      return true;
+    }).length;
+  };
+
   const handleSearchResultClick = (result: any) => {
     setSearchQuery("");
     setShowSearchDropdown(false);
@@ -952,45 +981,66 @@ export default function Dashboard() {
               </div>
 
               <div className="bg-white rounded-2xl shadow-[var(--shadow-sm)] border border-[var(--border-light)] overflow-hidden">
+                {/* Table Header */}
+                <div className="bg-slate-50/80 border-b border-slate-100 flex items-center px-4 py-3 gap-4">
+                  <div className="w-10 shrink-0"></div>
+                  <div className="flex-1 font-bold text-xs text-slate-500 uppercase tracking-wider">Coach Details</div>
+                  <div className="hidden sm:grid grid-cols-4 gap-4 flex-1 max-w-[450px] font-bold text-[10px] text-slate-400 uppercase tracking-widest text-center">
+                    <div>This Week</div>
+                    <div>Last Week</div>
+                    <div>Month</div>
+                    <div className="text-right">WoW Indicator</div>
+                  </div>
+                  <div className="w-5 pl-2"></div>
+                </div>
+
                 <div className="flex flex-col">
                   {COACHES.map((coach, i) => {
                     const initials = getInitials(coach.name);
                     const color = getAvatarColor(coach.name);
-                    const agents = getAgentsForCoach(coach.name);
-                    const completionRate = getCoachCompletionRate(coach.name);
-                    const observedCount = agents.filter(a => observedAgents.has(a.name)).length;
+                    
+                    const thisWeek = getCoachPeriodCount(coach.name, weekStats.thisWeekStart);
+                    const lastWeek = getCoachPeriodCount(coach.name, weekStats.lastWeekStart, weekStats.lastWeekEnd);
+                    const month = getCoachPeriodCount(coach.name, weekStats.monthStart);
+                    
+                    const wow = thisWeek - lastWeek;
+                    const wowColor = wow > 0 ? 'text-emerald-600 bg-emerald-50' : wow < 0 ? 'text-rose-600 bg-rose-50' : 'text-slate-400 bg-slate-50';
+
                     return (
                       <div 
                         key={i} 
                         onClick={() => { setSelectedCoach(coach.name); setCoachModalOpen(true); }}
-                        className="flex items-center gap-4 p-4 border-b border-[var(--border-light)] last:border-b-0 hover:bg-slate-50 cursor-pointer transition-colors group"
+                        className="flex items-center gap-4 p-4 border-b border-slate-50 last:border-b-0 hover:bg-blue-50/30 cursor-pointer transition-all group"
                       >
                         <div 
-                          className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-inner"
+                          className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-sm group-hover:scale-110 transition-transform"
                           style={{ backgroundColor: color }}
                         >
                           {initials}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h3 className="font-bold text-[var(--text-primary)] truncate">{coach.name}</h3>
-                          <p className="text-sm text-[var(--text-secondary)] truncate">{coach.dept} Department Coach</p>
-                        </div>
-                        <div className="text-right hidden sm:flex items-center gap-2 shrink-0 min-w-[100px]">
-                          <div className="w-16 h-2 bg-slate-100 rounded-full overflow-hidden">
-                            <div className="h-full rounded-full transition-all" style={{ width: `${completionRate}%`, backgroundColor: completionRate === 100 ? '#10B981' : completionRate > 50 ? '#F59E0B' : '#EF4444' }} />
+                          <h3 className="font-bold text-slate-800 truncate group-hover:text-brand-blue transition-colors">{coach.name}</h3>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${
+                              coach.dept === 'Sales' ? 'bg-blue-50 text-blue-600' : coach.dept === 'Support' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
+                            }`}>{coach.dept}</span>
                           </div>
-                          <span className={`font-bold text-sm ${completionRate === 100 ? 'text-emerald-500' : completionRate > 50 ? 'text-amber-500' : 'text-red-400'}`}>{completionRate}%</span>
                         </div>
-                        <div className="text-right hidden sm:block shrink-0 min-w-[80px]">
-                          <span className="text-[11px] font-medium text-slate-500">{observedCount}/{agents.length} done</span>
+
+                        <div className="hidden sm:grid grid-cols-4 gap-4 flex-1 max-w-[450px] items-center text-center">
+                          <div className="text-sm font-bold text-slate-700">{thisWeek}</div>
+                          <div className="text-sm font-bold text-slate-400">{lastWeek}</div>
+                          <div className="text-sm font-bold text-slate-700">{month}</div>
+                          <div className="flex justify-end">
+                            <div className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-black ${wowColor} min-w-[50px] justify-center`}>
+                              {wow > 0 ? '▲' : wow < 0 ? '▼' : '—'} 
+                              {wow !== 0 && Math.abs(wow)}
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-right hidden md:block shrink-0 min-w-[90px]">
-                          <span className={`text-xs font-semibold px-2 py-1 rounded-md ${
-                            coach.dept === 'Sales' ? 'bg-blue-50 text-blue-600' : coach.dept === 'Support' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
-                          }`}>{coach.dept}</span>
-                        </div>
+
                         <div className="text-slate-300 group-hover:text-brand-blue transition-colors pl-2">
-                          <ChevronDown className="-rotate-90" size={20} />
+                          <ChevronDown className="-rotate-90" size={18} />
                         </div>
                       </div>
                     )
