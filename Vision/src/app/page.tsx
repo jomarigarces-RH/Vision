@@ -1750,7 +1750,7 @@ export default function Dashboard() {
       {selectedObs && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setSelectedObs(null)}></div>
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-[500px] flex flex-col relative z-10 animate-in zoom-in-95 duration-300">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-[500px] flex flex-col relative z-10 animate-in zoom-in-95 duration-300 max-h-[90vh] overflow-hidden">
             <div className="relative h-32 bg-gradient-to-br from-brand-blue to-indigo-600 rounded-t-3xl overflow-hidden shrink-0">
               <div className="absolute inset-0 opacity-10">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-white rounded-full -mr-20 -mt-20"></div>
@@ -1772,7 +1772,7 @@ export default function Dashboard() {
               </div>
             </div>
             
-            <div className="pt-14 p-8 flex-1">
+            <div className="pt-14 p-8 overflow-y-auto flex-1 custom-scrollbar scroll-smooth">
               <div className="flex justify-between items-start mb-6">
                 <div>
                   <h2 className="text-2xl font-black text-slate-800">{selectedObs.agentName}</h2>
@@ -1839,7 +1839,7 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="p-8 pt-0">
+            <div className="p-8 pt-0 shrink-0">
               <button 
                 onClick={() => setSelectedObs(null)}
                 className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold hover:bg-black transition-all active:scale-[0.98] shadow-xl shadow-slate-200"
