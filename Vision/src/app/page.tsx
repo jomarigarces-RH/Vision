@@ -109,16 +109,18 @@ export default function Dashboard() {
 
   // Form State
   const [formData, setFormData] = useState({
-    lob: '',
+    department: [] as string[],
+    otherDepartment: '',
     date: new Date().toISOString().split('T')[0],
     coachName: 'Jake Cajes', // Example default
-    sessionType: '',
-    categories: '',
+    sessionType: [] as string[],
+    categories: [] as string[],
+    otherCategory: '',
     strengths: '',
     areasOfOpportunity: '',
     rootCause: '',
     actionPlan: '',
-    overallRating: '',
+    overallRating: [] as string[],
     otherFeedback: '',
     orderNumber: '',
     teamLeadFeedback: ''
@@ -148,7 +150,13 @@ export default function Dashboard() {
       ...prev,
       date: new Date().toISOString().split('T')[0],
       coachName: 'JG (Current User)', 
-      agentName: name
+      agentName: name,
+      department: [],
+      otherDepartment: '',
+      sessionType: [],
+      categories: [],
+      otherCategory: '',
+      overallRating: []
     }));
     setModalOpen(true);
   };
@@ -525,15 +533,24 @@ export default function Dashboard() {
               {/* Grid 1: Basic Info */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5 mb-8">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">LOB</label>
-                  <select 
-                    className="w-full bg-white border border-[var(--border-light)] rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue"
-                    value={formData.lob} onChange={e => setFormData({...formData, lob: e.target.value})}
-                  >
-                    <option value="" disabled>Select LOB...</option>
-                    <option value="lob1">LOB 1</option>
-                    <option value="lob2">LOB 2</option>
-                  </select>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Department</label>
+                  <MultiSelect 
+                    options={['Sales', 'Support', 'Service Recovery', 'Other']}
+                    selected={formData.department}
+                    onChange={vals => setFormData({...formData, department: vals})}
+                    placeholder="Select Department..."
+                  />
+                  {formData.department.includes('Other') && (
+                    <div className="mt-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                      <input 
+                        type="text"
+                        placeholder="Type department..."
+                        className="w-full bg-white border border-[var(--border-light)] rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue"
+                        value={formData.otherDepartment}
+                        onChange={e => setFormData({...formData, otherDepartment: e.target.value})}
+                      />
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Date of Observation</label>
@@ -563,36 +580,49 @@ export default function Dashboard() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5 mb-8">
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Session Type</label>
-                  <select 
-                    className="w-full bg-white border border-[var(--border-light)] rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue"
-                    value={formData.sessionType} onChange={e => setFormData({...formData, sessionType: e.target.value})}
-                  >
-                    <option value="" disabled>Select Type...</option>
-                    <option value="remote">Remote Observation</option>
-                    <option value="side-by-side">Side-by-Side</option>
-                    <option value="real-time">Real-time Guidance</option>
-                    <option value="1-1-followup">Observation - 1:1 Follow-up needed</option>
-                  </select>
+                  <MultiSelect 
+                    options={[
+                      'Remote Observation', 
+                      'Side-by-Side', 
+                      'Real-time Guidance', 
+                      'Observation - 1:1 Follow-up needed'
+                    ]}
+                    selected={formData.sessionType}
+                    onChange={vals => setFormData({...formData, sessionType: vals})}
+                    placeholder="Select Type..."
+                  />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Categories</label>
-                  <select 
-                    className="w-full bg-white border border-[var(--border-light)] rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue"
-                    value={formData.categories} onChange={e => setFormData({...formData, categories: e.target.value})}
-                  >
-                    <option value="" disabled>Select Category...</option>
-                    <option value="problem-solving">Problem-Solving/Resolution</option>
-                    <option value="product-knowledge">Product/Process Knowledge</option>
-                    <option value="customer-handling">Customer Handling Skills</option>
-                    <option value="platform-mastery">Platform Mastery</option>
-                    <option value="call-control">Call Control/Time Management</option>
-                    <option value="communication">Communication Skills</option>
-                    <option value="compliance">Compliance/Policy Adherence</option>
-                    <option value="adherence-call-flow">Adherence to Call Flow</option>
-                    <option value="documentation">Documentation Accuracy</option>
-                    <option value="process-execution">Process Execution & Accuracy</option>
-                    <option value="others">Others (Specified under other feedback...)</option>
-                  </select>
+                  <MultiSelect 
+                    options={[
+                      'Problem-Solving/Resolution',
+                      'Product/Process Knowledge',
+                      'Customer Handling Skills',
+                      'Platform Mastery',
+                      'Call Control/Time Management',
+                      'Communication Skills',
+                      'Compliance/Policy Adherence',
+                      'Adherence to Call Flow',
+                      'Documentation Accuracy',
+                      'Process Execution & Accuracy',
+                      'Others'
+                    ]}
+                    selected={formData.categories}
+                    onChange={vals => setFormData({...formData, categories: vals})}
+                    placeholder="Select Category..."
+                  />
+                  {formData.categories.includes('Others') && (
+                    <div className="mt-2 animate-in fade-in slide-in-from-top-1 duration-200">
+                      <input 
+                        type="text"
+                        placeholder="Type category..."
+                        className="w-full bg-white border border-[var(--border-light)] rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue"
+                        value={formData.otherCategory}
+                        onChange={e => setFormData({...formData, otherCategory: e.target.value})}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -628,15 +658,12 @@ export default function Dashboard() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5 mb-8">
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Overall Performance Rating</label>
-                  <select 
-                    className="w-full bg-white border border-[var(--border-light)] rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue"
-                    value={formData.overallRating} onChange={e => setFormData({...formData, overallRating: e.target.value})}
-                  >
-                    <option value="" disabled>Select Rating...</option>
-                    <option value="meets">Meets Expectations</option>
-                    <option value="exceeds">Exceeds Expectations</option>
-                    <option value="needs-improvement">Needs Improvement</option>
-                  </select>
+                  <MultiSelect 
+                    options={['Meets Expectations', 'Exceeds Expectations', 'Needs Improvement']}
+                    selected={formData.overallRating}
+                    onChange={vals => setFormData({...formData, overallRating: vals})}
+                    placeholder="Select Rating..."
+                  />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Order Number, Phone, or Email</label>
@@ -798,16 +825,70 @@ function NavItem({ icon, label, collapsed, active, onClick }: { icon: React.Reac
   return (
     <div 
       className={`flex items-center px-3 py-2.5 rounded-lg cursor-pointer font-medium transition-colors
-        ${active 
-          ? 'bg-brand-blue-light text-brand-blue' 
-          : 'text-[var(--text-secondary)] hover:bg-slate-50 hover:text-[var(--text-primary)]'}
-        ${collapsed ? 'justify-center' : ''}
-      `}
+        ${active ? 'bg-brand-blue-light text-brand-blue' : 'text-[var(--text-secondary)] hover:bg-slate-50'}
+        ${collapsed ? 'justify-center' : 'gap-3'}`}
       onClick={onClick}
       title={collapsed ? label : ""}
     >
-      <div className="shrink-0">{icon}</div>
-      {!collapsed && <span className="ml-3 truncate">{label}</span>}
+      <div className={`${active ? 'text-brand-blue' : 'text-slate-400'}`}>{icon}</div>
+      {!collapsed && <span>{label}</span>}
+    </div>
+  );
+}
+
+function MultiSelect({ options, selected, onChange, placeholder }: { options: string[], selected: string[], onChange: (vals: string[]) => void, placeholder: string }) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  const toggleOption = (option: string) => {
+    if (selected.includes(option)) {
+      onChange(selected.filter(o => o !== option));
+    } else {
+      onChange([...selected, option]);
+    }
+  };
+
+  return (
+    <div className="relative">
+      <div 
+        className="w-full bg-white border border-[var(--border-light)] rounded-lg px-4 py-2.5 flex items-center justify-between cursor-pointer focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue min-h-[46px]"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <div className="flex flex-wrap gap-1">
+          {selected.length > 0 ? (
+            selected.map(val => (
+              <span key={val} className="bg-brand-blue-light text-brand-blue text-[11px] font-bold px-2 py-0.5 rounded flex items-center gap-1 animate-in zoom-in-95">
+                {val}
+                <X size={10} className="cursor-pointer" onClick={(e) => { e.stopPropagation(); toggleOption(val); }} />
+              </span>
+            ))
+          ) : (
+            <span className="text-slate-400 text-sm">{placeholder}</span>
+          )}
+        </div>
+        <ChevronDown size={16} className={`text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </div>
+
+      {isOpen && (
+        <>
+          <div className="fixed inset-0 z-[60]" onClick={() => setIsOpen(false)} />
+          <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-[var(--border-light)] rounded-xl shadow-xl z-[70] py-1 max-h-60 overflow-y-auto custom-scrollbar animate-in slide-in-from-top-2 duration-200">
+            {options.map(option => {
+              const isSelected = selected.includes(option);
+              return (
+                <div 
+                  key={option}
+                  className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between
+                    ${isSelected ? 'bg-brand-blue-light text-brand-blue font-semibold' : 'text-slate-600 hover:bg-slate-50'}`}
+                  onClick={() => toggleOption(option)}
+                >
+                  <span>{option}</span>
+                  {isSelected && <Check size={14} />}
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
     </div>
   );
 }
