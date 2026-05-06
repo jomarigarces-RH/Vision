@@ -325,34 +325,31 @@ export default function Dashboard() {
   const createObservation = useMutation(api.observations.create);
 
   const [recentObsModalOpen, setRecentObsModalOpen] = useState(false);
+  const [topAgentsModalOpen, setTopAgentsModalOpen] = useState(false);
   const [selectedObs, setSelectedObs] = useState<any>(null);
 
   const recentObservations = useMemo(() => allObservations.slice(0, 20), [allObservations]);
 
   const topAgents = useMemo(() => {
-    const now = new Date();
-    const firstOfMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    const agentStats: Record<string, { thisWeek: number, lastWeek: number, month: number }> = {};
     
-    const monthlyObs = allObservations.filter(o => o.date >= firstOfMonth);
-    const agentScores: Record<string, { total: number, count: number }> = {};
-
-    monthlyObs.forEach(obs => {
-      if (!agentScores[obs.agentName]) {
-        agentScores[obs.agentName] = { total: 0, count: 0 };
-      }
-      agentScores[obs.agentName].total += obs.rating;
-      agentScores[obs.agentName].count += 1;
+    AGENTS.forEach(a => {
+      agentStats[a.name] = {
+        thisWeek: allObservations.filter(o => o.agentName === a.name && o.date >= weekStats.thisWeekStart).length,
+        lastWeek: allObservations.filter(o => o.agentName === a.name && o.date >= weekStats.lastWeekStart && o.date <= weekStats.lastWeekEnd).length,
+        month: allObservations.filter(o => o.agentName === a.name && o.date >= weekStats.monthStart).length,
+      };
     });
 
-    return Object.entries(agentScores)
-      .map(([name, data]) => ({
+    return Object.entries(agentStats)
+      .map(([name, stats]) => ({
         name,
-        avg: Math.round(data.total / data.count),
-        count: data.count
+        ...stats,
+        wow: stats.thisWeek - stats.lastWeek
       }))
-      .sort((a, b) => b.avg - a.avg)
-      .slice(0, 5);
-  }, [allObservations]);
+      .sort((a, b) => b.month - a.month)
+      .filter(a => a.month > 0); // Only show agents with activity
+  }, [allObservations, weekStats]);
 
   // Search Logic
   const searchResults = useMemo(() => {
@@ -885,35 +882,51 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  {/* Card: Top Charts (Month to Date) */}
+                  {/* Card: Top Charts (Activity Comparison) */}
                   <div className="bg-white rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
                     <div className="flex justify-between items-center mb-4">
                       <h2 className="font-bold text-lg">Top Charts</h2>
-                      <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">MONTH TO DATE</span>
+                      <button 
+                        onClick={() => setTopAgentsModalOpen(true)}
+                        className="text-[10px] font-bold text-brand-blue bg-blue-50 px-2 py-0.5 rounded border border-blue-100 hover:bg-brand-blue hover:text-white transition-colors"
+                      >
+                        VIEW ALL
+                      </button>
                     </div>
-                    <div className="flex flex-col gap-3">
-                      {topAgents.map((agent, i) => (
-                        <div key={i} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-xl transition-colors group">
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${i === 0 ? 'bg-amber-100 text-amber-600' : i === 1 ? 'bg-slate-100 text-slate-600' : i === 2 ? 'bg-orange-50 text-orange-600' : 'bg-slate-50 text-slate-400'}`}>
-                            #{i+1}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <h4 className="font-bold text-sm text-slate-800 truncate">{agent.name}</h4>
-                            <p className="text-[10px] text-slate-400 font-medium">{agent.count} observations this month</p>
-                          </div>
-                          <div className="flex flex-col items-end">
-                            <span className={`text-sm font-bold ${agent.avg >= 90 ? 'text-emerald-500' : agent.avg >= 80 ? 'text-brand-blue' : 'text-slate-700'}`}>
-                              {agent.avg}%
-                            </span>
-                            <div className="w-16 h-1 bg-slate-100 rounded-full mt-1 overflow-hidden">
-                              <div className="h-full bg-emerald-400 rounded-full" style={{ width: `${agent.avg}%` }}></div>
+                    
+                    <div className="flex flex-col">
+                      {/* Mini Header */}
+                      <div className="grid grid-cols-5 gap-1 mb-2 px-1 text-[9px] font-bold text-slate-400 uppercase tracking-tighter">
+                        <div className="col-span-2">Agent</div>
+                        <div className="text-center">TW</div>
+                        <div className="text-center">LW</div>
+                        <div className="text-right">WoW</div>
+                      </div>
+                      
+                      <div className="flex flex-col gap-1.5">
+                        {topAgents.slice(0, 3).map((agent, i) => {
+                          const wowColor = agent.wow > 0 ? 'text-emerald-500' : agent.wow < 0 ? 'text-rose-500' : 'text-slate-300';
+                          return (
+                            <div key={i} className="grid grid-cols-5 gap-1 items-center p-2 hover:bg-slate-50 rounded-lg transition-colors border border-transparent hover:border-slate-100 group cursor-pointer" onClick={() => openObservationModal(agent.name)}>
+                              <div className="col-span-2 flex items-center gap-2 min-w-0">
+                                <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-600 shrink-0">
+                                  {getInitials(agent.name)}
+                                </div>
+                                <span className="text-[11px] font-bold text-slate-700 truncate group-hover:text-brand-blue transition-colors">{agent.name}</span>
+                              </div>
+                              <div className="text-center text-xs font-bold text-slate-700">{agent.thisWeek}</div>
+                              <div className="text-center text-xs font-bold text-slate-400">{agent.lastWeek}</div>
+                              <div className={`text-right text-[10px] font-black ${wowColor}`}>
+                                {agent.wow > 0 ? '▲' : agent.wow < 0 ? '▼' : '—'}
+                                {agent.wow !== 0 && Math.abs(agent.wow)}
+                              </div>
                             </div>
-                          </div>
-                        </div>
-                      ))}
-                      {topAgents.length === 0 && (
-                        <div className="text-center py-6 text-slate-400 text-sm italic">No data for this month yet</div>
-                      )}
+                          );
+                        })}
+                        {topAgents.length === 0 && (
+                          <div className="text-center py-6 text-slate-400 text-sm italic">No data found</div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1708,6 +1721,70 @@ export default function Dashboard() {
               >
                 Close Details
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Top Charts Modal */}
+      {topAgentsModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setTopAgentsModalOpen(false)}></div>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[650px] flex flex-col max-h-[80vh] relative z-10 animate-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 rounded-t-2xl">
+              <h2 className="text-xl font-bold flex items-center gap-2 text-slate-800">
+                <BarChart className="text-brand-blue" size={22} />
+                Agent Activity Rankings
+              </h2>
+              <button onClick={() => setTopAgentsModalOpen(false)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center gap-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">
+              <div className="w-10">Rank</div>
+              <div className="flex-1 text-left">Agent</div>
+              <div className="w-16">This Week</div>
+              <div className="w-16">Last Week</div>
+              <div className="w-16">Month</div>
+              <div className="w-16 text-right">WoW</div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+              <div className="space-y-1">
+                {topAgents.slice(0, 10).map((agent, i) => {
+                  const wowColor = agent.wow > 0 ? 'text-emerald-500 bg-emerald-50' : agent.wow < 0 ? 'text-rose-500 bg-rose-50' : 'text-slate-400 bg-slate-50';
+                  return (
+                    <div 
+                      key={i} 
+                      className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-xl cursor-pointer transition-all border border-transparent hover:border-slate-100 group"
+                      onClick={() => { setTopAgentsModalOpen(false); openObservationModal(agent.name); }}
+                    >
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm ${i === 0 ? 'bg-amber-100 text-amber-600' : i === 1 ? 'bg-slate-100 text-slate-600' : i === 2 ? 'bg-orange-50 text-orange-600' : 'bg-slate-50 text-slate-400'}`}>
+                        {i + 1}
+                      </div>
+                      <div className="flex-1 flex items-center gap-3 min-w-0">
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs" style={{ backgroundColor: getAvatarColor(agent.name) }}>
+                          {getInitials(agent.name)}
+                        </div>
+                        <span className="font-bold text-slate-700 truncate group-hover:text-brand-blue transition-colors">{agent.name}</span>
+                      </div>
+                      <div className="w-16 text-center text-sm font-bold text-slate-800">{agent.thisWeek}</div>
+                      <div className="w-16 text-center text-sm font-bold text-slate-400">{agent.lastWeek}</div>
+                      <div className="w-16 text-center text-sm font-bold text-brand-blue bg-blue-50/50 rounded-md py-1">{agent.month}</div>
+                      <div className="w-16 flex justify-end">
+                        <div className={`px-2 py-1 rounded-md text-[10px] font-black ${wowColor} min-w-[40px] text-center`}>
+                          {agent.wow > 0 ? '▲' : agent.wow < 0 ? '▼' : '—'}
+                          {agent.wow !== 0 && Math.abs(agent.wow)}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+            
+            <div className="p-4 border-t border-slate-100 text-center">
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Ranked by Total Observations This Month</p>
             </div>
           </div>
         </div>
