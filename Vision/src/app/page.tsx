@@ -5,7 +5,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { 
   Menu, LayoutDashboard, Users, UserCog, HandHeart, HelpCircle, 
-  Settings, ChevronDown, Check, X, Bell, Edit3, Search, Calendar, Filter, History, BarChart as BarChartIcon
+  Settings, ChevronDown, Check, X, Bell, Edit3, Search, Calendar, Filter, History, BarChart as BarChartIcon, BookOpen
 } from "lucide-react";
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -328,6 +328,7 @@ export default function Dashboard() {
   const [recentObsModalOpen, setRecentObsModalOpen] = useState(false);
   const [wowChartsModalOpen, setWowChartsModalOpen] = useState(false);
   const [selectedObs, setSelectedObs] = useState<any>(null);
+  const [expandedNote, setExpandedNote] = useState<{label: string, content: string} | null>(null);
 
   const recentObservations = useMemo(() => allObservations.slice(0, 20), [allObservations]);
 
@@ -1807,9 +1808,16 @@ export default function Dashboard() {
                     { label: 'Other Feedback', value: selectedObs.otherFeedback },
                     { label: 'Team Lead Feedback', value: selectedObs.teamLeadFeedback }
                   ].map(field => field.value && field.value.trim() !== "" && (
-                    <div key={field.label} className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                      <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-2">{field.label}</div>
-                      <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{field.value}</div>
+                    <div 
+                      key={field.label} 
+                      onClick={() => setExpandedNote({ label: field.label, content: field.value })}
+                      className="bg-slate-50 p-4 rounded-2xl border border-slate-100 hover:bg-white hover:border-brand-blue/30 hover:shadow-md transition-all cursor-pointer group"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{field.label}</div>
+                        <div className="text-[9px] font-black text-brand-blue opacity-0 group-hover:opacity-100 transition-opacity uppercase">Click to Expand</div>
+                      </div>
+                      <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap line-clamp-4">{field.value}</div>
                     </div>
                   ))}
 
@@ -1908,6 +1916,44 @@ export default function Dashboard() {
             
             <div className="p-4 border-t border-slate-100 text-center">
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Ranked by Total Observations This Month</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Focused Note Viewer Modal */}
+      {expandedNote && (
+        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setExpandedNote(null)}></div>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-[600px] flex flex-col relative z-10 animate-in zoom-in-95 duration-200 overflow-hidden max-h-[85vh]">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-brand-blue/10 rounded-xl flex items-center justify-center text-brand-blue">
+                  <BookOpen size={20} />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-800 uppercase tracking-widest text-xs">Viewing Detail</h3>
+                  <p className="text-sm font-bold text-brand-blue">{expandedNote.label}</p>
+                </div>
+              </div>
+              <button onClick={() => setExpandedNote(null)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="p-8 overflow-y-auto flex-1 custom-scrollbar">
+              <div className="text-slate-700 text-base leading-relaxed whitespace-pre-wrap font-medium">
+                {expandedNote.content}
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-slate-100 bg-slate-50/30">
+              <button 
+                onClick={() => setExpandedNote(null)}
+                className="w-full py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-black transition-all"
+              >
+                Done Reading
+              </button>
             </div>
           </div>
         </div>
