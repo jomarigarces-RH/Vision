@@ -8,6 +8,8 @@
  * @module
  */
 
+import type * as constants from "../constants.js";
+import type * as http from "../http.js";
 import type * as observations from "../observations.js";
 
 import type {
@@ -17,6 +19,8 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  constants: typeof constants;
+  http: typeof http;
   observations: typeof observations;
 }>;
 

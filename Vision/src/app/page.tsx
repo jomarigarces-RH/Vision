@@ -338,8 +338,7 @@ export default function Dashboard() {
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   const [dateFilterModalOpen, setDateFilterModalOpen] = useState(false);
   const [filterSinceDate, setFilterSinceDate] = useState(getMondayEST());
-  const [completionPeriod, setCompletionPeriod] = useState<'TW' | 'LW' | 'MTD'>('TW');
-  const [notObsPeriod, setNotObsPeriod] = useState<'TW' | 'LW' | 'MTD'>('TW');
+  const [globalPeriod, setGlobalPeriod] = useState<'TW' | 'LW' | 'ALL'>('TW');
   const [notObsDept, setNotObsDept] = useState('Sales');
 
   // Convex: fetch observations from database
@@ -349,6 +348,10 @@ export default function Dashboard() {
   const activeObservations = useQuery(api.observations.listActive) ?? [];
   const createObservation = useMutation(api.observations.create);
   const startObservation = useMutation(api.observations.start);
+  const deleteManyObservations = useMutation(api.observations.deleteMany);
+
+  const [deleteMode, setDeleteMode] = useState(false);
+  const [selectedForDeletion, setSelectedForDeletion] = useState<Set<string>>(new Set());
 
   const [recentObsModalOpen, setRecentObsModalOpen] = useState(false);
   const [wowChartsModalOpen, setWowChartsModalOpen] = useState(false);
@@ -494,11 +497,11 @@ export default function Dashboard() {
     let start = weekStats.thisWeekStart;
     let end: string | undefined = undefined;
     
-    if (completionPeriod === 'LW') {
+    if (globalPeriod === 'LW') {
       start = weekStats.lastWeekStart;
       end = weekStats.lastWeekEnd;
-    } else if (completionPeriod === 'MTD') {
-      start = weekStats.monthStart;
+    } else if (globalPeriod === 'ALL') {
+      start = "2000-01-01";
     }
 
     const periodObservations = allObservations.filter(o => {
@@ -522,16 +525,16 @@ export default function Dashboard() {
         color: dept === 'Sales' ? '#4F7DF3' : dept === 'Support' ? '#10B981' : '#F59E0B' 
       };
     });
-  }, [allObservations, weekStats, completionPeriod]);
+  }, [allObservations, weekStats, globalPeriod]);
 
   const notObservedStats = useMemo(() => {
     let start = weekStats.thisWeekStart;
     let end: string | undefined = undefined;
-    if (notObsPeriod === 'LW') {
+    if (globalPeriod === 'LW') {
       start = weekStats.lastWeekStart;
       end = weekStats.lastWeekEnd;
-    } else if (notObsPeriod === 'MTD') {
-      start = weekStats.monthStart;
+    } else if (globalPeriod === 'ALL') {
+      start = "2000-01-01";
     }
 
     const periodObserved = new Set(
@@ -556,28 +559,49 @@ export default function Dashboard() {
     return Object.entries(coachStats)
       .map(([name, val]) => ({ name: name.split(' ')[0], fullName: name, val }))
       .sort((a,b) => b.val - a.val);
-  }, [allObservations, notObsPeriod, notObsDept, weekStats]);
+  }, [allObservations, globalPeriod, notObsDept, weekStats]);
 
   const observationTrendData = useMemo(() => {
-    const now = new Date();
-    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-    const month = now.getMonth() + 1;
-    const year = now.getFullYear();
-
-    const data = [];
-    for (let i = 1; i <= daysInMonth; i++) {
-      const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
-      const dayObs = allObservations.filter(o => o.date === dateStr);
-      
-      data.push({
-        day: i,
-        Sales: dayObs.filter(o => o.department.includes('Sales')).length,
-        Support: dayObs.filter(o => o.department.includes('Support')).length,
-        Specialty: dayObs.filter(o => o.department.includes('Specialty')).length,
-      });
+    let start = weekStats.thisWeekStart;
+    let end: string | undefined = undefined;
+    if (globalPeriod === 'LW') {
+      start = weekStats.lastWeekStart;
+      end = weekStats.lastWeekEnd;
+    } else if (globalPeriod === 'ALL') {
+      start = "2000-01-01";
     }
-    return data;
-  }, [allObservations]);
+
+    const periodObs = allObservations.filter(o => {
+      if (o.date < start) return false;
+      if (end && o.date > end) return false;
+      return true;
+    });
+
+    const dateMap = new Map<string, any>();
+    
+    if (globalPeriod === 'TW' || globalPeriod === 'LW') {
+       const dStart = new Date(start);
+       for (let i = 0; i < 7; i++) {
+         const d = new Date(dStart);
+         d.setDate(d.getDate() + i);
+         const dateStr = d.toISOString().split('T')[0];
+         dateMap.set(dateStr, { day: dateStr.slice(5), Sales: 0, Support: 0, Specialty: 0 });
+       }
+    }
+
+    periodObs.forEach(o => {
+       const dateStr = o.date;
+       if (!dateMap.has(dateStr)) {
+         dateMap.set(dateStr, { day: dateStr.slice(5), Sales: 0, Support: 0, Specialty: 0 });
+       }
+       const entry = dateMap.get(dateStr)!;
+       if (o.department.includes('Sales')) entry.Sales++;
+       if (o.department.includes('Support')) entry.Support++;
+       if (o.department.includes('Specialty')) entry.Specialty++;
+    });
+
+    return Array.from(dateMap.values()).sort((a,b) => a.day.localeCompare(b.day));
+  }, [allObservations, globalPeriod, weekStats]);
 
   const overallCompletion = useMemo(() => {
     const total = lobsStats.reduce((acc, curr) => acc + curr.total, 0);
@@ -916,6 +940,22 @@ export default function Dashboard() {
           </div>
           
           <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+            <div className="hidden sm:flex bg-slate-100 p-1 rounded-lg">
+              {[
+                { id: 'TW', label: 'This Week' },
+                { id: 'LW', label: 'Last Week' },
+                { id: 'ALL', label: 'All Time' }
+              ].map(p => (
+                <button 
+                  key={p.id}
+                  onClick={() => setGlobalPeriod(p.id as any)}
+                  className={`px-3 py-1.5 text-[11px] font-black rounded-md transition-all ${globalPeriod === p.id ? 'bg-white text-brand-blue shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            
             <button 
               onClick={() => setDateFilterModalOpen(true)}
               className="flex items-center gap-2 px-3 py-2 text-sm font-semibold rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-all shadow-sm active:scale-95"
@@ -1011,7 +1051,6 @@ export default function Dashboard() {
                   <div className="bg-white rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
                     <div className="flex justify-between items-center mb-4">
                       <h2 className="font-bold text-lg">Missing Observation</h2>
-                      <div className="flex items-center gap-2">
                         <div className="w-32">
                           <Select 
                             options={['Sales', 'Support', 'Specialty']}
@@ -1019,21 +1058,6 @@ export default function Dashboard() {
                             onChange={setNotObsDept}
                             placeholder="LOB..."
                           />
-                        </div>
-                        <div className="flex bg-slate-100 p-1 rounded-lg">
-                          {[
-                            { id: 'TW', label: 'TW' },
-                            { id: 'LW', label: 'LW' },
-                            { id: 'MTD', label: 'Month' }
-                          ].map(p => (
-                            <button 
-                              key={p.id}
-                              onClick={() => setNotObsPeriod(p.id as any)}
-                              className={`px-2 py-1 text-[9px] font-black rounded-md transition-all ${notObsPeriod === p.id ? 'bg-white text-brand-blue shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                            >
-                              {p.label}
-                            </button>
-                          ))}
                         </div>
                       </div>
                     </div>
@@ -1103,20 +1127,6 @@ export default function Dashboard() {
                   <div className="bg-white rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
                     <div className="flex justify-between items-center mb-4">
                       <h2 className="font-bold text-lg">Observation Index</h2>
-                      <div className="flex bg-slate-100 p-1 rounded-lg">
-                        {[
-                          { id: 'TW', label: 'TW' },
-                          { id: 'MTD', label: 'MTD' }
-                        ].map(p => (
-                          <button 
-                            key={p.id}
-                            onClick={() => setCompletionPeriod(p.id as any)}
-                            className={`px-2 py-1 text-[10px] font-black rounded-md transition-all ${completionPeriod === p.id ? 'bg-white text-brand-blue shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                          >
-                            {p.label}
-                          </button>
-                        ))}
-                      </div>
                     </div>
                     <div className="h-[200px] w-full">
                       <ResponsiveContainer width="100%" height="100%">
@@ -1137,21 +1147,6 @@ export default function Dashboard() {
                   <div className="bg-white rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
                     <div className="flex justify-between items-center mb-2">
                       <h2 className="font-bold text-lg">LOB Completion</h2>
-                      <div className="flex bg-slate-100 p-1 rounded-lg">
-                        {[
-                          { id: 'TW', label: 'TW' },
-                          { id: 'LW', label: 'LW' },
-                          { id: 'MTD', label: 'Month' }
-                        ].map(p => (
-                          <button 
-                            key={p.id}
-                            onClick={() => setCompletionPeriod(p.id as any)}
-                            className={`px-2 py-1 text-[10px] font-black rounded-md transition-all ${completionPeriod === p.id ? 'bg-white text-brand-blue shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                          >
-                            {p.label}
-                          </button>
-                        ))}
-                      </div>
                     </div>
                     <div className="h-[200px] w-full flex items-center justify-center relative">
                       <ResponsiveContainer width="100%" height="100%">
@@ -1496,6 +1491,45 @@ export default function Dashboard() {
                   <h2 className="text-2xl font-bold text-[var(--text-primary)]">Observation History</h2>
                   <p className="text-[var(--text-secondary)] mt-1">Global log of all coaching sessions.</p>
                 </div>
+                <div className="flex gap-3">
+                  {deleteMode && (
+                    <button 
+                      onClick={() => {
+                        if (selectedForDeletion.size === allObservations.length) {
+                          setSelectedForDeletion(new Set());
+                        } else {
+                          setSelectedForDeletion(new Set(allObservations.map((obs: any) => obs._id)));
+                        }
+                      }}
+                      className="px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-lg hover:bg-slate-200 transition-colors shadow-sm border border-slate-200"
+                    >
+                      {selectedForDeletion.size === allObservations.length && allObservations.length > 0 ? 'Deselect All' : 'Select All'}
+                    </button>
+                  )}
+                  {deleteMode && selectedForDeletion.size > 0 && (
+                    <button 
+                      onClick={() => {
+                        if (confirm(`Are you sure you want to delete ${selectedForDeletion.size} observations?`)) {
+                          deleteManyObservations({ ids: Array.from(selectedForDeletion) as any });
+                          setSelectedForDeletion(new Set());
+                          setDeleteMode(false);
+                        }
+                      }}
+                      className="px-4 py-2 bg-red-500 text-white font-bold rounded-lg hover:bg-red-600 transition-colors shadow-sm"
+                    >
+                      Delete {selectedForDeletion.size} Selected
+                    </button>
+                  )}
+                  <button 
+                    onClick={() => {
+                      setDeleteMode(!deleteMode);
+                      setSelectedForDeletion(new Set());
+                    }}
+                    className={`px-4 py-2 font-bold rounded-lg transition-colors shadow-sm ${deleteMode ? 'bg-slate-800 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                  >
+                    {deleteMode ? 'Cancel Selection' : 'Manage Data'}
+                  </button>
+                </div>
               </div>
 
               <div className="bg-white rounded-2xl shadow-[var(--shadow-sm)] border border-[var(--border-light)] overflow-hidden">
@@ -1508,12 +1542,25 @@ export default function Dashboard() {
                 </div>
 
                 <div className="flex flex-col">
-                  {allObservations.map((obs, i) => (
-                    <div 
-                      key={obs._id} 
-                      onClick={() => setSelectedObs(obs)}
-                      className="grid grid-cols-5 gap-4 items-center p-4 border-b border-slate-50 last:border-b-0 hover:bg-blue-50/30 cursor-pointer transition-all group"
-                    >
+                  {allObservations.map((obs, i) => {
+                    const isSelected = selectedForDeletion.has(obs._id);
+                    return (
+                      <div 
+                        key={obs._id} 
+                        onClick={() => {
+                          if (deleteMode) {
+                            const newSet = new Set(selectedForDeletion);
+                            if (newSet.has(obs._id)) newSet.delete(obs._id);
+                            else newSet.add(obs._id);
+                            setSelectedForDeletion(newSet);
+                          } else {
+                            setSelectedObs(obs);
+                          }
+                        }}
+                        className={`grid grid-cols-5 gap-4 items-center p-4 border-b border-slate-50 last:border-b-0 cursor-pointer transition-all group ${
+                          isSelected ? 'bg-red-50/80 border-l-4 border-l-red-500' : 'hover:bg-blue-50/30 border-l-4 border-l-transparent'
+                        }`}
+                      >
                       <div className="text-xs font-black text-brand-blue bg-blue-50 px-2 py-1 rounded w-fit">{obs._id.slice(-8).toUpperCase()}</div>
                       <div className="font-bold text-sm text-slate-700 truncate">{obs.agentName}</div>
                       <div className="text-sm text-slate-500 truncate">{obs.coachName}</div>
@@ -1526,7 +1573,8 @@ export default function Dashboard() {
                         </span>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                   {allObservations.length === 0 && (
                     <div className="py-20 text-center text-slate-400 italic">No observations found in history.</div>
                   )}
