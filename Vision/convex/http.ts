@@ -14,7 +14,8 @@ http.route({
     const observations = Array.isArray(data) ? data : [data];
 
     try {
-      await ctx.runMutation(api.observations.importBatch, { observations });
+      // Use batchSync which has the duplicate check logic
+      await ctx.runMutation(api.observations.batchSync, { observations });
       return new Response(JSON.stringify({ success: true }), {
         status: 200,
         headers: { "Content-Type": "application/json" },

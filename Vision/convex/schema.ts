@@ -2,6 +2,15 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 export default defineSchema({
+  staff: defineTable({
+    agentName: v.string(),
+    coachName: v.string(),
+    lob: v.string(), // Sales, Support, Specialty
+  })
+    .index("by_coach", ["coachName"])
+    .index("by_lob", ["lob"])
+    .index("by_agent", ["agentName"]),
+
   observations: defineTable({
     agentName: v.string(),
     coachName: v.string(),

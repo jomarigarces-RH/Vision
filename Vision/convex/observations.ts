@@ -1,35 +1,10 @@
-import { mutation, query, action } from "./_generated/server";
+import { mutation, query, action, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
-import { AGENTS, COACHES } from "./constants";
+import { normalizeName } from "./utils";
 
 // Helper for fuzzy matching names
-function resolveName(shortName: string, list: string[]) {
-  if (!shortName) return null;
-  
-  const exactMappings: Record<string, string> = {
-    '@edmar baylon': 'Edmar Muyco Baylon',
-    '@jimgirl corciega': 'Jimboy Tortusa Corciega',
-    '@ej samson': 'Ej Gabrielle Samson Fua',
-    '@lyndel verzano': 'Lyndel Mae Baguio Verzano',
-    '@shanne diputado': 'Shanne Juliet Credo Diputado',
-    '@erwin verano': 'Erwin Verano',
-    '@felrose magalso': 'Felrose Quisel Magalso'
-  };
-
-  const raw = shortName.trim().toLowerCase();
-  if (exactMappings[raw]) {
-    // Return the mapped name if it exists in the provided list, otherwise return the mapped string directly
-    const found = list.find(full => full.toLowerCase() === exactMappings[raw].toLowerCase());
-    if (found) return found;
-    return exactMappings[raw]; 
-  }
-
-  const clean = shortName.replace('@', '').toLowerCase().trim();
-  const parts = clean.split(' ').filter(p => p.length > 0);
-  return list.find(full => {
-    const fClean = full.toLowerCase();
-    return parts.every(p => fClean.includes(p));
-  });
+function resolveName(shortName: string) {
+  return normalizeName(shortName);
 }
 
 function mapRating(ratingStr: string) {
@@ -204,19 +179,80 @@ export const importBatch = mutation({
   },
   handler: async (ctx, args) => {
     for (const obs of args.observations) {
-      const agent = resolveName(obs.agentName, AGENTS) || obs.agentName;
-      const coach = resolveName(obs.coachName, COACHES) || obs.coachName;
-      const rating = obs.rating ?? mapRating(obs.ratingString || "");
+      const agent = resolveName(obs.agentName);
+      const coach = resolveName(obs.coachName);
+      const rating = obs.rating ?? mapRating(obs.overallRating?.[0] || "");
+      const lob = obs.department?.[0] || "Support";
 
+      // 1. Sync Staff Table
+      const existingStaff = await ctx.db
+        .query("staff")
+        .withIndex("by_agent", (q) => q.eq("agentName", agent))
+        .first();
+      
+      if (existingStaff) {
+        await ctx.db.patch(existingStaff._id, { coachName: coach, lob });
+      } else {
+        await ctx.db.insert("staff", { agentName: agent, coachName: coach, lob });
+      }
+
+      // 2. Sync Observation
       await ctx.db.insert("observations", {
         ...obs,
         agentName: agent,
         coachName: coach,
         rating: rating,
         observedBy: obs.observedBy || coach,
-        // Remove ratingString as it's not in the schema
         ratingString: undefined,
       } as any);
+    }
+  },
+});
+
+/** Batch sync from spreadsheet. */
+export const batchSync = internalMutation({
+  args: {
+    observations: v.array(v.object({
+      agentName: v.string(),
+      coachName: v.string(),
+      department: v.array(v.string()),
+      date: v.string(),
+      sessionType: v.array(v.string()),
+      categories: v.array(v.string()),
+      strengths: v.optional(v.string()),
+      areasOfOpportunity: v.optional(v.string()),
+      rootCause: v.optional(v.string()),
+      actionPlan: v.optional(v.string()),
+      overallRating: v.array(v.string()),
+      otherFeedback: v.optional(v.string()),
+      orderNumber: v.optional(v.string()),
+      teamLeadFeedback: v.optional(v.string()),
+      rating: v.number(),
+      observedBy: v.string(),
+    })),
+  },
+  handler: async (ctx, args) => {
+    for (const obs of args.observations) {
+      const agent = resolveName(obs.agentName);
+      const coach = resolveName(obs.coachName);
+      
+      // Basic duplicate check by agent, date, and rating
+      const existing = await ctx.db
+        .query("observations")
+        .withIndex("by_agent", (q) => q.eq("agentName", agent))
+        .filter((q) => q.and(
+          q.eq(q.field("date"), obs.date),
+          q.eq(q.field("rating"), obs.rating)
+        ))
+        .first();
+
+      if (!existing) {
+        await ctx.db.insert("observations", {
+          ...obs,
+          agentName: agent,
+          coachName: coach,
+        });
+      }
     }
   },
 });

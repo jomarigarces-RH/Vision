@@ -12,248 +12,11 @@ import {
   LineChart, Line, PieChart, Pie, Cell
 } from "recharts";
 
-// --- Mock Data ---
+// --- Data is fetched from Convex backend (staff table) ---
+// Type aliases for staff data
+type StaffRow = { _id: string; agentName: string; coachName: string; lob: string };
+type CoachInfo = { name: string; lob: string };
 
-// --- Data Mappings from References ---
-const COACHES = [
-  { name: 'Chui Ling Villafuerte Goh', dept: 'Sales' },
-  { name: 'Xavier Bertril Nuico Cuerpo', dept: 'Specialty' },
-  { name: 'Gazelle Broniola Bulalacao', dept: 'Support' },
-  { name: 'Zaira Mae Regino Kinol', dept: 'Support' },
-  { name: 'Charbel Rado Mahinay', dept: 'Support' },
-  { name: 'Karl Jasper Lorejo Mag-usara', dept: 'Support' },
-  { name: 'Erwin Verano', dept: 'Sales' },
-  { name: 'Kyla Serion', dept: 'Sales' },
-  { name: 'May-Ann Alabata Montegrejo', dept: 'Specialty' },
-  { name: 'Ma. Mikaela Lalamonan Barrera', dept: 'Support' },
-  { name: 'Joe Mari Torda Piñero', dept: 'Specialty' },
-  { name: 'John Rey Aspacio Ortega', dept: 'Support' },
-  { name: 'Korina Kim Romeo Alcantara', dept: 'Specialty' },
-  { name: 'Elaine De Leon Roxas', dept: 'Specialty' },
-  { name: 'Irene Villarin Estravela', dept: 'Support' },
-  { name: 'Shanne Juliet Credo Diputado', dept: 'Support' },
-  { name: 'Maria Fatima Serrano Buenviaje', dept: 'Specialty' },
-  { name: 'Alyssa Sandel Reyes', dept: 'Specialty' },
-  { name: 'Joenesse Vhem Laraya Bonghanoy', dept: 'Sales' },
-  { name: 'Krishia May Capuyan Saldivar', dept: 'Specialty' },
-];
-
-const AGENTS = [
-  { name: 'Abegail Lariosa Ingco', coach: 'Chui Ling Villafuerte Goh' },
-  { name: 'Aiva Paquira Abalos', coach: 'Xavier Bertril Nuico Cuerpo' },
-  { name: 'Alina Amaya Zelaya', coach: 'Gazelle Broniola Bulalacao' },
-  { name: 'Alvin Cajipo Saguban', coach: 'Zaira Mae Regino Kinol' },
-  { name: 'Alvin Portallo Gemira', coach: 'Charbel Rado Mahinay' },
-  { name: 'Alyanna Juhl Soledad Aquino', coach: 'Karl Jasper Lorejo Mag-usara' },
-  { name: 'Angel Reyes Guarin', coach: 'Charbel Rado Mahinay' },
-  { name: 'Ann Kimberly Vidal Ablir', coach: 'Erwin Verano' },
-  { name: 'Anne June Mariño Dumaldal', coach: 'Kyla Serion' },
-  { name: 'Arcelie Macatunog Patula', coach: 'May-Ann Alabata Montegrejo' },
-  { name: 'Archie Ferrolino Osa', coach: 'Ma. Mikaela Lalamonan Barrera' },
-  { name: 'Argie Dialino Cayetano', coach: 'Charbel Rado Mahinay' },
-  { name: 'Ariane Mae Tercio Ib-Ib', coach: 'Chui Ling Villafuerte Goh' },
-  { name: 'Arlita Trinidad Calingacion', coach: 'Joe Mari Torda Piñero' },
-  { name: 'Arzy Llemit', coach: 'Joe Mari Torda Piñero' },
-  { name: 'Ashley Barrera Adalid', coach: 'John Rey Aspacio Ortega' },
-  { name: 'Bello Isah Egano Habibulla', coach: 'May-Ann Alabata Montegrejo' },
-  { name: 'Belmarie Manggon Zamora', coach: 'Karl Jasper Lorejo Mag-usara' },
-  { name: 'Cesar Joseph Hernandez Unabia', coach: 'May-Ann Alabata Montegrejo' },
-  { name: 'Charlyn Acabal Cambio', coach: 'Ma. Mikaela Lalamonan Barrera' },
-  { name: 'Chiran Solamillo Tortogo Jr.', coach: 'Xavier Bertril Nuico Cuerpo' },
-  { name: 'Christin Sanchez', coach: 'Gazelle Broniola Bulalacao' },
-  { name: 'Christine Gywneth Naval Estomagulang', coach: 'Irene Villarin Estravela' },
-  { name: 'Christofer Dumaran Perocho', coach: 'Charbel Rado Mahinay' },
-  { name: 'Clint Ybonne Ronato Anadon', coach: 'John Rey Aspacio Ortega' },
-  { name: 'Cris-Ann Ruado Relox', coach: 'Shanne Juliet Credo Diputado' },
-  { name: 'Crystal Jycel Longno Beron', coach: 'Shanne Juliet Credo Diputado' },
-  { name: 'Cyril Brondial Santos', coach: 'Korina Kim Romeo Alcantara' },
-  { name: 'Darwin Levin Lope Data', coach: 'Shanne Juliet Credo Diputado' },
-  { name: 'Daryll Tulod Bentulan', coach: 'Maria Fatima Serrano Buenviaje' },
-  { name: 'Daven Paul Manlupig Dorimon', coach: 'Korina Kim Romeo Alcantara' },
-  { name: 'Devielyn Kaye Diola Trangia', coach: 'Elaine De Leon Roxas' },
-  { name: 'Dexter Dumaog Japay', coach: 'Karl Jasper Lorejo Mag-usara' },
-  { name: 'Diana Sojor Solibio', coach: 'Karl Jasper Lorejo Mag-usara' },
-  { name: 'Dinalyn Macasinag Villalon', coach: 'John Rey Aspacio Ortega' },
-  { name: 'Dino Amiel Lojo Balaga', coach: 'Maria Fatima Serrano Buenviaje' },
-  { name: 'Dominique Eurika Portada Katada', coach: 'Xavier Bertril Nuico Cuerpo' },
-  { name: 'Donna Amores', coach: 'Joenesse Vhem Laraya Bonghanoy' },
-  { name: 'Drea Timonan Surbito', coach: 'Karl Jasper Lorejo Mag-usara' },
-  { name: 'Dwaynee Chan Benignos', coach: 'Zaira Mae Regino Kinol' },
-  { name: 'Edeson Alabata Abo-Abo', coach: 'John Rey Aspacio Ortega' },
-  { name: 'Edwin Zabala Dizon', coach: 'Zaira Mae Regino Kinol' },
-  { name: 'Elenie Villaro Tito', coach: 'Gazelle Broniola Bulalacao' },
-  { name: 'Emiliano Alexie Casaje San Pedro Jr.', coach: 'Irene Villarin Estravela' },
-  { name: 'Eva Mae Gerardo Violeta', coach: 'Karl Jasper Lorejo Mag-usara' },
-  { name: 'Farah Mae Lope Torres', coach: 'Korina Kim Romeo Alcantara' },
-  { name: 'Felori Baguihon Siplao', coach: 'Elaine De Leon Roxas' },
-  { name: 'Flora May Carcusia Cagampang', coach: 'Ma. Mikaela Lalamonan Barrera' },
-  { name: 'Frances Bryle Millan Gelvoria', coach: 'Korina Kim Romeo Alcantara' },
-  { name: 'Francose Marie Partosa Estrada', coach: 'Irene Villarin Estravela' },
-  { name: 'Genilyn Bautista Aseñas', coach: 'Jake Vergel Gonzales Cajes' },
-  { name: 'Gina Panaligan Bautista', coach: 'Zaira Mae Regino Kinol' },
-  { name: 'Haissam Rohann Bocanegra Morton', coach: 'John Rey Aspacio Ortega' },
-  { name: 'Heinz Harald Pagon Acson', coach: 'Kyla Serion' },
-  { name: 'Honey Ege Radoc', coach: 'Elaine De Leon Roxas' },
-  { name: 'Honeylen Landisa', coach: 'Shanne Juliet Credo Diputado' },
-  { name: 'Irene Ann Cadallo Bahandi', coach: 'Kyla Serion' },
-  { name: 'Irene Dagoy Rolandong', coach: 'Korina Kim Romeo Alcantara' },
-  { name: 'Iris Mae Recaldo Timbal', coach: 'Krizha Mae Gamalando Abia' },
-  { name: 'Ivan Allan Bungcasan', coach: 'Kyla Serion' },
-  { name: 'Jade Marian Daarol Gabunilas', coach: 'Zaira Mae Regino Kinol' },
-  { name: 'Jamaica Arranchado Veriña', coach: 'Maria Fatima Serrano Buenviaje' },
-  { name: 'James Saycon Buagas', coach: 'Karl Jasper Lorejo Mag-usara' },
-  { name: 'Jan August Delfin Villamor', coach: 'May-Ann Alabata Montegrejo' },
-  { name: 'Jana Esperanza Sun Dalleda', coach: 'Joenesse Vhem Laraya Bonghanoy' },
-  { name: 'Jared Xavierre Giron Manuel', coach: 'Xavier Bertril Nuico Cuerpo' },
-  { name: 'Jay Mark Almonte Tuayon', coach: 'Irene Villarin Estravela' },
-  { name: 'Jayrilyn Devero Alberto', coach: 'Ma. Mikaela Lalamonan Barrera' },
-  { name: 'Jayson Saycon Caminos', coach: 'Ma. Mikaela Lalamonan Barrera' },
-  { name: 'Jeff Cantina Dela Cruz', coach: 'Maria Fatima Serrano Buenviaje' },
-  { name: 'Jefford Lu-Ang Algoso', coach: 'Krizha Mae Gamalando Abia' },
-  { name: 'Jeizel Eringe Mapula', coach: 'Erwin Verano' },
-  { name: 'Jeniefe Tubac Garcia', coach: 'John Rey Aspacio Ortega' },
-  { name: 'Jenifer Alatan Balanay', coach: 'Zaira Mae Regino Kinol' },
-  { name: 'Jerald Anqui Olasiman', coach: 'Irene Villarin Estravela' },
-  { name: 'Jeremy Capalad Albina', coach: 'Shanne Juliet Credo Diputado' },
-  { name: 'Jeremy Ruso Arnaiz', coach: 'Zaira Mae Regino Kinol' },
-  { name: 'Jerome Makasilhig Olarte', coach: 'Krizha Mae Gamalando Abia' },
-  { name: 'Jesmar Borromeo Maxino', coach: 'Xavier Bertril Nuico Cuerpo' },
-  { name: 'Jessa Dee Silva Romero', coach: 'Xavier Bertril Nuico Cuerpo' },
-  { name: 'Jessa Galve Amparado', coach: 'Shanne Juliet Credo Diputado' },
-  { name: 'Jessa Kadusale Casido', coach: 'Charbel Rado Mahinay' },
-  { name: 'Jesselaine Hinaut Siglos', coach: 'Erwin Verano' },
-  { name: 'Jessica Causing Montecillo', coach: 'Zaira Mae Regino Kinol' },
-  { name: 'Jessica Cuizon Catubig', coach: 'Irene Villarin Estravela' },
-  { name: 'Jessuelle Zaira Patrimonio', coach: 'Zaira Mae Regino Kinol' },
-  { name: 'Jimboy Tortusa Corciega', coach: 'Kyla Serion' },
-  { name: 'Joan Catinggan', coach: 'John Rey Aspacio Ortega' },
-  { name: 'Joann Torres Balasabas', coach: 'Irene Villarin Estravela' },
-  { name: 'Johann Pabayos Aran', coach: 'Gazelle Broniola Bulalacao' },
-  { name: 'John Christopher Ang Tismo', coach: 'Karl Jasper Lorejo Mag-usara' },
-  { name: 'John Patrick Gutierrez Diaz', coach: 'Elaine De Leon Roxas' },
-  { name: 'John Paul Jabas Romano', coach: 'Kyla Serion' },
-  { name: 'John Philip Bulagao', coach: 'John Rey Aspacio Ortega' },
-  { name: 'John Ric Carabaña Vallejos', coach: 'Erwin Verano' },
-  { name: 'Johnnas Vidanes Morales', coach: 'Korina Kim Romeo Alcantara' },
-  { name: 'Jolina Tinaytina Lopez', coach: 'Kyla Serion' },
-  { name: 'Joriel Duran Elloren', coach: 'Erwin Verano' },
-  { name: 'Jose Louise Varona Anda', coach: 'Charbel Rado Mahinay' },
-  { name: 'Jose Yael Inocente', coach: 'Zaira Mae Regino Kinol' },
-  { name: 'Josephine Belaro Olbes', coach: 'Gazelle Broniola Bulalacao' },
-  { name: 'Jostuart Stanley Monsole Gunter', coach: 'Erwin Verano' },
-  { name: 'June Solamillo Lucilla', coach: 'Krizha Mae Gamalando Abia' },
-  { name: 'Karl Elmer Ii Cavite Piamonte', coach: 'Gazelle Broniola Bulalacao' },
-  { name: 'Karla Louise Claud Ramos', coach: 'Ma. Mikaela Lalamonan Barrera' },
-  { name: 'Kay Ann Apurado Quio', coach: 'Charbel Rado Mahinay' },
-  { name: 'Kevin Berino Elumba', coach: 'Erwin Verano' },
-  { name: 'Kimberly Anne Siquijor Garol', coach: 'Chui Ling Villafuerte Goh' },
-  { name: 'Kimberly Nicole Lim Cachero', coach: 'Xavier Bertril Nuico Cuerpo' },
-  { name: 'Kristine Garcia Ramos', coach: 'Ma. Mikaela Lalamonan Barrera' },
-  { name: 'Kyla Saracia Abalos', coach: 'John Rey Aspacio Ortega' },
-  { name: 'Kylle Elaine Econg Manninen', coach: 'Irene Villarin Estravela' },
-  { name: 'Lenie Jane Tarog', coach: 'John Rey Aspacio Ortega' },
-  { name: 'Lourdes Apple Calidguid Unajan', coach: 'Chui Ling Villafuerte Goh' },
-  { name: 'Luther Maglinte Dalura', coach: 'Krizha Mae Gamalando Abia' },
-  { name: 'Ma Reynaline Canseco Barona', coach: 'Charbel Rado Mahinay' },
-  { name: 'Mae Jumawan Sasil', coach: 'Charbel Rado Mahinay' },
-  { name: 'Maevel Cruz Umalza', coach: 'Charbel Rado Mahinay' },
-  { name: 'Maricel Morquida', coach: 'John Rey Aspacio Ortega' },
-  { name: 'Marichu Bornillo Acar', coach: 'Chui Ling Villafuerte Goh' },
-  { name: 'Marion Jean Espero Vital', coach: 'Xavier Bertril Nuico Cuerpo' },
-  { name: 'Marites Taburnal Agustin', coach: 'Irene Villarin Estravela' },
-  { name: 'Marlo Villarin Labrador', coach: 'Ma. Mikaela Lalamonan Barrera' },
-  { name: 'Marry Jen Villieta Catubig', coach: 'John Rey Aspacio Ortega' },
-  { name: 'Marth Joseph Dayao Enopia', coach: 'Erwin Verano' },
-  { name: 'Mary Caribelle Anne Miculob', coach: 'Joe Mari Torda Piñero' },
-  { name: 'Mary Vella Paltinca', coach: 'Joenesse Vhem Laraya Bonghanoy' },
-  { name: 'Meguela Angela Bisco Dagoy', coach: 'Gazelle Broniola Bulalacao' },
-  { name: 'Melissa Tan Capulong', coach: 'Gazelle Broniola Bulalacao' },
-  { name: 'Merbelyn Magbanua Mancia', coach: 'Erwin Verano' },
-  { name: 'Michael Angelo Bisabis Taub', coach: 'Xavier Bertril Nuico Cuerpo' },
-  { name: 'Michelle Guzman Plazos', coach: 'Korina Kim Romeo Alcantara' },
-  { name: 'Michelle Zamora Ortiz', coach: 'Xavier Bertril Nuico Cuerpo' },
-  { name: 'Mickel Arvin Lloyd Noay', coach: 'Charbel Rado Mahinay' },
-  { name: 'Mitch Vianca Ferenal Bajenting', coach: 'John Rey Aspacio Ortega' },
-  { name: 'Neil Brent Norico Barte', coach: 'Karl Jasper Lorejo Mag-usara' },
-  { name: 'Nhova Kristy Catubig Venenoso', coach: 'Chui Ling Villafuerte Goh' },
-  { name: 'Nica Diona Algadepe Segara', coach: 'Ma. Mikaela Lalamonan Barrera' },
-  { name: 'Niño Kim Daniel Frutas Legaspi', coach: 'Joe Mari Torda Piñero' },
-  { name: 'Noel John Callao Canoy', coach: 'Ma. Mikaela Lalamonan Barrera' },
-  { name: 'Oliver Jr Gilhang Soriano', coach: 'Krizha Mae Gamalando Abia' },
-  { name: 'Paul Vincent Dispe Valerio', coach: 'Erwin Verano' },
-  { name: 'Precious Jewel Salazar', coach: 'Shanne Juliet Credo Diputado' },
-  { name: 'Princess Shaine Mimis Asidera', coach: 'Alyssa Sandel Reyes' },
-  { name: 'Rey Eufronio Laguitao Buagas', coach: 'Karl Jasper Lorejo Mag-usara' },
-  { name: 'Reynold Abejero Mariño', coach: 'John Rey Aspacio Ortega' },
-  { name: 'Reza Lindayao Lumjod', coach: 'Krizha Mae Gamalando Abia' },
-  { name: 'Riza Venales Kilapkilap', coach: 'Ma. Mikaela Lalamonan Barrera' },
-  { name: 'Rizza Jean Fernandez', coach: 'Elaine De Leon Roxas' },
-  { name: 'Rolando Busbus Daohog', coach: 'Alyssa Sandel Reyes' },
-  { name: 'Rona May Beatingo Astillar', coach: 'Gazelle Broniola Bulalacao' },
-  { name: 'Rose Ann Laque Bangcat', coach: 'Irene Villarin Estravela' },
-  { name: 'Rosean Mae Valencia Lambayan', coach: 'Shanne Juliet Credo Diputado' },
-  { name: 'Roselyn Montecino Laure', coach: 'Chui Ling Villafuerte Goh' },
-  { name: 'Rosenia Nieves', coach: 'Joe Mari Torda Piñero' },
-  { name: 'Roxy Salveron Maquiling', coach: 'Gazelle Broniola Bulalacao' },
-  { name: 'Ryan Amoma Vios', coach: 'Joe Mari Torda Piñero' },
-  { name: 'Sajilli Renz Balucan Bacallo', coach: 'Ma. Mikaela Lalamonan Barrera' },
-  { name: 'Sandae Manaban Placer', coach: 'Gazelle Broniola Bulalacao' },
-  { name: 'Sanny Boy Erot Duran', coach: 'Chui Ling Villafuerte Goh' },
-  { name: 'Shan Mae Ragpa Gajegan', coach: 'Krizha Mae Gamalando Abia' },
-  { name: 'Shazia Jamil Pirzada', coach: 'Zaira Mae Regino Kinol' },
-  { name: 'Sheena Estoconing Bugais', coach: 'Shanne Juliet Credo Diputado' },
-  { name: 'Shelamae Cadiz Bohol', coach: 'Irene Villarin Estravela' },
-  { name: 'Shella Mae Legarde Cagatin', coach: 'Korina Kim Romeo Alcantara' },
-  { name: 'Sky Sagario Gravador', coach: 'Krizha Mae Gamalando Abia' },
-  { name: 'Sylysdley Lasola Gutierrez', coach: 'May-Ann Alabata Montegrejo' },
-  { name: 'Thelma Evangelista Laurena', coach: 'Charbel Rado Mahinay' },
-  { name: 'Trisha Mae Abayao Bianado', coach: 'Shanne Juliet Credo Diputado' },
-  { name: 'Valerie Ann Trasona Delicano', coach: 'Krizha Mae Gamalando Abia' },
-  { name: 'Vica Kay Esoy Verden', coach: 'Shanne Juliet Credo Diputado' },
-  { name: 'Victor Iligan Liu', coach: 'Erwin Verano' },
-  { name: 'Vincent Cafino Banlat', coach: 'Kyla Serion' },
-  { name: 'Vincent Jonas Gallendo', coach: 'Kyla Serion' },
-  { name: 'Vincent Paul Villa Malagar', coach: 'Korina Kim Romeo Alcantara' },
-  { name: 'Wilma Gaso Rodriguez', coach: 'Erwin Verano' },
-  { name: 'Wisdom K Patron Alama', coach: 'Charbel Rado Mahinay' },
-  { name: 'Xyza Rae Alipio', coach: 'Jake Vergel Gonzales Cajes' },
-];
-
-const staffData = COACHES.map(c => ({
-  name: c.name,
-  desc: `${c.dept} Department Coach`,
-  pct: (Math.random() * 2 + 1).toFixed(2) + '%',
-  meta: c.dept
-}));
-
-const barData1 = [
-  { name: 'Jan', val: 35 }, { name: 'Feb', val: 50 }, { name: 'Mar', val: 28 },
-  { name: 'Apr', val: 45 }, { name: 'May', val: 60 }, { name: 'Jun', val: 42 },
-  { name: 'Jul', val: 55 }, { name: 'Aug', val: 48 }
-];
-
-const barData2 = [
-  { name: 'Line 1', val: 20 }, { name: 'Line 2', val: 45 }, { name: 'Line Agents', val: 30 },
-  { name: 'Score Incl', val: 60 }, { name: 'Total Score', val: 80 }
-];
-
-const lineData = [
-  { name: '1', val: 20 }, { name: '2', val: 45 }, { name: '3', val: 35 },
-  { name: '4', val: 70 }, { name: '5', val: 55 }, { name: '6', val: 80 }
-];
-
-const donutData1 = [
-  { name: 'A', value: 35, color: '#4F7DF3' },
-  { name: 'B', value: 40, color: '#1E3A6E' },
-  { name: 'C', value: 25, color: '#F97316' },
-];
-
-const donutData2 = [
-  { name: 'A', value: 30, color: '#4F7DF3' },
-  { name: 'B', value: 35, color: '#1E3A6E' },
-  { name: 'C', value: 20, color: '#F97316' },
-  { name: 'D', value: 15, color: '#10B981' },
-];
 
 // --- Helpers ---
 function getInitials(name: string) {
@@ -285,14 +48,38 @@ export default function Dashboard() {
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   const [dateFilterModalOpen, setDateFilterModalOpen] = useState(false);
   const [filterPeriod, setFilterPeriod] = useState<string>('Past week');
-  const [globalPeriod, setGlobalPeriod] = useState<'TW' | 'LW' | 'ALL'>('TW');
   const [notObsDept, setNotObsDept] = useState('Sales');
 
   const allObservations = useQuery(api.observations.list) ?? [];
   const deleteManyObservations = useMutation(api.observations.deleteMany);
 
+  // --- Staff data from Convex backend ---
+  const rawStaff = useQuery(api.staff.list) ?? [];
+  const rawCoaches = useQuery(api.staff.listCoaches) ?? [];
+  const seedStaff = useMutation(api.staff.seed);
+
+  // Auto-seed staff table on first load if empty
+  const [seeded, setSeeded] = useState(false);
+  useEffect(() => {
+    if (rawStaff.length === 0 && !seeded) {
+      setSeeded(true);
+      seedStaff().catch(() => {});
+    }
+  }, [rawStaff, seeded, seedStaff]);
+
+  // Derive AGENTS and COACHES from backend data
+  const AGENTS = useMemo(() =>
+    rawStaff.map(s => ({ name: s.agentName, coach: s.coachName, lob: s.lob })),
+    [rawStaff]
+  );
+  const COACHES = useMemo(() =>
+    rawCoaches.map(c => ({ name: c.name, dept: c.lob })),
+    [rawCoaches]
+  );
+
   const [deleteMode, setDeleteMode] = useState(false);
   const [selectedForDeletion, setSelectedForDeletion] = useState<Set<string>>(new Set());
+  const [missedObsModalOpen, setMissedObsModalOpen] = useState(false);
 
   const [recentObsModalOpen, setRecentObsModalOpen] = useState(false);
   const [wowChartsModalOpen, setWowChartsModalOpen] = useState(false);
@@ -382,6 +169,9 @@ export default function Dashboard() {
         sinceDate = formatDate(d);
         break;
       }
+      case 'All Time':
+        sinceDate = "2000-01-01";
+        break;
       default:
         sinceDate = weekStats.thisWeekStart;
         break;
@@ -467,14 +257,13 @@ export default function Dashboard() {
 
     // Search Agents
     AGENTS.forEach(agent => {
-      const coach = COACHES.find(c => c.name === agent.coach);
       if (agent.name.toLowerCase().includes(q) || agent.coach.toLowerCase().includes(q)) {
-        results.push({ type: 'agent', name: agent.name, path: `${coach?.dept} > ${agent.coach} > ${agent.name}`, value: agent.name });
+        results.push({ type: 'agent', name: agent.name, path: `${agent.lob} > ${agent.coach} > ${agent.name}`, value: agent.name });
       }
     });
 
     return results.slice(0, 10);
-  }, [searchQuery, allObservations]);
+  }, [searchQuery, allObservations, AGENTS, COACHES]);
 
 
 
@@ -495,30 +284,19 @@ export default function Dashboard() {
     }
   };
 
-  // Derive agents by department (agent → coach → coach's LOB)
+  // Derive agents by department (agent's LOB field from backend)
   const getAgentsByDept = (dept: string) =>
-    AGENTS.filter(a => {
-      const coach = COACHES.find(c => c.name === a.coach);
-      return coach?.dept === dept;
-    });
+    AGENTS.filter(a => a.lob === dept);
 
   // Completion statistics for Dashboard
   const lobsStats = useMemo(() => {
     const lobs = ['Sales', 'Support', 'Specialty'];
 
     // Period selection logic
-    let start = weekStats.thisWeekStart;
-    let end: string | undefined = undefined;
-
-    if (globalPeriod === 'LW') {
-      start = weekStats.lastWeekStart;
-      end = weekStats.lastWeekEnd;
-    } else if (globalPeriod === 'ALL') {
-      start = "2000-01-01";
-    }
+    const { sinceDate: start, endDate: end } = filterDates;
 
     const periodObservations = allObservations.filter(o => {
-      if (o.date < start) return false;
+      if (start && o.date < start) return false;
       if (end && o.date > end) return false;
       return true;
     });
@@ -538,37 +316,32 @@ export default function Dashboard() {
         color: dept === 'Sales' ? '#4F7DF3' : dept === 'Support' ? '#10B981' : '#F59E0B'
       };
     });
-  }, [allObservations, weekStats, globalPeriod]);
+  }, [allObservations, filterDates, AGENTS]);
 
   const notObservedStats = useMemo(() => {
     let weeks: { start: string, end: string }[] = [];
-    if (globalPeriod === 'TW') {
-      weeks = [{ start: weekStats.thisWeekStart, end: '9999-12-31' }];
-    } else if (globalPeriod === 'LW') {
-      weeks = [{ start: weekStats.lastWeekStart, end: weekStats.lastWeekEnd }];
-    } else if (globalPeriod === 'ALL') {
-      if (allObservations.length > 0) {
-        const oldestDate = allObservations.reduce((min, o) => o.date < min ? o.date : min, allObservations[0].date);
-        let currentMon = new Date(oldestDate);
-        const d = currentMon.getDay();
-        const diff = currentMon.getDate() - d + (d === 0 ? -6 : 1);
-        currentMon.setDate(diff);
+    
+    if (filterPeriod === 'All Time') {
+      const baselineDate = new Date("2026-04-07");
+      let currentMon = new Date(baselineDate);
+      const day = currentMon.getDay(), diff = currentMon.getDate() - day + (day === 0 ? -6 : 1);
+      currentMon = new Date(currentMon.setDate(diff));
 
-        const now = new Date();
-        while (currentMon <= now) {
-          const wStart = currentMon.toISOString().split('T')[0];
-          const wEndObj = new Date(currentMon);
-          wEndObj.setDate(wEndObj.getDate() + 6);
-          const wEnd = wEndObj.toISOString().split('T')[0];
-          weeks.push({ start: wStart, end: wEnd });
-          currentMon.setDate(currentMon.getDate() + 7);
-        }
+      const now = new Date();
+      while (currentMon <= now) {
+        const wStart = currentMon.toISOString().split('T')[0];
+        const wEndObj = new Date(currentMon);
+        wEndObj.setDate(wEndObj.getDate() + 6);
+        const wEnd = wEndObj.toISOString().split('T')[0];
+        weeks.push({ start: wStart, end: wEnd });
+        currentMon.setDate(currentMon.getDate() + 7);
       }
+    } else {
+      weeks = [{ start: weekStats.thisWeekStart, end: '9999-12-31' }];
     }
 
     const relevantAgents = AGENTS.filter(a => {
-      const coach = COACHES.find(c => c.name === a.coach);
-      if (notObsDept !== 'All' && coach?.dept !== notObsDept) return false;
+      if (notObsDept !== 'All' && a.lob !== notObsDept) return false;
       return true;
     });
 
@@ -587,33 +360,33 @@ export default function Dashboard() {
     return Object.entries(coachStats)
       .map(([name, val]) => ({ name: name.split(' ')[0], fullName: name, val }))
       .sort((a, b) => b.val - a.val);
-  }, [allObservations, globalPeriod, notObsDept, weekStats]);
+  }, [allObservations, filterPeriod, notObsDept, weekStats, AGENTS]);
 
   const observationTrendData = useMemo(() => {
-    let start = weekStats.thisWeekStart;
-    let end: string | undefined = undefined;
-    if (globalPeriod === 'LW') {
-      start = weekStats.lastWeekStart;
-      end = weekStats.lastWeekEnd;
-    } else if (globalPeriod === 'ALL') {
-      start = "2000-01-01";
-    }
+    const { sinceDate: start, endDate: end } = filterDates;
 
     const periodObs = allObservations.filter(o => {
-      if (o.date < start) return false;
+      if (start && o.date < start) return false;
       if (end && o.date > end) return false;
       return true;
     });
 
     const dateMap = new Map<string, any>();
 
-    if (globalPeriod === 'TW' || globalPeriod === 'LW') {
+    // Pre-fill dates for small ranges to show zeros
+    if (start) {
       const dStart = new Date(start);
-      for (let i = 0; i < 7; i++) {
-        const d = new Date(dStart);
-        d.setDate(d.getDate() + i);
-        const dateStr = d.toISOString().split('T')[0];
-        dateMap.set(dateStr, { day: dateStr.slice(5), Sales: 0, Support: 0, Specialty: 0 });
+      const dEnd = end ? new Date(end) : new Date();
+      const diffTime = Math.abs(dEnd.getTime() - dStart.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      if (diffDays <= 31) {
+        for (let i = 0; i <= diffDays; i++) {
+          const d = new Date(dStart);
+          d.setDate(d.getDate() + i);
+          const dateStr = d.toISOString().split('T')[0];
+          dateMap.set(dateStr, { day: dateStr.slice(5), Sales: 0, Support: 0, Specialty: 0 });
+        }
       }
     }
 
@@ -629,7 +402,65 @@ export default function Dashboard() {
     });
 
     return Array.from(dateMap.values()).sort((a, b) => a.day.localeCompare(b.day));
-  }, [allObservations, globalPeriod, weekStats]);
+  }, [allObservations, filterDates]);
+
+  // Calculation for agents missed observations (This Week, Last Week, All Time)
+  const missedObservationsStats = useMemo(() => {
+    if (AGENTS.length === 0) return [];
+    
+    // Baseline: Observations started on April 07, 2026
+    const baselineDate = new Date("2026-04-07");
+    const trackedWeeks = new Set<string>();
+    const getMonday = (dateStrOrDate: string | Date) => {
+      const d = new Date(dateStrOrDate);
+      const day = d.getDay(), diff = d.getDate() - day + (day === 0 ? -6 : 1);
+      const mon = new Date(d.setDate(diff));
+      return mon.toISOString().split('T')[0];
+    };
+
+    // Generate all Mondays from baseline to now
+    let current = new Date(baselineDate);
+    const now = new Date();
+    while (current <= now) {
+      trackedWeeks.add(getMonday(current));
+      current.setDate(current.getDate() + 7);
+    }
+    
+    const sortedWeeks = Array.from(trackedWeeks).sort();
+    
+    // agentName -> Map<weekStartDate, observationCount>
+    const agentActivity = new Map<string, Map<string, number>>();
+    
+    allObservations.forEach(o => {
+      const mon = getMonday(o.date);
+      if (!agentActivity.has(o.agentName)) agentActivity.set(o.agentName, new Map());
+      const weeks = agentActivity.get(o.agentName)!;
+      weeks.set(mon, (weeks.get(mon) || 0) + 1);
+    });
+
+    const stats = AGENTS.map(agent => {
+      const activity = agentActivity.get(agent.name) || new Map();
+      
+      let missedThisWeek = !activity.has(weekStats.thisWeekStart);
+      let missedLastWeek = !activity.has(weekStats.lastWeekStart);
+      
+      let totalWeeksMissed = 0;
+      sortedWeeks.forEach(week => {
+        if (!activity.has(week)) totalWeeksMissed++;
+      });
+
+      return {
+        name: agent.name,
+        coach: agent.coach,
+        lob: agent.lob,
+        missedThisWeek,
+        missedLastWeek,
+        totalWeeksMissed
+      };
+    });
+
+    return stats.sort((a, b) => b.totalWeeksMissed - a.totalWeeksMissed);
+  }, [allObservations, AGENTS, weekStats]);
 
   const overallCompletion = useMemo(() => {
     const total = lobsStats.reduce((acc, curr) => acc + curr.total, 0);
@@ -649,38 +480,58 @@ export default function Dashboard() {
   // Filter and Data Helpers
   const observationDataStats = useMemo(() => {
     const lobs = ['Sales', 'Support', 'Specialty'];
-    const getCount = (dept: string, start: string, end?: string) => {
-      return allObservations.filter(o => {
+    const { sinceDate: start, endDate: end } = filterDates;
+
+    return lobs.map(dept => {
+      const count = allObservations.filter(o => {
         if (!o.department.includes(dept)) return false;
-        if (o.date < start) return false;
+        if (start && o.date < start) return false;
         if (end && o.date > end) return false;
         return true;
       }).length;
+
+      return {
+        name: dept,
+        count
+      };
+    });
+  }, [allObservations, filterDates]);
+
+  // --- Business Volume Mock Data ---
+  const businessVolumeData = useMemo(() => {
+    return {
+      summary: [
+        { label: 'Active Agents', value: '134', sub: { sales: 68, support: 66 }, type: 'agents' },
+        { label: 'Total Volume', value: '5,910', sub: { calls: '3,650', chats: '2,260' }, type: 'volume' },
+        { label: 'Avg. Resolution', value: '14m', type: 'resolution' },
+      ],
+      workload: [
+        { name: 'Sales Agents', salesCalls: 650, supportCalls: 540, salesChats: 540, supportChats: 410 },
+        { name: 'Support Agents', salesCalls: 1090, supportCalls: 510, salesChats: 680, supportChats: 430 },
+      ],
+      distribution: {
+        sales: [
+          { name: 'Sales Calls', value: 61, color: '#1E3A6E' },
+          { name: 'Support Calls', value: 17, color: '#4F7DF3' },
+          { name: 'Sales Chats', value: 22, color: '#F97316' },
+        ],
+        support: [
+          { name: 'Sales Calls', value: 29, color: '#1E3A6E' },
+          { name: 'Support Calls', value: 21, color: '#4F7DF3' },
+          { name: 'Sales Chats', value: 24, color: '#F97316' },
+          { name: 'Support Chats', value: 26, color: '#FDBA74' },
+        ]
+      },
+      recentActivity: [
+        { name: 'J. Smith', role: 'Sales', team: 'T1', tCalls: 95, sCalls: 71, supCalls: 24, tChats: 62, sChats: 45, supChats: 17 },
+        { name: 'A. Patel', role: 'Support', team: 'T2', tCalls: 88, sCalls: 15, supCalls: 73, tChats: 71, sChats: 18, supChats: 53 },
+        { name: 'M. Lee', role: 'Sales', team: 'T1', tCalls: 89, sCalls: 66, supCalls: 23, tChats: 59, sChats: 41, supChats: 18 },
+        { name: 'R. Garcia', role: 'Support', team: 'T3', tCalls: 92, sCalls: 20, supCalls: 72, tChats: 65, sChats: 22, supChats: 43 },
+        { name: 'K. Chen', role: 'Sales', team: 'T2', tCalls: 105, sCalls: 85, supCalls: 20, tChats: 78, sChats: 60, supChats: 18 },
+      ]
     };
-    return lobs.map(dept => ({
-      name: dept,
-      TW: getCount(dept, weekStats.thisWeekStart),
-      LW: getCount(dept, weekStats.lastWeekStart, weekStats.lastWeekEnd),
-      MTD: getCount(dept, weekStats.monthStart)
-    }));
-  }, [allObservations, weekStats]);
+  }, []);
 
-  const getCoachDept = (coachName: string) => COACHES.find(c => c.name === coachName)?.dept || 'Other';
-  const getAgentCoach = (agentName: string) => AGENTS.find(a => a.name === agentName)?.coach || 'None';
-
-  const coachesData = COACHES.map(c => ({
-    name: c.name,
-    desc: `${c.dept} Department Coach`,
-    badge: '09',
-    badgeColor: c.dept === 'Sales' ? 'bg-brand-blue text-white' : 'bg-accent-red text-white'
-  }));
-
-  const assignedAgentsData = AGENTS.slice(0, 10).map(a => ({
-    name: a.name,
-    desc: `Coach: ${a.coach}`,
-    badge: '09',
-    badgeColor: getCoachDept(a.coach) === 'Sales' ? 'bg-brand-blue text-white' : 'bg-accent-red text-white'
-  }));
 
 
 
@@ -816,7 +667,8 @@ export default function Dashboard() {
           {/* Business Volume Tab */}
           <NavItem
             icon={<Briefcase size={20} />}
-            label="Business Volume"
+            label="Volume Accuracy
+            "
             collapsed={sidebarCollapsed}
             active={activeView === "business-volume"}
             onClick={() => setActiveView("business-volume")}
@@ -897,61 +749,49 @@ export default function Dashboard() {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-4 shrink-0">
-            <div className="hidden sm:flex bg-slate-100 p-1 rounded-lg">
-              {[
-                { id: 'TW', label: 'This Week' },
-                { id: 'LW', label: 'Last Week' },
-                { id: 'ALL', label: 'All Time' }
-              ].map(p => (
-                <button
-                  key={p.id}
-                  onClick={() => setGlobalPeriod(p.id as any)}
-                  className={`px-3 py-1.5 text-[11px] font-black rounded-md transition-all ${globalPeriod === p.id ? 'bg-white text-brand-blue shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
+            {activeView === 'observation' && (
+              <>
+                <div className="relative">
+                  <button
+                    onClick={() => setDateFilterModalOpen(!dateFilterModalOpen)}
+                    className="flex items-center gap-2 px-3 py-2 text-sm font-semibold rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-all shadow-sm active:scale-95"
+                  >
+                    <Calendar size={18} className="text-brand-blue" />
+                    <span className="hidden sm:inline">
+                      {filterPeriod}
+                    </span>
+                    <Filter size={14} className="text-slate-400" />
+                  </button>
 
-            <div className="relative">
-              <button
-                onClick={() => setDateFilterModalOpen(!dateFilterModalOpen)}
-                className="flex items-center gap-2 px-3 py-2 text-sm font-semibold rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-all shadow-sm active:scale-95"
-              >
-                <Calendar size={18} className="text-brand-blue" />
-                <span className="hidden sm:inline">
-                  {filterPeriod}
-                </span>
-                <Filter size={14} className="text-slate-400" />
-              </button>
+                  {dateFilterModalOpen && (
+                    <>
+                      <div className="fixed inset-0 z-[40]" onClick={() => setDateFilterModalOpen(false)} />
+                      <div className="absolute right-0 top-full mt-2 w-[220px] bg-slate-900 border border-slate-800 rounded-xl shadow-xl shadow-slate-900/20 z-[50] py-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                        {[
+                          'Today', 'Yesterday', 'Past week', 'Month to date',
+                          'Past 4 weeks', 'Past 12 weeks', 'Year to date',
+                          'Past 6 months', 'Past 12 months'
+                        ].map((period) => (
+                          <button
+                            key={period}
+                            className="w-full text-left px-4 py-2.5 text-[13px] font-semibold hover:bg-slate-800 transition-colors flex items-center justify-between group"
+                            onClick={() => { setFilterPeriod(period); setDateFilterModalOpen(false); }}
+                          >
+                            <div className="flex items-center gap-3">
+                              <Calendar size={16} className={filterPeriod === period ? 'text-brand-blue' : 'text-slate-400'} />
+                              <span className={filterPeriod === period ? 'text-white' : 'text-slate-300 group-hover:text-white'}>{period}</span>
+                            </div>
+                            {filterPeriod === period && <Check size={14} className="text-brand-blue" />}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </>
+            )}
 
-              {dateFilterModalOpen && (
-                <>
-                  <div className="fixed inset-0 z-[40]" onClick={() => setDateFilterModalOpen(false)} />
-                  <div className="absolute right-0 top-full mt-2 w-[220px] bg-slate-900 border border-slate-800 rounded-xl shadow-xl shadow-slate-900/20 z-[50] py-2 animate-in fade-in slide-in-from-top-2 duration-200">
-                    {[
-                      'Today', 'Yesterday', 'Past week', 'Month to date', 
-                      'Past 4 weeks', 'Past 12 weeks', 'Year to date', 
-                      'Past 6 months', 'Past 12 months'
-                    ].map((period) => (
-                      <button
-                        key={period}
-                        className="w-full text-left px-4 py-2.5 text-[13px] font-semibold hover:bg-slate-800 transition-colors flex items-center justify-between group"
-                        onClick={() => { setFilterPeriod(period); setDateFilterModalOpen(false); }}
-                      >
-                        <div className="flex items-center gap-3">
-                          <Calendar size={16} className={filterPeriod === period ? 'text-brand-blue' : 'text-slate-400'} />
-                          <span className={filterPeriod === period ? 'text-white' : 'text-slate-300 group-hover:text-white'}>{period}</span>
-                        </div>
-                        {filterPeriod === period && <Check size={14} className="text-brand-blue" />}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-
-            <div className="hidden sm:block h-8 w-[1px] bg-slate-200"></div>
+            {activeView === 'observation' && <div className="hidden sm:block h-8 w-[1px] bg-slate-200"></div>}
 
             <button className="relative p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors shrink-0">
               <Bell size={20} />
@@ -979,7 +819,7 @@ export default function Dashboard() {
                     <div className="flex justify-between items-center mb-1">
                       <h2 className="font-bold text-lg">Observation Data</h2>
                     </div>
-                    <p className="text-[11px] text-slate-400 font-medium mb-4">Observation count breakdown by LOB for this week, last week, and month-to-date.</p>
+                    <p className="text-[11px] text-slate-400 font-medium mb-4">Observation count breakdown by LOB for the selected period.</p>
                     <div className="flex justify-between items-center mb-4">
                     </div>
 
@@ -988,9 +828,7 @@ export default function Dashboard() {
                         <thead>
                           <tr className="border-b border-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                             <th className="py-3 px-2">Line of Business</th>
-                            <th className="py-3 px-2 text-center text-brand-blue">This Week</th>
-                            <th className="py-3 px-2 text-center opacity-40">Last Week</th>
-                            <th className="py-3 px-2 text-center opacity-40">MTD</th>
+                            <th className="py-3 px-2 text-right text-brand-blue">Observations</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
@@ -1003,14 +841,8 @@ export default function Dashboard() {
                                   <span className="text-sm font-bold text-slate-700">{row.name}</span>
                                 </div>
                               </td>
-                              <td className="py-3 px-2 text-center text-sm font-black text-brand-blue">
-                                {row.TW}
-                              </td>
-                              <td className="py-3 px-2 text-center text-sm font-black text-slate-400">
-                                {row.LW}
-                              </td>
-                              <td className="py-3 px-2 text-center text-sm font-black text-slate-400">
-                                {row.MTD}
+                              <td className="py-3 px-2 text-right text-sm font-black text-brand-blue">
+                                {row.count}
                               </td>
                             </tr>
                           ))}
@@ -1018,14 +850,8 @@ export default function Dashboard() {
                         <tfoot>
                           <tr className="bg-slate-50/50">
                             <td className="py-2 px-2 text-[10px] font-black text-slate-500 uppercase">Total</td>
-                            <td className="py-2 px-2 text-center text-xs font-black text-slate-700">
-                              {observationDataStats.reduce((acc, curr) => acc + curr.TW, 0)}
-                            </td>
-                            <td className="py-2 px-2 text-center text-xs font-black text-slate-700">
-                              {observationDataStats.reduce((acc, curr) => acc + curr.LW, 0)}
-                            </td>
-                            <td className="py-2 px-2 text-center text-xs font-black text-slate-700">
-                              {observationDataStats.reduce((acc, curr) => acc + curr.MTD, 0)}
+                            <td className="py-2 px-2 text-right text-xs font-black text-slate-700">
+                              {observationDataStats.reduce((acc, curr) => acc + curr.count, 0)}
                             </td>
                           </tr>
                         </tfoot>
@@ -1075,7 +901,7 @@ export default function Dashboard() {
                   <div className="bg-white rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
                     <div className="mb-1">
                       <h2 className="font-bold text-lg">Recent Observations</h2>
-                      <p className="text-[11px] text-slate-400 font-medium">Latest coaching sessions recorded in the system.</p>
+                      <p className="text-[11px] text-slate-400 font-medium">Latest Observation sessions recorded in the system.</p>
                     </div>
                     <div className="flex justify-between items-center mb-4">
                       <button
@@ -1174,7 +1000,79 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  {/* Card: WOW Charts (Activity Comparison) */}
+                  {/* Card: Neglected Agents (Missed Observations) */}
+                  <div className="bg-white rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
+                    <div className="mb-1 flex justify-between items-start">
+                      <div>
+                        <h2 className="font-bold text-lg">Neglected Agents</h2>
+                        <p className="text-[11px] text-slate-400 font-medium">Agents with the most missed Observation Sessions over all tracked weeks.</p>
+                      </div>
+                      <button
+                        onClick={() => setMissedObsModalOpen(true)}
+                        className="text-[10px] font-bold text-brand-blue bg-blue-50 px-2 py-1 rounded border border-blue-100 hover:bg-brand-blue hover:text-white transition-colors"
+                      >
+                        VIEW ALL
+                      </button>
+                    </div>
+                    
+                    <div className="mt-4 flex flex-col gap-3">
+                      {missedObservationsStats.slice(0, 3).map((agent, i) => (
+                        <div key={i} className="flex items-center gap-3 p-2.5 rounded-xl border border-slate-50 hover:border-slate-200 transition-all group">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${
+                            i === 0 ? 'bg-rose-100 text-rose-600' : 
+                            i === 1 ? 'bg-orange-100 text-orange-600' : 
+                            'bg-amber-100 text-amber-600'
+                          }`}>
+                            {i + 1}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-bold text-sm text-slate-700 truncate">{agent.name}</h4>
+                            <p className="text-[10px] text-slate-400 font-medium">Coach: {agent.coach} • {agent.lob}</p>
+                          </div>
+                          <div className="text-right">
+                             <div className="text-sm font-black text-rose-500">{agent.totalWeeksMissed}</div>
+                             <div className="text-[8px] font-bold text-slate-400 uppercase">Weeks Missed</div>
+                          </div>
+                        </div>
+                      ))}
+                      {missedObservationsStats.length === 0 && (
+                        <div className="text-center py-6 text-slate-400 text-sm italic">No data available</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Column 3 */}
+                <div className="flex flex-col gap-6">
+
+                  {/* Card: Completion Scores */}
+                  <div className="bg-white rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
+                    <h2 className="font-bold text-lg mb-0.5">Observation Completion (Agent)</h2>
+                    <p className="text-[11px] text-slate-400 font-medium mb-2">Progress bars showing how many agents per LOB have been observed vs. total headcount.</p>
+                    <div className="flex flex-col gap-4 mt-4">
+                      {lobsStats.map((stat, i) => (
+                        <div key={i} className="space-y-1.5">
+                          <div className="flex justify-between text-sm">
+                            <span className="font-bold text-slate-700">{stat.name}</span>
+                            <span className="text-slate-500 font-medium">{stat.observed} / {stat.total}</span>
+                          </div>
+                          <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden shadow-inner">
+                            <div
+                              className="h-full rounded-full transition-all duration-1000 ease-out"
+                              style={{ width: `${stat.value}%`, backgroundColor: stat.color }}
+                            />
+                          </div>
+                          <div className="flex justify-end">
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded shadow-sm ${stat.value === 100 ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-slate-50 text-slate-500 border border-slate-100'}`}>
+                              {stat.value}% COMPLETE
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Card: WOW Charts (Activity Comparison) - moved from Column 2 */}
                   <div className="bg-white rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
                     <div className="mb-1">
                       <h2 className="font-bold text-lg">WOW Charts</h2>
@@ -1222,38 +1120,6 @@ export default function Dashboard() {
                           <div className="text-center py-6 text-slate-400 text-sm italic">No data found</div>
                         )}
                       </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Column 3 */}
-                <div className="flex flex-col gap-6">
-
-
-                  {/* Card: Completion Scores */}
-                  <div className="bg-white rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
-                    <h2 className="font-bold text-lg mb-0.5">Observation Completion (Agent)</h2>
-                    <p className="text-[11px] text-slate-400 font-medium mb-2">Progress bars showing how many agents per LOB have been observed vs. total headcount.</p>
-                    <div className="flex flex-col gap-4 mt-4">
-                      {lobsStats.map((stat, i) => (
-                        <div key={i} className="space-y-1.5">
-                          <div className="flex justify-between text-sm">
-                            <span className="font-bold text-slate-700">{stat.name}</span>
-                            <span className="text-slate-500 font-medium">{stat.observed} / {stat.total}</span>
-                          </div>
-                          <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden shadow-inner">
-                            <div
-                              className="h-full rounded-full transition-all duration-1000 ease-out"
-                              style={{ width: `${stat.value}%`, backgroundColor: stat.color }}
-                            />
-                          </div>
-                          <div className="flex justify-end">
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded shadow-sm ${stat.value === 100 ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-slate-50 text-slate-500 border border-slate-100'}`}>
-                              {stat.value}% COMPLETE
-                            </span>
-                          </div>
-                        </div>
-                      ))}
                     </div>
                   </div>
                 </div>
@@ -1534,45 +1400,179 @@ export default function Dashboard() {
             <div className="max-w-[1400px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div className="flex items-center justify-between mb-6">
                 <div>
-                  <h2 className="text-2xl font-bold text-[var(--text-primary)] flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-200">
-                      <Briefcase size={20} />
-                    </div>
+                  <h2 className="text-2xl font-bold text-[var(--text-primary)] flex items-center gap-3 uppercase tracking-tight">
                     Business Volume
                   </h2>
-                  <p className="text-[var(--text-secondary)] mt-1 ml-[52px]">Track and analyze business volume metrics and reporting.</p>
+                  <p className="text-[var(--text-secondary)] mt-1 font-medium text-xs">Compare Sales Agents and Support Agents</p>
+                </div>
+                <div className="flex items-center gap-2">
+                   <div className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold text-slate-500 flex items-center gap-2 shadow-sm">
+                      <Calendar size={14} className="text-brand-blue" />
+                      OCT 1 - OCT 31, 2023
+                      <ChevronDown size={14} />
+                   </div>
                 </div>
               </div>
 
+              {/* Summary Cards */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                {[
-                  { label: 'Total Volume', value: '—', desc: 'Overall business volume', color: 'from-blue-500 to-indigo-600', iconColor: 'text-blue-100' },
-                  { label: 'Avg. Per Agent', value: '—', desc: 'Average volume per agent', color: 'from-emerald-500 to-teal-600', iconColor: 'text-emerald-100' },
-                  { label: 'Growth Rate', value: '—', desc: 'Week-over-week change', color: 'from-amber-500 to-orange-600', iconColor: 'text-amber-100' },
-                ].map((card, i) => (
-                  <div key={i} className={`bg-gradient-to-br ${card.color} rounded-2xl p-6 text-white shadow-lg relative overflow-hidden`}>
-                    <div className="absolute top-3 right-3 opacity-20">
-                      <TrendingUp size={48} />
+                {businessVolumeData.summary.map((card, i) => (
+                  <div key={i} className="bg-white rounded-2xl p-6 shadow-[var(--shadow-sm)] border border-[var(--border-light)] flex flex-col justify-between group hover:border-brand-blue/30 transition-all">
+                    <div>
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">{card.label}:</p>
+                      <div className="flex items-baseline gap-3">
+                         <p className="text-4xl font-black text-slate-800">{card.value}</p>
+                         {card.type === 'agents' && card.sub && (
+                           <div className="flex flex-col text-[10px] font-bold text-slate-500">
+                              <span className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-brand-blue"></div> {card.sub.sales} Sales</span>
+                              <span className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-orange-400"></div> {card.sub.support} Support</span>
+                           </div>
+                         )}
+                         {card.type === 'volume' && card.sub && (
+                           <div className="flex flex-col text-[10px] font-bold text-slate-500">
+                              <span className="flex items-center gap-1.5">📞 {card.sub.calls} Calls</span>
+                              <span className="flex items-center gap-1.5">💬 {card.sub.chats} Chats</span>
+                           </div>
+                         )}
+                      </div>
                     </div>
-                    <p className="text-sm font-semibold text-white/80 mb-1">{card.label}</p>
-                    <p className="text-3xl font-black">{card.value}</p>
-                    <p className="text-[11px] text-white/60 mt-2 font-medium">{card.desc}</p>
                   </div>
                 ))}
               </div>
 
-              <div className="bg-white rounded-2xl p-8 shadow-[var(--shadow-sm)] border border-[var(--border-light)] flex flex-col items-center justify-center min-h-[400px]">
-                <div className="w-20 h-20 bg-slate-100 rounded-2xl flex items-center justify-center mb-6">
-                  <BarChartIcon size={36} className="text-slate-300" />
+              {/* Charts Row */}
+              <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
+                {/* Workload Comparison */}
+                <div className="xl:col-span-2 bg-white rounded-2xl p-6 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
+                   <h3 className="font-bold text-slate-800 mb-1">Agent Workload Comparison (Calls & Chats)</h3>
+                   <div className="h-[300px] w-full mt-6">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={businessVolumeData.workload} barGap={12}>
+                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                           <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 700, fill: '#64748b' }} />
+                           <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 700, fill: '#64748b' }} />
+                           <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
+                           <Bar dataKey="salesCalls" stackId="a" fill="#1E3A6E" radius={[0, 0, 0, 0]} barSize={40} name="Sales Calls" />
+                           <Bar dataKey="supportCalls" stackId="a" fill="#4F7DF3" radius={[4, 4, 0, 0]} barSize={40} name="Support Calls" />
+                           <Bar dataKey="salesChats" stackId="b" fill="#F97316" radius={[0, 0, 0, 0]} barSize={40} name="Sales Chats" />
+                           <Bar dataKey="supportChats" stackId="b" fill="#FDBA74" radius={[4, 4, 0, 0]} barSize={40} name="Support Chats" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                   </div>
+                   <div className="flex flex-wrap justify-center gap-6 mt-4">
+                      {[
+                        { label: 'Sales Calls', color: 'bg-[#1E3A6E]' },
+                        { label: 'Support Calls', color: 'bg-[#4F7DF3]' },
+                        { label: 'Sales Chats', color: 'bg-[#F97316]' },
+                        { label: 'Support Chats', color: 'bg-[#FDBA74]' },
+                      ].map((l, i) => (
+                        <div key={i} className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                           <div className={`w-3 h-3 rounded-sm ${l.color}`}></div>
+                           {l.label}
+                        </div>
+                      ))}
+                   </div>
                 </div>
-                <h3 className="text-xl font-bold text-slate-700 mb-2">Coming Soon</h3>
-                <p className="text-sm text-slate-400 text-center max-w-md leading-relaxed">
-                  Business volume reporting and analytics will be available here. This section will include volume trends, agent performance metrics, and departmental breakdowns.
-                </p>
-                <div className="flex gap-2 mt-6">
-                  {['Volume Trends', 'Agent Metrics', 'LOB Breakdown'].map((tag, i) => (
-                    <span key={i} className="text-[10px] font-bold px-3 py-1.5 rounded-full bg-slate-100 text-slate-500 uppercase tracking-wider">{tag}</span>
-                  ))}
+
+                {/* Interaction Distribution */}
+                <div className="bg-white rounded-2xl p-6 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
+                   <h3 className="font-bold text-slate-800 mb-6">Channel Interaction Distribution by Role</h3>
+                   <div className="flex flex-col gap-8">
+                      {/* Sales Donut */}
+                      <div className="relative h-[120px] flex items-center justify-center">
+                         <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                               <Pie
+                                  data={businessVolumeData.distribution.sales}
+                                  innerRadius={35}
+                                  outerRadius={55}
+                                  paddingAngle={2}
+                                  dataKey="value"
+                               >
+                                  {businessVolumeData.distribution.sales.map((entry, index) => (
+                                     <Cell key={`cell-${index}`} fill={entry.color} />
+                                  ))}
+                               </Pie>
+                            </PieChart>
+                         </ResponsiveContainer>
+                         <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
+                            <span className="text-[9px] font-black leading-tight text-slate-700 uppercase">Sales<br/>Agents</span>
+                            <span className="text-[8px] font-bold text-slate-400">1840 interactions</span>
+                         </div>
+                      </div>
+                      
+                      {/* Support Donut */}
+                      <div className="relative h-[120px] flex items-center justify-center">
+                         <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                               <Pie
+                                  data={businessVolumeData.distribution.support}
+                                  innerRadius={35}
+                                  outerRadius={55}
+                                  paddingAngle={2}
+                                  dataKey="value"
+                               >
+                                  {businessVolumeData.distribution.support.map((entry, index) => (
+                                     <Cell key={`cell-${index}`} fill={entry.color} />
+                                  ))}
+                               </Pie>
+                            </PieChart>
+                         </ResponsiveContainer>
+                         <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
+                            <span className="text-[9px] font-black leading-tight text-slate-700 uppercase">Support<br/>Agents</span>
+                            <span className="text-[8px] font-bold text-slate-400">1780 interactions</span>
+                         </div>
+                      </div>
+                   </div>
+                   <div className="grid grid-cols-2 gap-2 mt-8">
+                      {businessVolumeData.distribution.support.map((l, i) => (
+                         <div key={i} className="flex items-center gap-1.5 text-[9px] font-bold text-slate-500 uppercase">
+                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: l.color }}></div>
+                            <span className="truncate">{l.name}</span>
+                         </div>
+                      ))}
+                   </div>
+                </div>
+              </div>
+
+              {/* Activity Table */}
+              <div className="bg-white rounded-2xl shadow-[var(--shadow-sm)] border border-[var(--border-light)] overflow-hidden">
+                <div className="p-5 border-b border-slate-50">
+                   <h3 className="font-bold text-slate-800 uppercase tracking-tight">Recent Agent Activity</h3>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead className="bg-slate-50/80 border-b border-slate-100">
+                       <tr className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                          <th className="py-4 px-6">Agent Name</th>
+                          <th className="py-4 px-4 text-center">Role</th>
+                          <th className="py-4 px-4 text-center">Team</th>
+                          <th className="py-4 px-4 text-center bg-slate-100/50">Total Calls</th>
+                          <th className="py-4 px-4 text-center">Sales C.</th>
+                          <th className="py-4 px-4 text-center">Support C.</th>
+                          <th className="py-4 px-4 text-center bg-slate-100/50">Total Chats</th>
+                          <th className="py-4 px-4 text-center">Sales Ch.</th>
+                          <th className="py-4 px-4 text-center">Support Ch.</th>
+                       </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                       {businessVolumeData.recentActivity.map((row, i) => (
+                         <tr key={i} className="hover:bg-slate-50 transition-colors group">
+                            <td className="py-4 px-6 text-sm font-bold text-slate-700">{row.name}</td>
+                            <td className="py-4 px-4 text-center">
+                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${row.role === 'Sales' ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>{row.role}</span>
+                            </td>
+                            <td className="py-4 px-4 text-center text-sm font-medium text-slate-500">{row.team}</td>
+                            <td className="py-4 px-4 text-center text-sm font-black text-slate-800 bg-slate-50/30">{row.tCalls}</td>
+                            <td className="py-4 px-4 text-center text-sm font-bold text-slate-500">{row.sCalls}</td>
+                            <td className="py-4 px-4 text-center text-sm font-bold text-slate-500">{row.supCalls}</td>
+                            <td className="py-4 px-4 text-center text-sm font-black text-slate-800 bg-slate-50/30">{row.tChats}</td>
+                            <td className="py-4 px-4 text-center text-sm font-bold text-slate-500">{row.sChats}</td>
+                            <td className="py-4 px-4 text-center text-sm font-bold text-slate-500">{row.supChats}</td>
+                         </tr>
+                       ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>
@@ -1580,6 +1580,70 @@ export default function Dashboard() {
 
         </main>
       </div>
+
+      {/* Missed Observations Modal */}
+      {missedObsModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" onClick={() => setMissedObsModalOpen(false)}></div>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[85vh] relative z-10 animate-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 rounded-t-3xl">
+              <div>
+                <h2 className="text-xl font-black text-slate-800">Neglected Agents (Full List)</h2>
+                <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mt-0.5">Tracking consecutive weeks with no coaching sessions recorded</p>
+              </div>
+              <button onClick={() => setMissedObsModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="overflow-y-auto p-2 scroll-smooth">
+               <div className="grid grid-cols-5 gap-4 p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">
+                  <div className="col-span-2">Agent Details</div>
+                  <div className="text-center">This Wk</div>
+                  <div className="text-center">Last Wk</div>
+                  <div className="text-right">Total Missed</div>
+               </div>
+               <div className="flex flex-col">
+                  {missedObservationsStats.map((agent, i) => (
+                    <div key={i} className="grid grid-cols-5 gap-4 items-center p-4 hover:bg-slate-50 rounded-xl transition-colors group">
+                       <div className="col-span-2 flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-500">
+                             {getInitials(agent.name)}
+                          </div>
+                          <div className="min-w-0">
+                             <div className="font-bold text-sm text-slate-700 truncate">{agent.name}</div>
+                             <div className="text-[10px] text-slate-400 font-medium">{agent.coach} • {agent.lob}</div>
+                          </div>
+                       </div>
+                       <div className="flex justify-center">
+                          {agent.missedThisWeek ? (
+                            <div className="px-2 py-1 bg-rose-50 text-rose-500 rounded text-[9px] font-black border border-rose-100">MISSED</div>
+                          ) : (
+                            <div className="px-2 py-1 bg-emerald-50 text-emerald-500 rounded text-[9px] font-black border border-emerald-100">OBSERVED</div>
+                          )}
+                       </div>
+                       <div className="flex justify-center">
+                          {agent.missedLastWeek ? (
+                            <div className="px-2 py-1 bg-rose-50/50 text-rose-400 rounded text-[9px] font-black border border-rose-50">MISSED</div>
+                          ) : (
+                            <div className="px-2 py-1 bg-emerald-50/50 text-emerald-400 rounded text-[9px] font-black border border-emerald-50">OBSERVED</div>
+                          )}
+                       </div>
+                       <div className="text-right pr-2">
+                          <div className="text-lg font-black text-slate-700">{agent.totalWeeksMissed}</div>
+                          <div className="text-[8px] font-bold text-slate-400 uppercase leading-tight">Weeks</div>
+                       </div>
+                    </div>
+                  ))}
+               </div>
+            </div>
+            
+            <div className="p-4 border-t border-slate-50 bg-slate-50/30 rounded-b-3xl text-center">
+               <p className="text-[10px] font-bold text-slate-400 italic">Historical data is calculated based on available observation records from the database.</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* --- MODALS --- */}
 
@@ -2074,31 +2138,4 @@ function MultiSelect({ options, selected, onChange, placeholder }: { options: st
   );
 }
 
-const AVATAR_URLS = [
-  'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&crop=face',
-  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face',
-  'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop&crop=face',
-  'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&crop=face',
-  'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop&crop=face',
-  'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop&crop=face',
-];
 
-function AgentRow({ coach, idx, onClick }: { coach: { name: string, desc: string, badge?: string, badgeColor?: string }, idx: number, onClick: () => void }) {
-  return (
-    <div onClick={onClick} className="flex items-center gap-3 p-3 rounded-xl border border-transparent hover:border-[var(--border-light)] hover:bg-slate-50 cursor-pointer transition-all group">
-      <div className="relative shrink-0">
-        <img src={AVATAR_URLS[idx % AVATAR_URLS.length]} alt={coach.name} className="w-10 h-10 rounded-full object-cover shadow-sm" />
-        <span className={`absolute -bottom-1 -right-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-white ${coach.badgeColor}`}>
-          {coach.badge}
-        </span>
-      </div>
-      <div className="flex-1 min-w-0">
-        <h3 className="font-bold text-sm truncate text-[var(--text-primary)]">{coach.name}</h3>
-        <p className="text-xs text-[var(--text-tertiary)] truncate">{coach.desc}</p>
-      </div>
-      <div className="shrink-0 text-slate-300 group-hover:text-brand-blue transition-colors">
-        <Check size={18} />
-      </div>
-    </div>
-  );
-}
