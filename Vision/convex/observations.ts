@@ -217,24 +217,29 @@ export const batchSync = internalMutation({
       coachName: v.string(),
       department: v.array(v.string()),
       date: v.string(),
-      sessionType: v.array(v.string()),
-      categories: v.array(v.string()),
+      sessionType: v.optional(v.array(v.string())),
+      categories: v.optional(v.array(v.string())),
       strengths: v.optional(v.string()),
       areasOfOpportunity: v.optional(v.string()),
       rootCause: v.optional(v.string()),
       actionPlan: v.optional(v.string()),
-      overallRating: v.array(v.string()),
+      overallRating: v.optional(v.array(v.string())),
       otherFeedback: v.optional(v.string()),
       orderNumber: v.optional(v.string()),
       teamLeadFeedback: v.optional(v.string()),
-      rating: v.number(),
-      observedBy: v.string(),
+      rating: v.optional(v.number()),
+      observedBy: v.optional(v.string()),
     })),
   },
   handler: async (ctx, args) => {
     for (const obs of args.observations) {
       const agent = resolveName(obs.agentName);
       const coach = resolveName(obs.coachName);
+      const rating = obs.rating ?? mapRating(obs.overallRating?.[0] || "");
+      const observedBy = obs.observedBy || coach;
+      const sessionType = obs.sessionType || ["Observation"];
+      const categories = obs.categories || ["General"];
+      const overallRating = obs.overallRating || ["N/A"];
       
       // Basic duplicate check by agent, date, and rating
       const existing = await ctx.db
@@ -242,7 +247,7 @@ export const batchSync = internalMutation({
         .withIndex("by_agent", (q) => q.eq("agentName", agent))
         .filter((q) => q.and(
           q.eq(q.field("date"), obs.date),
-          q.eq(q.field("rating"), obs.rating)
+          q.eq(q.field("rating"), rating)
         ))
         .first();
 
@@ -251,6 +256,11 @@ export const batchSync = internalMutation({
           ...obs,
           agentName: agent,
           coachName: coach,
+          rating,
+          observedBy,
+          sessionType,
+          categories,
+          overallRating,
         });
       }
     }
