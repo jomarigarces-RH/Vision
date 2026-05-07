@@ -5,7 +5,7 @@ import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import {
   Menu, LayoutDashboard, Users, UserCog, HandHeart, HelpCircle,
-  Settings, ChevronDown, Check, X, Bell, Edit3, Search, Calendar, Filter, History, BarChart as BarChartIcon, BookOpen
+  Settings, ChevronDown, Check, X, Bell, Edit3, Search, Calendar, Filter, History, BarChart as BarChartIcon, BookOpen, TrendingUp, Briefcase, Eye
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -273,7 +273,8 @@ function getAvatarColor(name: string) {
 export default function Dashboard() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [agentsOpen, setAgentsOpen] = useState(false);
-  const [activeView, setActiveView] = useState("dashboard");
+  const [activeView, setActiveView] = useState("observation");
+  const [observationSubTab, setObservationSubTab] = useState<'dashboard' | 'agents' | 'coaches'>('dashboard');
   const [selectedDept, setSelectedDept] = useState<string>('Sales');
 
   const [coachModalOpen, setCoachModalOpen] = useState(false);
@@ -482,11 +483,13 @@ export default function Dashboard() {
     setShowSearchDropdown(false);
     if (result.type === 'dept') {
       setSelectedDept(result.value);
-      setActiveView('agents');
+      setActiveView('observation');
+      setObservationSubTab('agents');
     } else if (result.type === 'coach') {
       setSelectedCoach(result.value);
       setCoachModalOpen(true);
-      setActiveView('coaches');
+      setActiveView('observation');
+      setObservationSubTab('coaches');
     } else if (result.type === 'observation') {
       setSelectedObs(result.value);
     }
@@ -725,67 +728,98 @@ export default function Dashboard() {
         </div>
 
         <nav className="flex-1 px-3 py-2 flex flex-col gap-1 overflow-y-auto hide-scrollbar">
-          <NavItem
-            icon={<LayoutDashboard size={20} />}
-            label="Dashboard"
-            collapsed={sidebarCollapsed}
-            active={activeView === "dashboard"}
-            onClick={() => setActiveView("dashboard")}
-          />
-
+          {/* Observation Tab with Sub-tabs */}
           <div className="my-1">
             <div
-              className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer text-[var(--text-secondary)] font-medium hover:bg-slate-50 transition-colors ${sidebarCollapsed ? 'justify-center' : ''}`}
+              className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer font-medium transition-colors
+                ${activeView === 'observation' ? 'bg-brand-blue-light text-brand-blue' : 'text-[var(--text-secondary)] hover:bg-slate-50'}
+                ${sidebarCollapsed ? 'justify-center' : ''}`}
               onClick={() => {
                 if (sidebarCollapsed) {
                   setSidebarCollapsed(false);
                   setTimeout(() => setAgentsOpen(true), 300);
                 } else {
+                  setActiveView('observation');
                   setAgentsOpen(!agentsOpen);
                 }
               }}
-              title={sidebarCollapsed ? "Agents" : ""}
+              title={sidebarCollapsed ? "Observation" : ""}
             >
               <div className="flex items-center gap-3">
-                <Users size={20} />
-                {!sidebarCollapsed && <span>Agents</span>}
+                <Eye size={20} className={activeView === 'observation' ? 'text-brand-blue' : 'text-slate-400'} />
+                {!sidebarCollapsed && <span>Observation</span>}
               </div>
               {!sidebarCollapsed && (
                 <ChevronDown size={16} className={`transition-transform duration-200 ${agentsOpen ? 'rotate-180' : ''}`} />
               )}
             </div>
 
-            {/* Submenu */}
-            <div className={`overflow-hidden transition-all duration-300 ${!sidebarCollapsed && agentsOpen ? 'max-h-[200px] opacity-100 mt-1' : 'max-h-0 opacity-0'}`}>
+            {/* Observation Sub-tabs */}
+            <div className={`overflow-hidden transition-all duration-300 ${!sidebarCollapsed && agentsOpen ? 'max-h-[400px] opacity-100 mt-1' : 'max-h-0 opacity-0'}`}>
               <div className="pl-4 pr-3 flex flex-col gap-0.5 border-l-2 border-slate-100 ml-5 py-1">
-                {['Sales', 'Support', 'Specialty'].map(dept => {
-                  const deptAgents = getAgentsByDept(dept);
-                  const isActive = activeView === 'agents' && selectedDept === dept;
-                  return (
-                    <div
-                      key={dept}
-                      className={`px-3 py-2 text-[13px] font-medium cursor-pointer rounded-md transition-colors flex items-center justify-between
-                        ${isActive ? 'bg-brand-blue-light text-brand-blue font-semibold' : 'text-[var(--text-secondary)] hover:bg-slate-50 hover:text-[var(--brand-blue)]'}`}
-                      onClick={() => { setSelectedDept(dept); setActiveView('agents'); }}
-                    >
-                      <span className="flex items-center gap-2">
-                        <span className={`w-2 h-2 rounded-full ${dept === 'Sales' ? 'bg-blue-500' : dept === 'Support' ? 'bg-emerald-500' : 'bg-amber-500'
-                          }`} />
-                        {dept}
-                      </span>
-                      <span className="text-[10px] text-slate-400 font-normal">{deptAgents.length}</span>
-                    </div>
-                  );
-                })}
+                {/* Dashboard Sub-tab */}
+                <div
+                  className={`px-3 py-2 text-[13px] font-medium cursor-pointer rounded-md transition-colors flex items-center gap-2
+                    ${activeView === 'observation' && observationSubTab === 'dashboard' ? 'bg-brand-blue-light text-brand-blue font-semibold' : 'text-[var(--text-secondary)] hover:bg-slate-50 hover:text-[var(--brand-blue)]'}`}
+                  onClick={() => { setActiveView('observation'); setObservationSubTab('dashboard'); }}
+                >
+                  <LayoutDashboard size={14} />
+                  Dashboard
+                </div>
+
+                {/* Agents Sub-tab with LOB children */}
+                <div
+                  className={`px-3 py-2 text-[13px] font-medium cursor-pointer rounded-md transition-colors flex items-center gap-2
+                    ${activeView === 'observation' && observationSubTab === 'agents' ? 'bg-brand-blue-light text-brand-blue font-semibold' : 'text-[var(--text-secondary)] hover:bg-slate-50 hover:text-[var(--brand-blue)]'}`}
+                  onClick={() => { setActiveView('observation'); setObservationSubTab('agents'); }}
+                >
+                  <Users size={14} />
+                  Agents
+                </div>
+                {/* LOB Departments under Agents */}
+                {observationSubTab === 'agents' && activeView === 'observation' && (
+                  <div className="pl-4 flex flex-col gap-0.5 ml-2 border-l-2 border-slate-50 py-0.5">
+                    {['Sales', 'Support', 'Specialty'].map(dept => {
+                      const deptAgents = getAgentsByDept(dept);
+                      const isActive = selectedDept === dept;
+                      return (
+                        <div
+                          key={dept}
+                          className={`px-3 py-1.5 text-[12px] font-medium cursor-pointer rounded-md transition-colors flex items-center justify-between
+                            ${isActive ? 'bg-blue-50 text-brand-blue font-semibold' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'}`}
+                          onClick={() => setSelectedDept(dept)}
+                        >
+                          <span className="flex items-center gap-2">
+                            <span className={`w-2 h-2 rounded-full ${dept === 'Sales' ? 'bg-blue-500' : dept === 'Support' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                            {dept}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-normal">{deptAgents.length}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Coaches Sub-tab */}
+                <div
+                  className={`px-3 py-2 text-[13px] font-medium cursor-pointer rounded-md transition-colors flex items-center gap-2
+                    ${activeView === 'observation' && observationSubTab === 'coaches' ? 'bg-brand-blue-light text-brand-blue font-semibold' : 'text-[var(--text-secondary)] hover:bg-slate-50 hover:text-[var(--brand-blue)]'}`}
+                  onClick={() => { setActiveView('observation'); setObservationSubTab('coaches'); }}
+                >
+                  <UserCog size={14} />
+                  Coaches
+                </div>
               </div>
             </div>
           </div>
+
+          {/* Business Volume Tab */}
           <NavItem
-            icon={<UserCog size={20} />}
-            label="Coaches"
+            icon={<Briefcase size={20} />}
+            label="Business Volume"
             collapsed={sidebarCollapsed}
-            active={activeView === "coaches"}
-            onClick={() => setActiveView("coaches")}
+            active={activeView === "business-volume"}
+            onClick={() => setActiveView("business-volume")}
           />
         </nav>
 
@@ -933,8 +967,8 @@ export default function Dashboard() {
         {/* SCROLLABLE VIEW AREA */}
         <main className="flex-1 overflow-y-auto p-6 scroll-smooth">
 
-          {/* VIEW: DASHBOARD */}
-          {activeView === "dashboard" && (
+          {/* VIEW: OBSERVATION - DASHBOARD */}
+          {activeView === "observation" && observationSubTab === "dashboard" && (
             <div className="max-w-[1400px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
 
@@ -942,8 +976,11 @@ export default function Dashboard() {
                 <div className="flex flex-col gap-6">
                   {/* Card: Observation Data */}
                   <div className="bg-white rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)] overflow-hidden">
-                    <div className="flex justify-between items-center mb-4">
+                    <div className="flex justify-between items-center mb-1">
                       <h2 className="font-bold text-lg">Observation Data</h2>
+                    </div>
+                    <p className="text-[11px] text-slate-400 font-medium mb-4">Observation count breakdown by LOB for this week, last week, and month-to-date.</p>
+                    <div className="flex justify-between items-center mb-4">
                     </div>
 
                     <div className="w-full">
@@ -996,10 +1033,13 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  {/* Card: Absenteeism */}
+                  {/* Card: Missing Observation */}
                   <div className="bg-white rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
-                    <div className="flex justify-between items-center mb-4">
+                    <div className="mb-1">
                       <h2 className="font-bold text-lg">Missing Observation</h2>
+                      <p className="text-[11px] text-slate-400 font-medium">Coaches with the most unobserved agents during the selected period.</p>
+                    </div>
+                    <div className="flex justify-between items-center mb-4">
                       <div className="w-32">
                         <Select
                           options={['Sales', 'Support', 'Specialty']}
@@ -1033,8 +1073,11 @@ export default function Dashboard() {
 
                   {/* Card: Recent Observations */}
                   <div className="bg-white rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
-                    <div className="flex justify-between items-center mb-4">
+                    <div className="mb-1">
                       <h2 className="font-bold text-lg">Recent Observations</h2>
+                      <p className="text-[11px] text-slate-400 font-medium">Latest coaching sessions recorded in the system.</p>
+                    </div>
+                    <div className="flex justify-between items-center mb-4">
                       <button
                         onClick={() => setRecentObsModalOpen(true)}
                         className="text-xs font-semibold text-brand-blue bg-brand-blue-light px-2.5 py-1 rounded-full hover:bg-brand-blue hover:text-white transition-colors"
@@ -1071,10 +1114,11 @@ export default function Dashboard() {
 
                 {/* Column 2 */}
                 <div className="flex flex-col gap-6">
-                  {/* Card: Observation Scores */}
+                  {/* Card: Observation Index */}
                   <div className="bg-white rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
-                    <div className="flex justify-between items-center mb-4">
+                    <div className="mb-1">
                       <h2 className="font-bold text-lg">Observation Index</h2>
+                      <p className="text-[11px] text-slate-400 font-medium">Daily observation trend lines per LOB over the selected period.</p>
                     </div>
                     <div className="h-[200px] w-full">
                       <ResponsiveContainer width="100%" height="100%">
@@ -1093,8 +1137,9 @@ export default function Dashboard() {
 
                   {/* Card: LOB Completion Status */}
                   <div className="bg-white rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
-                    <div className="flex justify-between items-center mb-2">
+                    <div className="mb-2">
                       <h2 className="font-bold text-lg">LOB Completion</h2>
+                      <p className="text-[11px] text-slate-400 font-medium">Percentage of agents observed per department during the selected period.</p>
                     </div>
                     <div className="h-[200px] w-full flex items-center justify-center relative">
                       <ResponsiveContainer width="100%" height="100%">
@@ -1131,8 +1176,11 @@ export default function Dashboard() {
 
                   {/* Card: WOW Charts (Activity Comparison) */}
                   <div className="bg-white rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
-                    <div className="flex justify-between items-center mb-4">
+                    <div className="mb-1">
                       <h2 className="font-bold text-lg">WOW Charts</h2>
+                      <p className="text-[11px] text-slate-400 font-medium">Week-over-Week comparison of top observed agents ranked by monthly total.</p>
+                    </div>
+                    <div className="flex justify-between items-center mb-4">
                       <button
                         onClick={() => setWowChartsModalOpen(true)}
                         className="text-[10px] font-bold text-brand-blue bg-blue-50 px-2 py-0.5 rounded border border-blue-100 hover:bg-brand-blue hover:text-white transition-colors"
@@ -1184,7 +1232,8 @@ export default function Dashboard() {
 
                   {/* Card: Completion Scores */}
                   <div className="bg-white rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
-                    <h2 className="font-bold text-lg mb-2">Observation Completion (Agent)</h2>
+                    <h2 className="font-bold text-lg mb-0.5">Observation Completion (Agent)</h2>
+                    <p className="text-[11px] text-slate-400 font-medium mb-2">Progress bars showing how many agents per LOB have been observed vs. total headcount.</p>
                     <div className="flex flex-col gap-4 mt-4">
                       {lobsStats.map((stat, i) => (
                         <div key={i} className="space-y-1.5">
@@ -1213,8 +1262,8 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* VIEW: COACHES */}
-          {activeView === "coaches" && (
+          {/* VIEW: OBSERVATION - COACHES */}
+          {activeView === "observation" && observationSubTab === "coaches" && (
             <div className="max-w-[1000px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div className="flex items-center justify-between mb-6">
                 <div>
@@ -1295,8 +1344,8 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* VIEW: AGENTS BY DEPARTMENT */}
-          {activeView === "agents" && (
+          {/* VIEW: OBSERVATION - AGENTS BY DEPARTMENT */}
+          {activeView === "observation" && observationSubTab === "agents" && (
             <div className="max-w-[1000px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div className="flex items-center justify-between mb-6">
                 <div>
@@ -1475,6 +1524,55 @@ export default function Dashboard() {
                   {allObservations.length === 0 && (
                     <div className="py-20 text-center text-slate-400 italic">No observations found in history.</div>
                   )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* VIEW: BUSINESS VOLUME */}
+          {activeView === "business-volume" && (
+            <div className="max-w-[1400px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold text-[var(--text-primary)] flex items-center gap-3">
+                    <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-200">
+                      <Briefcase size={20} />
+                    </div>
+                    Business Volume
+                  </h2>
+                  <p className="text-[var(--text-secondary)] mt-1 ml-[52px]">Track and analyze business volume metrics and reporting.</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                {[
+                  { label: 'Total Volume', value: '—', desc: 'Overall business volume', color: 'from-blue-500 to-indigo-600', iconColor: 'text-blue-100' },
+                  { label: 'Avg. Per Agent', value: '—', desc: 'Average volume per agent', color: 'from-emerald-500 to-teal-600', iconColor: 'text-emerald-100' },
+                  { label: 'Growth Rate', value: '—', desc: 'Week-over-week change', color: 'from-amber-500 to-orange-600', iconColor: 'text-amber-100' },
+                ].map((card, i) => (
+                  <div key={i} className={`bg-gradient-to-br ${card.color} rounded-2xl p-6 text-white shadow-lg relative overflow-hidden`}>
+                    <div className="absolute top-3 right-3 opacity-20">
+                      <TrendingUp size={48} />
+                    </div>
+                    <p className="text-sm font-semibold text-white/80 mb-1">{card.label}</p>
+                    <p className="text-3xl font-black">{card.value}</p>
+                    <p className="text-[11px] text-white/60 mt-2 font-medium">{card.desc}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="bg-white rounded-2xl p-8 shadow-[var(--shadow-sm)] border border-[var(--border-light)] flex flex-col items-center justify-center min-h-[400px]">
+                <div className="w-20 h-20 bg-slate-100 rounded-2xl flex items-center justify-center mb-6">
+                  <BarChartIcon size={36} className="text-slate-300" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-700 mb-2">Coming Soon</h3>
+                <p className="text-sm text-slate-400 text-center max-w-md leading-relaxed">
+                  Business volume reporting and analytics will be available here. This section will include volume trends, agent performance metrics, and departmental breakdowns.
+                </p>
+                <div className="flex gap-2 mt-6">
+                  {['Volume Trends', 'Agent Metrics', 'LOB Breakdown'].map((tag, i) => (
+                    <span key={i} className="text-[10px] font-bold px-3 py-1.5 rounded-full bg-slate-100 text-slate-500 uppercase tracking-wider">{tag}</span>
+                  ))}
                 </div>
               </div>
             </div>
