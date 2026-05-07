@@ -16,6 +16,30 @@ http.route({
 });
 
 http.route({
+  path: "/clear-observations",
+  method: "POST",
+  handler: httpAction(async (ctx) => {
+    await ctx.runMutation(internal.observations.clearAll);
+    return new Response(JSON.stringify({ success: true }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }),
+});
+
+http.route({
+  path: "/list-sync-ids",
+  method: "GET",
+  handler: httpAction(async (ctx) => {
+    const ids = await ctx.runQuery(api.observations.listSyncIds);
+    return new Response(JSON.stringify(ids), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }),
+});
+
+http.route({
   path: "/sync-sheet",
   method: "POST",
   handler: httpAction(async (ctx, request) => {

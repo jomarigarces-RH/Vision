@@ -37,6 +37,7 @@ export const create = mutation({
     rating: v.number(),
     observedBy: v.string(),
     duration: v.optional(v.number()),
+    syncId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // If there's an active observation for this agent, remove it
@@ -175,6 +176,7 @@ export const importBatch = mutation({
       rating: v.optional(v.number()),
       ratingString: v.optional(v.string()),
       observedBy: v.optional(v.string()),
+      syncId: v.optional(v.string()),
     })),
   },
   handler: async (ctx, args) => {
@@ -218,6 +220,9 @@ export const batchSync = internalMutation({
     let count = 0;
     console.log(`Received ${args.observations.length} observations from sync.`);
     
+    // Pre-fetch all observations to make matching faster
+    const existing = await ctx.db.query("observations").collect();
+
     for (const rawObs of args.observations) {
       const obs = rawObs as any;
       
@@ -235,8 +240,14 @@ export const batchSync = internalMutation({
       const observedBy = obs.observedBy || coach;
       const department = obs.department || ["Support"];
       
-      // Sync Observation (Removed duplicate check to ensure full data ingestion)
-      await ctx.db.insert("observations", {
+      // Find matching record by stable key (Agent + Date + OrderNumber)
+      const toUpdate = existing.find(o => 
+        o.agentName === agent && 
+        o.date === obs.date && 
+        (o.orderNumber || "") === (obs.orderNumber || "")
+      );
+
+      const obsData = {
         ...obs,
         agentName: agent,
         coachName: coach,
@@ -247,11 +258,38 @@ export const batchSync = internalMutation({
         sessionType: obs.sessionType || ["Observation"],
         categories: obs.categories || ["General"],
         overallRating: obs.overallRating || ["N/A"],
-      });
+      };
+
+      if (toUpdate) {
+        await ctx.db.patch(toUpdate._id, obsData);
+      } else {
+        await ctx.db.insert("observations", obsData);
+      }
       count++;
     }
     console.log(`Successfully synced ${count} observations.`);
     return { success: true, count };
+  },
+});
+
+/** Returns all unique syncIds to help Apps Script skip duplicates. */
+export const listSyncIds = query({
+  args: {},
+  handler: async (ctx) => {
+    const all = await ctx.db.query("observations").collect();
+    return all.map(o => o.syncId).filter(id => !!id);
+  },
+});
+
+/** Clear all observations (internal use). */
+export const clearAll = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const all = await ctx.db.query("observations").collect();
+    for (const row of all) {
+      await ctx.db.delete(row._id);
+    }
+    return `cleared_${all.length}`;
   },
 });
 

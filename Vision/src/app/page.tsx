@@ -11,6 +11,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, PieChart, Pie, Cell
 } from "recharts";
+import { getESTDate, getMonday, normalizeName } from "../../convex/utils";
 
 // --- Data is fetched from Convex backend (staff table) ---
 // Type aliases for staff data
@@ -89,21 +90,19 @@ export default function Dashboard() {
   const recentObservations = useMemo(() => allObservations.slice(0, 20), [allObservations]);
 
   const weekStats = useMemo(() => {
+    const thisWeekStart = getESTDate(getMonday(new Date()));
+    
+    const lastMon = new Date();
+    lastMon.setDate(lastMon.getDate() - 7);
+    const lastWeekStart = getESTDate(getMonday(lastMon));
+    
+    const lastSun = new Date();
+    const d = lastSun.getDay();
+    lastSun.setDate(lastSun.getDate() - (d === 0 ? 7 : d));
+    const lastWeekEnd = getESTDate(lastSun);
+
     const now = new Date();
-    const thisMon = new Date(now);
-    const d = thisMon.getDay();
-    const diff = thisMon.getDate() - d + (d === 0 ? -6 : 1);
-    thisMon.setDate(diff);
-    const thisWeekStart = thisMon.toISOString().split('T')[0];
-
-    const lastMon = new Date(thisMon);
-    lastMon.setDate(thisMon.getDate() - 7);
-    const lastWeekStart = lastMon.toISOString().split('T')[0];
-    const lastSun = new Date(thisMon);
-    lastSun.setDate(thisMon.getDate() - 1);
-    const lastWeekEnd = lastSun.toISOString().split('T')[0];
-
-    const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    const monthStart = getESTDate(new Date(now.getFullYear(), now.getMonth(), 1));
 
     return { thisWeekStart, lastWeekStart, lastWeekEnd, monthStart };
   }, []);
@@ -183,23 +182,57 @@ export default function Dashboard() {
   const observedAgentsList = useQuery(api.observations.getObservedAgents, filterDates) ?? [];
   const observedAgents = useMemo(() => new Set(observedAgentsList), [observedAgentsList]);
 
-  const getCoachPeriodCount = (coachName: string, start: string, end?: string) => {
+  const getCoachPeriodCount = (coachName: string, start?: string, end?: string) => {
+    const normalizedTarget = normalizeName(coachName);
     return allObservations.filter(o => {
-      if (o.coachName !== coachName) return false;
-      if (o.date < start) return false;
+      if (normalizeName(o.coachName) !== normalizedTarget) return false;
+      if (start && o.date < start) return false;
       if (end && o.date > end) return false;
       return true;
     }).length;
   };
 
+  // Optimize calculations by pre-grouping observations by agent
+  const obsByAgent = useMemo(() => {
+    const map = new Map<string, any[]>();
+    allObservations.forEach(o => {
+      if (!map.has(o.agentName)) map.set(o.agentName, []);
+      map.get(o.agentName)!.push(o);
+    });
+    return map;
+  }, [allObservations]);
+
   const wowChartsData = useMemo(() => {
-    const agentStats: Record<string, { thisWeek: number, lastWeek: number, month: number }> = {};
+    // Only calculate if we are on the Agents tab
+    if (activeView !== 'observation' || observationSubTab !== 'agents') return [];
+    
+    const agentStats: Record<string, { thisWeek: number, lastWeek: number, month: number, allTime: number }> = {};
+    const { sinceDate: start, endDate: end } = filterDates;
+    
+    const dStart = new Date(start);
+    const dEnd = end ? new Date(end) : new Date();
+    const diff = dEnd.getTime() - dStart.getTime();
+    
+    const prevEnd = new Date(dStart.getTime() - (1000 * 60 * 60 * 24));
+    const prevStart = new Date(prevEnd.getTime() - diff);
+    const prevStartStr = prevStart.toISOString().split('T')[0];
+    const prevEndStr = prevEnd.toISOString().split('T')[0];
 
     AGENTS.forEach(a => {
+      const agentObs = obsByAgent.get(a.name) || [];
       agentStats[a.name] = {
-        thisWeek: allObservations.filter(o => o.agentName === a.name && o.date >= weekStats.thisWeekStart).length,
-        lastWeek: allObservations.filter(o => o.agentName === a.name && o.date >= weekStats.lastWeekStart && o.date <= weekStats.lastWeekEnd).length,
-        month: allObservations.filter(o => o.agentName === a.name && o.date >= weekStats.monthStart).length,
+        thisWeek: agentObs.filter(o => {
+          if (start && o.date < start) return false;
+          if (end && o.date > end) return false;
+          return true;
+        }).length,
+        lastWeek: agentObs.filter(o => {
+          if (o.date < prevStartStr) return false;
+          if (o.date > prevEndStr) return false;
+          return true;
+        }).length,
+        month: 0,
+        allTime: agentObs.length,
       };
     });
 
@@ -209,14 +242,15 @@ export default function Dashboard() {
         ...stats,
         wow: stats.thisWeek - stats.lastWeek
       }))
-      .sort((a, b) => b.month - a.month)
-      .filter(a => a.month > 0);
-  }, [allObservations, weekStats]);
+      .sort((a, b) => b.allTime - a.allTime)
+      .filter(a => a.allTime > 0);
+  }, [obsByAgent, AGENTS, filterDates, activeView, observationSubTab]);
 
-  const getAgentPeriodCount = (agentName: string, start: string, end?: string) => {
+  const getAgentPeriodCount = (agentName: string, start?: string, end?: string) => {
+    const normalizedTarget = normalizeName(agentName);
     return allObservations.filter(o => {
-      if (o.agentName !== agentName) return false;
-      if (o.date < start) return false;
+      if (normalizeName(o.agentName) !== normalizedTarget) return false;
+      if (start && o.date < start) return false;
       if (end && o.date > end) return false;
       return true;
     }).length;
@@ -255,10 +289,15 @@ export default function Dashboard() {
       }
     });
 
-    // Search Agents
     AGENTS.forEach(agent => {
       if (agent.name.toLowerCase().includes(q) || agent.coach.toLowerCase().includes(q)) {
-        results.push({ type: 'agent', name: agent.name, path: `${agent.lob} > ${agent.coach} > ${agent.name}`, value: agent.name });
+        results.push({ 
+          type: 'agent', 
+          name: agent.name, 
+          path: `${agent.lob} > ${agent.coach} > ${agent.name}`, 
+          value: agent.name,
+          lob: agent.lob 
+        });
       }
     });
 
@@ -270,17 +309,27 @@ export default function Dashboard() {
   const handleSearchResultClick = (result: any) => {
     setSearchQuery("");
     setShowSearchDropdown(false);
+    
     if (result.type === 'dept') {
       setSelectedDept(result.value);
       setActiveView('observation');
       setObservationSubTab('agents');
+      setAgentsOpen(true);
     } else if (result.type === 'coach') {
       setSelectedCoach(result.value);
       setCoachModalOpen(true);
       setActiveView('observation');
       setObservationSubTab('coaches');
+      setAgentsOpen(true);
+    } else if (result.type === 'agent') {
+      setSelectedDept(result.lob);
+      setActiveView('observation');
+      setObservationSubTab('agents');
+      setAgentsOpen(true);
+      // Optional: scroll to agent or highlight
     } else if (result.type === 'observation') {
       setSelectedObs(result.value);
+      setActiveView('history');
     }
   };
 
@@ -290,11 +339,11 @@ export default function Dashboard() {
 
   // Completion statistics for Dashboard
   const lobsStats = useMemo(() => {
+    if (activeView !== 'observation' || observationSubTab !== 'dashboard') return [];
+    
     const lobs = ['Sales', 'Support', 'Specialty'];
-
-    // Period selection logic
     const { sinceDate: start, endDate: end } = filterDates;
-
+    
     const periodObservations = allObservations.filter(o => {
       if (start && o.date < start) return false;
       if (end && o.date > end) return false;
@@ -316,29 +365,13 @@ export default function Dashboard() {
         color: dept === 'Sales' ? '#4F7DF3' : dept === 'Support' ? '#10B981' : '#F59E0B'
       };
     });
-  }, [allObservations, filterDates, AGENTS]);
+  }, [allObservations, filterDates, AGENTS, activeView, observationSubTab]);
 
   const notObservedStats = useMemo(() => {
-    let weeks: { start: string, end: string }[] = [];
+    if (activeView !== 'observation' || observationSubTab !== 'dashboard') return [];
     
-    if (filterPeriod === 'All Time') {
-      const baselineDate = new Date("2026-04-07");
-      let currentMon = new Date(baselineDate);
-      const day = currentMon.getDay(), diff = currentMon.getDate() - day + (day === 0 ? -6 : 1);
-      currentMon = new Date(currentMon.setDate(diff));
-
-      const now = new Date();
-      while (currentMon <= now) {
-        const wStart = currentMon.toISOString().split('T')[0];
-        const wEndObj = new Date(currentMon);
-        wEndObj.setDate(wEndObj.getDate() + 6);
-        const wEnd = wEndObj.toISOString().split('T')[0];
-        weeks.push({ start: wStart, end: wEnd });
-        currentMon.setDate(currentMon.getDate() + 7);
-      }
-    } else {
-      weeks = [{ start: weekStats.thisWeekStart, end: '9999-12-31' }];
-    }
+    const { sinceDate: start, endDate: end } = filterDates;
+    const weeks = [{ start: start || '2026-04-07', end: end || '9999-12-31' }];
 
     const relevantAgents = AGENTS.filter(a => {
       if (notObsDept !== 'All' && a.lob !== notObsDept) return false;
@@ -406,61 +439,53 @@ export default function Dashboard() {
 
   // Calculation for agents missed observations (This Week, Last Week, All Time)
   const missedObservationsStats = useMemo(() => {
-    if (AGENTS.length === 0) return [];
+    // Only calculate if the modal is actually open
+    if (!missedObsModalOpen || AGENTS.length === 0) return [];
     
-    // Baseline: Observations started on April 07, 2026
-    const baselineDate = new Date("2026-04-07");
-    const trackedWeeks = new Set<string>();
-    const getMonday = (dateStrOrDate: string | Date) => {
-      const d = new Date(dateStrOrDate);
-      const day = d.getDay(), diff = d.getDate() - day + (day === 0 ? -6 : 1);
-      const mon = new Date(d.setDate(diff));
-      return mon.toISOString().split('T')[0];
-    };
+    const { sinceDate: start, endDate: end } = filterDates;
+    
+    const dStart = new Date(start);
+    const dEnd = end ? new Date(end) : new Date();
+    const diff = dEnd.getTime() - dStart.getTime();
+    const prevEnd = new Date(dStart.getTime() - (1000 * 60 * 60 * 24));
+    const prevStart = new Date(prevEnd.getTime() - diff);
+    const prevStartStr = prevStart.toISOString().split('T')[0];
+    const prevEndStr = prevEnd.toISOString().split('T')[0];
 
-    // Generate all Mondays from baseline to now
-    let current = new Date(baselineDate);
+    const baselineDate = new Date("2026-04-07T00:00:00");
+    const trackedWeeks = new Set<string>();
+    let curr = new Date(baselineDate);
     const now = new Date();
-    while (current <= now) {
-      trackedWeeks.add(getMonday(current));
-      current.setDate(current.getDate() + 7);
+    while (curr <= now) {
+      const mon = getMonday(curr);
+      if (mon) trackedWeeks.add(mon);
+      curr.setDate(curr.getDate() + 7);
     }
-    
     const sortedWeeks = Array.from(trackedWeeks).sort();
     
-    // agentName -> Map<weekStartDate, observationCount>
-    const agentActivity = new Map<string, Map<string, number>>();
-    
-    allObservations.forEach(o => {
-      const mon = getMonday(o.date);
-      if (!agentActivity.has(o.agentName)) agentActivity.set(o.agentName, new Map());
-      const weeks = agentActivity.get(o.agentName)!;
-      weeks.set(mon, (weeks.get(mon) || 0) + 1);
-    });
-
     const stats = AGENTS.map(agent => {
-      const activity = agentActivity.get(agent.name) || new Map();
-      
-      let missedThisWeek = !activity.has(weekStats.thisWeekStart);
-      let missedLastWeek = !activity.has(weekStats.lastWeekStart);
-      
+      const agentObs = obsByAgent.get(agent.name) || [];
+      const hasThisPeriod = agentObs.some(o => (!start || o.date >= start) && (!end || o.date <= end));
+      const hasLastPeriod = agentObs.some(o => o.date >= prevStartStr && o.date <= prevEndStr);
+
       let totalWeeksMissed = 0;
+      const agentMondays = new Set(agentObs.map(o => getMonday(o.date)));
       sortedWeeks.forEach(week => {
-        if (!activity.has(week)) totalWeeksMissed++;
+        if (!agentMondays.has(week)) totalWeeksMissed++;
       });
 
       return {
         name: agent.name,
         coach: agent.coach,
         lob: agent.lob,
-        missedThisWeek,
-        missedLastWeek,
+        missedThisWeek: !hasThisPeriod,
+        missedLastWeek: !hasLastPeriod,
         totalWeeksMissed
       };
     });
 
     return stats.sort((a, b) => b.totalWeeksMissed - a.totalWeeksMissed);
-  }, [allObservations, AGENTS, weekStats]);
+  }, [obsByAgent, AGENTS, filterDates]);
 
   const overallCompletion = useMemo(() => {
     const total = lobsStats.reduce((acc, curr) => acc + curr.total, 0);
@@ -1149,7 +1174,7 @@ export default function Dashboard() {
                   <div className="hidden sm:grid grid-cols-4 gap-4 flex-1 max-w-[450px] font-bold text-[10px] text-slate-400 uppercase tracking-widest text-center">
                     <div>This Week</div>
                     <div>Last Week</div>
-                    <div>Month</div>
+                    <div>All Time</div>
                     <div className="text-right">WoW Indicator</div>
                   </div>
                   <div className="w-5 pl-2"></div>
@@ -1162,7 +1187,7 @@ export default function Dashboard() {
 
                     const thisWeek = getCoachPeriodCount(coach.name, weekStats.thisWeekStart);
                     const lastWeek = getCoachPeriodCount(coach.name, weekStats.lastWeekStart, weekStats.lastWeekEnd);
-                    const month = getCoachPeriodCount(coach.name, weekStats.monthStart);
+                    const allTime = getCoachPeriodCount(coach.name);
 
                     const wow = thisWeek - lastWeek;
                     const wowColor = wow > 0 ? 'text-emerald-600 bg-emerald-50' : wow < 0 ? 'text-rose-600 bg-rose-50' : 'text-slate-400 bg-slate-50';
@@ -1190,7 +1215,7 @@ export default function Dashboard() {
                         <div className="hidden sm:grid grid-cols-4 gap-4 flex-1 max-w-[450px] items-center text-center">
                           <div className="text-sm font-bold text-slate-700">{thisWeek}</div>
                           <div className="text-sm font-bold text-slate-400">{lastWeek}</div>
-                          <div className="text-sm font-bold text-slate-700">{month}</div>
+                          <div className="text-sm font-bold text-slate-700">{allTime}</div>
                           <div className="flex justify-end">
                             <div className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-black ${wowColor} min-w-[50px] justify-center`}>
                               {wow > 0 ? '▲' : wow < 0 ? '▼' : '—'}
@@ -1240,7 +1265,7 @@ export default function Dashboard() {
                   <div className="hidden sm:grid grid-cols-4 gap-4 flex-1 max-w-[450px]">
                     <div>This Week</div>
                     <div>Last Week</div>
-                    <div>Month</div>
+                    <div>All Time</div>
                     <div className="text-right">WoW Indicator</div>
                   </div>
                   <div className="w-5 pl-2"></div>
@@ -1253,7 +1278,7 @@ export default function Dashboard() {
 
                     const thisWeek = getAgentPeriodCount(agent.name, weekStats.thisWeekStart);
                     const lastWeek = getAgentPeriodCount(agent.name, weekStats.lastWeekStart, weekStats.lastWeekEnd);
-                    const month = getAgentPeriodCount(agent.name, weekStats.monthStart);
+                    const allTime = getAgentPeriodCount(agent.name);
 
                     const wow = thisWeek - lastWeek;
                     const wowColor = wow > 0 ? 'text-emerald-600 bg-emerald-50' : wow < 0 ? 'text-rose-600 bg-rose-50' : 'text-slate-400 bg-slate-50';
@@ -1277,7 +1302,7 @@ export default function Dashboard() {
                         <div className="hidden sm:grid grid-cols-4 gap-4 flex-1 max-w-[450px] items-center text-center">
                           <div className="text-sm font-bold text-slate-700">{thisWeek}</div>
                           <div className="text-sm font-bold text-slate-400">{lastWeek}</div>
-                          <div className="text-sm font-bold text-slate-700">{month}</div>
+                          <div className="text-sm font-bold text-slate-700">{allTime}</div>
                           <div className="flex justify-end">
                             <div className={`px-2 py-1 rounded-md text-[10px] font-black ${wowColor} min-w-[40px] text-center`}>
                               {wow > 0 ? '▲ ' : wow < 0 ? '▼ ' : '—'}
@@ -1347,7 +1372,7 @@ export default function Dashboard() {
               </div>
 
               <div className="bg-white rounded-2xl shadow-[var(--shadow-sm)] border border-[var(--border-light)] overflow-hidden">
-                <div className="p-4 border-b border-slate-50 bg-slate-50/50 grid grid-cols-5 gap-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">
+                <div className="p-4 border-b border-slate-50 bg-slate-50/50 grid grid-cols-5 gap-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center sticky top-0 z-10">
                   <div className="text-left pl-4">ID</div>
                   <div className="text-left">Agent</div>
                   <div className="text-left">Coach</div>
@@ -1542,7 +1567,7 @@ export default function Dashboard() {
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse">
-                    <thead className="bg-slate-50/80 border-b border-slate-100">
+                    <thead className="bg-slate-50/80 border-b border-slate-100 sticky top-0 z-10">
                        <tr className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
                           <th className="py-4 px-6">Agent Name</th>
                           <th className="py-4 px-4 text-center">Role</th>
@@ -1597,11 +1622,11 @@ export default function Dashboard() {
             </div>
             
             <div className="overflow-y-auto p-2 scroll-smooth">
-               <div className="grid grid-cols-5 gap-4 p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">
-                  <div className="col-span-2">Agent Details</div>
-                  <div className="text-center">This Wk</div>
-                  <div className="text-center">Last Wk</div>
-                  <div className="text-right">Total Missed</div>
+               <div className="bg-slate-50 border-y border-slate-100 px-6 py-2.5 grid grid-cols-5 gap-4 sticky top-0 z-10">
+                  <div className="col-span-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Agent Details</div>
+                  <div className="text-center text-[10px] font-bold text-slate-400 uppercase tracking-wider">This Wk</div>
+                  <div className="text-center text-[10px] font-bold text-slate-400 uppercase tracking-wider">Last Wk</div>
+                  <div className="text-right text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Missed</div>
                </div>
                <div className="flex flex-col">
                   {missedObservationsStats.map((agent, i) => (

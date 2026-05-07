@@ -4,6 +4,7 @@ import { v } from "convex/values";
 export default defineSchema({
   staff: defineTable({
     agentName: v.string(),
+    nickname: v.optional(v.string()),
     coachName: v.string(),
     lob: v.string(), // Sales, Support, Specialty
   })
@@ -31,10 +32,12 @@ export default defineSchema({
     rating: v.number(),
     observedBy: v.string(),
     duration: v.optional(v.number()), // Duration in seconds
+    syncId: v.optional(v.string()), // Unique hash for deduplication
   })
     .index("by_agent", ["agentName"])
     .index("by_coach", ["coachName"])
-    .index("by_date", ["date"]),
+    .index("by_date", ["date"])
+    .index("by_sync_id", ["syncId"]),
 
   active_observations: defineTable({
     agentName: v.string(),

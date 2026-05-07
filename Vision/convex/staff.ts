@@ -1,6 +1,6 @@
 import { mutation, query, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
-import { normalizeName } from "./utils";
+import { normalizeName, getNickname } from "./utils";
 
 // ── Queries ──────────────────────────────────────────────────
 
@@ -257,7 +257,8 @@ export const seed = mutation({
     let count = 0;
     for (const [agentName, coachName] of AGENT_COACH) {
       const lob = COACH_LOB[coachName] || 'Support';
-      await ctx.db.insert("staff", { agentName, coachName, lob });
+      const nickname = getNickname(agentName);
+      await ctx.db.insert("staff", { agentName, nickname, coachName, lob });
       count++;
     }
     return `seeded_${count}`;
@@ -292,10 +293,12 @@ export const sync = mutation({
       .first();
 
     if (existing) {
-      await ctx.db.patch(existing._id, { coachName: coach, lob: args.lob });
+      const nickname = getNickname(agent);
+      await ctx.db.patch(existing._id, { coachName: coach, lob: args.lob, nickname });
       return existing._id;
     } else {
-      return await ctx.db.insert("staff", { agentName: agent, coachName: coach, lob: args.lob });
+      const nickname = getNickname(agent);
+      return await ctx.db.insert("staff", { agentName: agent, coachName: coach, lob: args.lob, nickname });
     }
   },
 });
@@ -320,10 +323,35 @@ export const batchSync = internalMutation({
         .first();
 
       if (existing) {
-        await ctx.db.patch(existing._id, { coachName: coach, lob: row.lob });
+        const nickname = getNickname(agent);
+        await ctx.db.patch(existing._id, { coachName: coach, lob: row.lob, nickname });
       } else {
-        await ctx.db.insert("staff", { agentName: agent, coachName: coach, lob: row.lob });
+        const nickname = getNickname(agent);
+        await ctx.db.insert("staff", { agentName: agent, nickname, coachName: coach, lob: row.lob });
       }
     }
+  },
+});
+/** One-time migration to fill nicknames for all staff. */
+export const updateAllNicknames = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const all = await ctx.db.query("staff").collect();
+    let count = 0;
+    for (const row of all) {
+      const normalizedAgent = normalizeName(row.agentName);
+      const normalizedCoach = normalizeName(row.coachName);
+      const nickname = getNickname(normalizedAgent);
+      
+      if (row.agentName !== normalizedAgent || row.coachName !== normalizedCoach || row.nickname !== nickname) {
+        await ctx.db.patch(row._id, { 
+          agentName: normalizedAgent, 
+          coachName: normalizedCoach,
+          nickname 
+        });
+        count++;
+      }
+    }
+    return `updated_${count}_records`;
   },
 });
