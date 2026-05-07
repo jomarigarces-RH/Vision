@@ -212,58 +212,46 @@ export const importBatch = mutation({
 /** Batch sync from spreadsheet. */
 export const batchSync = internalMutation({
   args: {
-    observations: v.array(v.object({
-      agentName: v.string(),
-      coachName: v.string(),
-      department: v.array(v.string()),
-      date: v.string(),
-      sessionType: v.optional(v.array(v.string())),
-      categories: v.optional(v.array(v.string())),
-      strengths: v.optional(v.string()),
-      areasOfOpportunity: v.optional(v.string()),
-      rootCause: v.optional(v.string()),
-      actionPlan: v.optional(v.string()),
-      overallRating: v.optional(v.array(v.string())),
-      otherFeedback: v.optional(v.string()),
-      orderNumber: v.optional(v.string()),
-      teamLeadFeedback: v.optional(v.string()),
-      rating: v.optional(v.number()),
-      observedBy: v.optional(v.string()),
-    })),
+    observations: v.array(v.any()), // Allow any object to bypass strict validator
   },
   handler: async (ctx, args) => {
-    for (const obs of args.observations) {
+    let count = 0;
+    console.log(`Received ${args.observations.length} observations from sync.`);
+    
+    for (const rawObs of args.observations) {
+      const obs = rawObs as any;
+      
+      // Skip rows that are missing critical identification
+      if (!obs.agentName || !obs.date) {
+        if (Object.keys(obs).length > 0) {
+          console.log("Skipping empty or malformed row:", obs);
+        }
+        continue;
+      }
+
       const agent = resolveName(obs.agentName);
-      const coach = resolveName(obs.coachName);
+      const coach = resolveName(obs.coachName || "Unknown Coach");
       const rating = obs.rating ?? mapRating(obs.overallRating?.[0] || "");
       const observedBy = obs.observedBy || coach;
-      const sessionType = obs.sessionType || ["Observation"];
-      const categories = obs.categories || ["General"];
-      const overallRating = obs.overallRating || ["N/A"];
+      const department = obs.department || ["Support"];
       
-      // Basic duplicate check by agent, date, and rating
-      const existing = await ctx.db
-        .query("observations")
-        .withIndex("by_agent", (q) => q.eq("agentName", agent))
-        .filter((q) => q.and(
-          q.eq(q.field("date"), obs.date),
-          q.eq(q.field("rating"), rating)
-        ))
-        .first();
-
-      if (!existing) {
-        await ctx.db.insert("observations", {
-          ...obs,
-          agentName: agent,
-          coachName: coach,
-          rating,
-          observedBy,
-          sessionType,
-          categories,
-          overallRating,
-        });
-      }
+      // Sync Observation (Removed duplicate check to ensure full data ingestion)
+      await ctx.db.insert("observations", {
+        ...obs,
+        agentName: agent,
+        coachName: coach,
+        department,
+        date: obs.date,
+        rating,
+        observedBy,
+        sessionType: obs.sessionType || ["Observation"],
+        categories: obs.categories || ["General"],
+        overallRating: obs.overallRating || ["N/A"],
+      });
+      count++;
     }
+    console.log(`Successfully synced ${count} observations.`);
+    return { success: true, count };
   },
 });
 

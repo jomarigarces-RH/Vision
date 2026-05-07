@@ -1,21 +1,33 @@
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 
 const http = httpRouter();
+
+http.route({
+  path: "/health",
+  method: "GET",
+  handler: httpAction(async () => {
+    return new Response(JSON.stringify({ status: "Vision Sync is Live" }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }),
+});
 
 http.route({
   path: "/sync-sheet",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
     const data = await request.json();
+    console.log("Received Sync Request");
     
-    // Google Sheets sends data as an array of rows or a single row object
-    const observations = Array.isArray(data) ? data : [data];
+    // Handle both { observations: [...] } and raw [...] formats
+    const observations = data.observations || (Array.isArray(data) ? data : [data]);
 
     try {
       // Use batchSync which has the duplicate check logic
-      await ctx.runMutation(api.observations.batchSync, { observations });
+      await ctx.runMutation(internal.observations.batchSync, { observations });
       return new Response(JSON.stringify({ success: true }), {
         status: 200,
         headers: { "Content-Type": "application/json" },

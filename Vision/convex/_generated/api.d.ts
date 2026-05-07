@@ -12,6 +12,7 @@ import type * as constants from "../constants.js";
 import type * as http from "../http.js";
 import type * as observations from "../observations.js";
 import type * as staff from "../staff.js";
+import type * as utils from "../utils.js";
 
 import type {
   ApiFromModules,
@@ -24,6 +25,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   observations: typeof observations;
   staff: typeof staff;
+  utils: typeof utils;
 }>;
 
 /**

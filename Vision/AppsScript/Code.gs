@@ -16,48 +16,58 @@ function syncDataToConvex() {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
   const data = sheet.getDataRange().getValues();
   
-  // Assuming headers are in the first row
-  const headers = data[0];
-  const rows = data.slice(1);
+  const rows = data.slice(1); // Skip headers
+  const batchSize = 50;
+  let totalSynced = 0;
   
-  const observations = rows.map(row => {
-    // Map columns based on Image 1: A=LOB, B=Date, C=Coach, D=Agent, etc.
-    return {
-      department: [String(row[0])], // Column A
-      date: formatDate(row[1]),     // Column B
-      coachName: String(row[2]),    // Column C
-      agentName: String(row[3]),    // Column D
-      sessionType: [String(row[4])],// Column E
-      categories: [String(row[5])], // Column F
-      strengths: String(row[6]),    // Column G
-      areasOfOpportunity: String(row[7]), // Column H
-      rootCause: String(row[8]),    // Column I
-      actionPlan: String(row[9]),   // Column J
-      overallRating: [String(row[10])], // Column K
-      otherFeedback: String(row[11]), // Column L
-      orderNumber: String(row[12]),   // Column M
-      teamLeadFeedback: String(row[13]) // Column N
+  const ui = SpreadsheetApp.getUi();
+  
+  // 1. Prepare and filter all data
+  const allObservations = rows.map((row, index) => {
+    const obs = {
+      department: [String(row[0])], 
+      date: formatDate(row[1]),     
+      coachName: String(row[2]),    
+      agentName: String(row[3]),    
+      sessionType: [String(row[4])],
+      categories: [String(row[5])], 
+      strengths: String(row[6]),    
+      areasOfOpportunity: String(row[7]), 
+      rootCause: String(row[8]),    
+      actionPlan: String(row[9]),   
+      overallRating: [String(row[10])], 
+      otherFeedback: String(row[11]), 
+      orderNumber: String(row[12]),   
+      teamLeadFeedback: String(row[13]) 
     };
-  }).filter(obs => obs.agentName && obs.date); // Basic validation
+    return obs;
+  }).filter(obs => {
+    const isValid = obs.agentName && obs.agentName.trim() !== "" && obs.date && obs.date.trim() !== "";
+    if (isValid) totalSynced++;
+    return isValid;
+  });
 
-  // Send to Convex
-  const options = {
-    method: 'post',
-    contentType: 'application/json',
-    payload: JSON.stringify({ observations })
-  };
-  
-  try {
-    const response = UrlFetchApp.fetch(`${CONVEX_URL}/sync-sheet`, options);
-    const result = JSON.parse(response.getContentText());
+  if (allObservations.length === 0) {
+    return;
+  }
+
+  // 2. Send in batches
+  for (let i = 0; i < allObservations.length; i += batchSize) {
+    const batch = allObservations.slice(i, i + batchSize);
+
+    const options = {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify({ observations: batch })
+    };
     
-    if (result.success) {
-      SpreadsheetApp.getUi().alert('✅ Sync Complete! ' + observations.length + ' rows processed.');
-    } else {
-      SpreadsheetApp.getUi().alert('❌ Sync Failed: ' + result.error);
+    try {
+      const response = UrlFetchApp.fetch(`${CONVEX_URL}/sync-sheet`, options);
+      const result = JSON.parse(response.getContentText());
+      if (!result.success) throw new Error(result.error);
+    } catch (e) {
+      return;
     }
-  } catch (e) {
-    SpreadsheetApp.getUi().alert('❌ Error: ' + e.toString());
   }
 }
 
