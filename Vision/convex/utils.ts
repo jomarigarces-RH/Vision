@@ -206,7 +206,6 @@ export const NAME_MAPPINGS: Record<string, string> = {
   "Mikaela Barrera": "Ma. Mikaela Lalamonan Barrera",
   "Maria Buenviaje": "Maria Fatima Serrano Buenviaje",
   "May-Ann Montegrejo": "May-Ann Alabata Montegrejo",
-  "Shanne Diputado": "Shanne Juliet Credo Diputado",
   "Shanne Juliet Credo Diputado": "Shanne Juliet Credo Diputado",
   "Xavy Cuerpo": "Xavier Bertril Nuico Cuerpo",
   "Xavier Bertril Nuico Cuerpo": "Xavier Bertril Nuico Cuerpo",

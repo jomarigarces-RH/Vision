@@ -46,4 +46,18 @@ export default defineSchema({
   })
     .index("by_coach", ["coachName"])
     .index("by_agent", ["agentName"]),
+
+  users: defineTable({
+    email: v.string(),
+    password: v.optional(v.string()), // Null means first-time login
+    name: v.string(),
+    role: v.string(), // "admin" | "user"
+    timezone: v.optional(v.string()),
+    avatar: v.optional(v.string()), // URL or storage ID
+    defaultView: v.optional(v.string()), // "Today", "This Week", etc.
+    securityQuestion: v.optional(v.string()),
+    securityAnswer: v.optional(v.string()),
+    isFirstLogin: v.boolean(),
+    isRevoked: v.optional(v.boolean()),
+  }).index("by_email", ["email"]),
 });

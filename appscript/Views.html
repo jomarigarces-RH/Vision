@@ -1,0 +1,216 @@
+<script>
+// ===== AGENTS VIEW =====
+function renderAgentsView(dept){
+  dept=dept||'Sales';
+  document.getElementById('agentsTitle').textContent=dept+' Agents';
+  var ws=getWeekStats(),fd=getFilterDates();
+  var agents=AGENTS.filter(function(a){return a.lob===dept});
+  var el=document.getElementById('agentsList');
+  if(!agents.length){el.innerHTML='<div style="text-align:center;padding:40px;color:#94a3b8">No agents found</div>';return}
+  el.innerHTML=agents.map(function(a){
+    var tw=countObs(a.name,ws.twStart);
+    var lw=countObs(a.name,ws.lwStart,ws.lwEnd);
+    var at=countObs(a.name);
+    var wow=tw-lw;
+    return '<div class="agent-row" onclick="showAgentHistory(\''+a.name.replace(/'/g,"\\'")+'\')"><div class="row-left">'+avatarHTML(a.name,36)+'<div><div class="row-name">'+a.name+'</div><div class="row-detail">Coach: '+a.coach+'</div></div></div><div class="row-stat">'+tw+'</div><div class="row-stat muted">'+lw+'</div><div class="row-stat">'+at+'</div><div class="row-wow">'+wowBadge(wow)+'</div></div>';
+  }).join('');
+}
+
+function showAgentHistory(name){
+  currentHistoryAgent = name;
+  var obs=allObs.filter(function(o){return o.agentName===name});
+  var agent=AGENTS.find(function(a){return a.name===name});
+  
+  var headEl = document.getElementById('agentHistoryHead');
+  var bodyEl = document.getElementById('agentHistoryBody');
+  
+  if(!headEl || !bodyEl) {
+    console.error('Agent History Modal elements not found!');
+    return;
+  }
+  
+  headEl.innerHTML = avatarHTML(name, 42) + '<div><div style="font-weight:700;font-size:1.1rem">'+name+'</div><div style="font-size:.8rem;color:#64748B">'+(agent?agent.lob+' • Coach: '+agent.coach:'')+'</div></div>';
+  
+  if(!obs.length){
+    bodyEl.innerHTML='<div style="padding:40px;text-align:center;color:#94a3b8">No history found for this agent.</div>';
+  } else {
+    var html = '<div style="display:grid;grid-template-columns:100px 1fr 1fr 100px;gap:8px;padding:12px 16px;background:#f8fafc;font-size:.65rem;font-weight:800;color:#94a3b8;text-transform:uppercase;border-bottom:1px solid #e2e8f0"><div>Date</div><div>Coach</div><div>Rating</div><div style="text-align:right">Action</div></div>';
+    html += obs.map(function(o){
+      var scoreVal=typeof o.rating==='number'?o.rating+'%':(o.rating||'N/A');
+      var scoreColor=o.rating>=85?'#10B981':o.rating>=60?'#F59E0B':'#4F7DF3';
+      return '<div class="history-item" style="display:grid;grid-template-columns:100px 1fr 1fr 100px;gap:8px;padding:14px 16px;align-items:center;border-bottom:1px solid #f1f5f9;cursor:pointer" onclick="showObsDetail(\''+o._id+'\')">' +
+        '<div style="font-weight:600;font-size:.85rem">'+o.date+'</div>' +
+        '<div style="font-size:.85rem">'+o.coachName+'</div>' +
+        '<div><span style="font-weight:700;color:'+scoreColor+'">'+scoreVal+'</span></div>' +
+        '<div style="text-align:right"><button class="btn-ghost" style="padding:4px 8px;font-size:.7rem">View Detail</button></div>' +
+      '</div>';
+    }).join('');
+    bodyEl.innerHTML=html;
+  }
+  showModal('agentHistoryModal');
+}
+
+// ===== COACHES VIEW =====
+function renderCoachesView(){
+  var ws=getWeekStats(),fd=getFilterDates();
+  document.getElementById('coachCount').textContent=COACHES.length;
+  var el=document.getElementById('coachesList');
+  el.innerHTML=COACHES.map(function(c){
+    var tw=countObs(c.name,ws.twStart,undefined,'coachName');
+    var lw=countObs(c.name,ws.lwStart,ws.lwEnd,'coachName');
+    var at=countObs(c.name,undefined,undefined,'coachName');
+    var wow=tw-lw;
+    return '<div class="coach-row" onclick="showCoachDetail(\''+c.name.replace(/'/g,"\\'")+'\')"><div class="row-left">'+avatarHTML(c.name,36)+'<div><div class="row-name">'+c.name+'</div><div>'+lobBadge(c.dept)+'</div></div></div><div class="row-stat">'+tw+'</div><div class="row-stat muted">'+lw+'</div><div class="row-stat">'+at+'</div><div class="row-wow">'+wowBadge(wow)+'</div></div>';
+  }).join('');
+}
+
+// ===== HISTORY VIEW =====
+function renderHistoryView(){
+  var el=document.getElementById('historyList');
+  var pag=document.getElementById('historyPagination');
+  if(!allObs.length){
+    el.innerHTML='<div style="text-align:center;padding:40px;color:#94a3b8;font-style:italic">No observations found</div>';
+    pag.innerHTML='';
+    return;
+  }
+  
+  var total=allObs.length;
+  var pages=Math.ceil(total/historyPageSize);
+  if(historyPage > pages) historyPage = pages;
+  if(historyPage < 1) historyPage = 1;
+  
+  var start=(historyPage-1)*historyPageSize;
+  var end=start+historyPageSize;
+  var items=allObs.slice(start,end);
+  
+  el.innerHTML=items.map(function(o){
+    return '<div class="history-row" onclick="showObsDetail(\''+o._id+'\')"><div><span class="h-id">'+o._id.replace('row_','#')+'</span></div><div class="h-name">'+o.agentName+'</div><div class="h-coach">'+o.coachName+'</div><div class="h-date">'+o.date+'</div><div class="text-right">'+lobBadge(o.department[0])+'</div></div>';
+  }).join('');
+  
+  // Pagination UI
+  var pagHTML = '<div class="pag-info">Showing '+(start+1)+'-'+Math.min(end,total)+' of '+total+'</div>';
+  pagHTML += '<div class="pag-btns">';
+  pagHTML += '<button class="btn-ghost" '+(historyPage<=1?'disabled':'')+' onclick="changeHistoryPage(-1)">Previous</button>';
+  pagHTML += '<span class="pag-cur">Page '+historyPage+' of '+pages+'</span>';
+  pagHTML += '<button class="btn-ghost" '+(historyPage>=pages?'disabled':'')+' onclick="changeHistoryPage(1)">Next</button>';
+  pagHTML += '</div>';
+  pag.innerHTML = pagHTML;
+}
+
+// ===== OBS DETAIL MODAL =====
+function showObsDetail(id){
+  var obs=allObs.find(function(o){return o._id===id});
+  if(!obs)return;
+  var fields=[
+    ['Department',obs.department.join(', ')],['Date of Observation',obs.date],
+    ['Coach Name',obs.coachName],['Agent Name',obs.agentName]
+  ];
+  var texts=[
+    ['Session Type',(obs.sessionType||[]).join(', ')],['Categories',(obs.categories||[]).join(', ')],
+    ['Strengths',obs.strengths],['Areas of Opportunity',obs.areasOfOpportunity],
+    ['Root Cause Identification',obs.rootCause],['Action Plan',obs.actionPlan],
+    ['Overall Performance Rating',(obs.overallRating||[]).join(', ')],['Order Number',obs.orderNumber],
+    ['Other Feedback',obs.otherFeedback],['Team Lead Feedback',obs.teamLeadFeedback]
+  ];
+  var html='<div class="od-grid">'+fields.map(function(f){
+    return '<div class="od-field"><label>'+f[0]+'</label><div class="od-val">'+(f[1]||'N/A')+'</div></div>';
+  }).join('')+'</div>';
+  html+=texts.map(function(f){
+    var val=f[1]?f[1]:'<span class="od-empty">No notes provided.</span>';
+    return '<div class="od-text"><label>'+f[0]+'</label><div class="od-val">'+val+'</div></div>';
+  }).join('');
+  document.getElementById('obsDetailBody').innerHTML=html;
+  if(currentHistoryAgent) hideModal('agentHistoryModal');
+  showModal('obsDetailModal');
+}
+
+function closeObsDetailModal(){
+  hideModal('obsDetailModal');
+  if(currentHistoryAgent){
+    showAgentHistory(currentHistoryAgent);
+  }
+}
+
+function closeAgentHistoryModal(){
+  currentHistoryAgent = null;
+  hideModal('agentHistoryModal');
+}
+
+// ===== COACH DETAIL MODAL =====
+function showCoachDetail(name){
+  var coach=COACHES.find(function(c){return c.name===name});
+  var agents=AGENTS.filter(function(a){return a.coach===name});
+  var fd=getFilterDates();
+  var periodObs=allObs.filter(function(o){if(fd.start&&o.date<fd.start)return false;if(fd.end&&o.date>fd.end)return false;return true});
+  var observed=new Set(periodObs.map(function(o){return o.agentName}));
+  var obsCount=agents.filter(function(a){return observed.has(a.name)}).length;
+  var pct=agents.length?Math.round(obsCount/agents.length*100):0;
+  var barColor=pct===100?'#10B981':pct>50?'#F59E0B':'#EF4444';
+  var textColor=pct===100?'color:#10B981':pct>50?'color:#F59E0B':'color:#EF4444';
+
+  document.getElementById('coachDetailHead').innerHTML='<div class="cd-header">'+avatarHTML(name,48)+'<div><div class="cd-name">'+name+'</div><div class="cd-dept">'+(coach?coach.dept:'')+ ' Department Coach</div></div></div><button class="close-btn" onclick="hideModal(\'coachDetailModal\')">&times;</button>';
+
+  var html='<div class="comp-mini"><div class="comp-mini-track"><div class="comp-mini-fill" style="width:'+pct+'%;background:'+barColor+'"></div></div><span class="comp-mini-text" style="'+textColor+'">'+obsCount+'/'+agents.length+' observed ('+pct+'%)</span></div><div style="margin-top:16px">';
+  html+=agents.map(function(a){
+    var isObs=observed.has(a.name);
+    var statusStyle=isObs?'background:#ecfdf5;color:#059669;border:1px solid #a7f3d0':'background:#f1f5f9;color:#64748b;border:1px solid #e2e8f0';
+    return '<div class="cd-agent" onclick="showAgentHistory(\''+a.name.replace(/'/g,"\\'")+'\')">'+avatarHTML(a.name,32)+'<span class="cd-agent-name">'+a.name+'</span><span class="cd-status" style="'+statusStyle+'">'+(isObs?'✓ Observed':'Pending')+'</span></div>';
+  }).join('')+'</div>';
+  document.getElementById('coachDetailBody').innerHTML=html;
+  showModal('coachDetailModal');
+}
+
+// ===== RECENT OBS MODAL =====
+function showRecentObsModal(){
+  var recent=allObs.slice(0,20);
+  document.getElementById('recentObsBody').innerHTML=recent.map(function(o){
+    return '<div class="recent-item" style="padding:12px;border:1px solid transparent;border-radius:14px" onclick="hideModal(\'recentObsModal\');showObsDetail(\''+o._id+'\')">'+avatarHTML(o.agentName,40)+'<div class="ri-info"><div style="display:flex;align-items:center;gap:6px"><span class="ri-name">'+o.agentName+'</span><span class="h-id" style="font-size:.6rem">ID: '+o._id.replace('row_','#')+'</span></div><div class="ri-meta">By <strong>'+o.coachName+'</strong></div><div class="ri-meta" style="margin-top:2px">'+o.date+'</div></div><div class="ri-score"><div class="ri-score-val">'+(o.rating||'N/A')+'</div></div></div>';
+  }).join('');
+  showModal('recentObsModal');
+}
+
+// ===== NEGLECTED MODAL =====
+function showNeglectedModal(){
+  var fd=getFilterDates();
+  var missed=AGENTS.map(function(a){
+    var hasPeriod=allObs.some(function(o){return o.agentName===a.name&&(!fd.start||o.date>=fd.start)&&(!fd.end||o.date<=fd.end)});
+    return{name:a.name,coach:a.coach,lob:a.lob,missed:!hasPeriod};
+  }).filter(function(a){return a.missed});
+  var html='<div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px;padding:8px 0;font-size:.65rem;font-weight:800;color:#94a3b8;text-transform:uppercase;border-bottom:1px solid #f1f5f9;margin-bottom:8px"><div>Agent</div><div style="text-align:center">Status</div><div style="text-align:right">LOB</div></div>';
+  html+=missed.map(function(a){
+    return '<div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid #f8fafc"><div style="display:flex;align-items:center;gap:8px">'+avatarHTML(a.name,28)+'<div><div style="font-weight:700;font-size:.82rem">'+a.name+'</div><div style="font-size:.68rem;color:#94a3b8">'+a.coach+'</div></div></div><div style="text-align:center"><span style="font-size:.65rem;font-weight:800;padding:3px 8px;border-radius:4px;background:#fef2f2;color:#dc2626">MISSED</span></div><div style="text-align:right">'+lobBadge(a.lob)+'</div></div>';
+  }).join('');
+  document.getElementById('neglectedBody').innerHTML=html;
+  showModal('neglectedModal');
+}
+
+// ===== WOW MODAL =====
+function showWowModal(){
+  var fd=getFilterDates(),ws=getWeekStats();
+  var data=AGENTS.map(function(a){
+    var tw=countObs(a.name,fd.start,fd.end);
+    var prevEnd=new Date(fd.start);prevEnd.setDate(prevEnd.getDate()-1);
+    var diff=fd.end?new Date(fd.end)-new Date(fd.start):new Date()-new Date(fd.start);
+    var prevStart=new Date(prevEnd.getTime()-diff);
+    var lw=countObs(a.name,fmt(prevStart),fmt(prevEnd));
+    var at=countObs(a.name);
+    return{name:a.name,tw:tw,lw:lw,at:at,wow:tw-lw};
+  }).filter(function(a){return a.at>0}).sort(function(a,b){return b.at-a.at}).slice(0,20);
+  var html='<div style="display:grid;grid-template-columns:40px 1fr 50px 50px 50px 60px;gap:6px;padding:8px;font-size:.62rem;font-weight:800;color:#94a3b8;text-transform:uppercase;border-bottom:1px solid #f1f5f9"><div>Rank</div><div>Agent</div><div style="text-align:center">TW</div><div style="text-align:center">LW</div><div style="text-align:center">All</div><div style="text-align:right">WoW</div></div>';
+  html+=data.map(function(a,i){
+    var rc=i===0?'background:#fef3c7;color:#d97706':i===1?'background:#f1f5f9;color:#64748b':i===2?'background:#ffedd5;color:#ea580c':'background:#f8fafc;color:#94a3b8';
+    return '<div style="display:grid;grid-template-columns:40px 1fr 50px 50px 50px 60px;gap:6px;align-items:center;padding:8px;border-radius:8px;transition:all .15s" onmouseover="this.style.background=\'#f8fafc\'" onmouseout="this.style.background=\'\'"><div class="wow-rank" style="'+rc+'">'+(i+1)+'</div><div style="display:flex;align-items:center;gap:6px;min-width:0">'+avatarHTML(a.name,26)+'<span style="font-weight:700;font-size:.82rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+a.name+'</span></div><div style="text-align:center;font-weight:700;font-size:.82rem">'+a.tw+'</div><div style="text-align:center;font-weight:700;font-size:.82rem;color:#94a3b8">'+a.lw+'</div><div style="text-align:center;font-weight:700;font-size:.82rem;color:#4F7DF3">'+a.at+'</div><div style="text-align:right">'+wowBadge(a.wow)+'</div></div>';
+  }).join('');
+  document.getElementById('wowBody').innerHTML=html;
+  showModal('wowModal');
+}
+
+// ===== LOB COUNTS =====
+function updateLobCounts(){
+  ['Sales','Support','Specialty'].forEach(function(d){
+    var cnt=AGENTS.filter(function(a){return a.lob===d}).length;
+    var el=document.getElementById('lobCount'+d);
+    if(el)el.textContent=cnt;
+  });
+}
+</script>

@@ -1,0 +1,305 @@
+<script>
+// ===== DASHBOARD RENDERING =====
+function renderDashboard(){
+  var fd=getFilterDates(), ws=getWeekStats();
+  renderObsDataTable(fd);
+  renderMissingChart(fd);
+  renderRecentList();
+  renderTrendChart(fd);
+  renderCompletionDonut(fd);
+  renderNeglectedList(fd,ws);
+  renderCompletionBars(fd);
+  renderWowTable(fd,ws);
+}
+
+function renderObsDataTable(fd){
+  var lobs=['Sales','Support','Specialty'], total=0, html='';
+  lobs.forEach(function(lob){
+    var dots={Sales:'#4F7DF3',Support:'#10B981',Specialty:'#F59E0B'};
+    var cnt=allObs.filter(function(o){
+      if(!o.department.includes(lob))return false;
+      if(fd.start&&o.date<fd.start)return false;
+      if(fd.end&&o.date>fd.end)return false;
+      return true;
+    }).length;
+    total+=cnt;
+    html+='<tr><td><div class="lob-indicator"><span class="lob-dot-sm" style="background:'+dots[lob]+'"></span><strong>'+lob+'</strong></div></td><td class="text-right" style="font-weight:800;color:#4F7DF3">'+cnt+'</td></tr>';
+  });
+  document.getElementById('obsDataBody').innerHTML=html;
+  gsapCount(document.getElementById('obsDataTotal'), total);
+}
+
+function renderMissingChart(fd){
+  var coachMissed={};
+  AGENTS.forEach(function(a){
+    var has=allObs.some(function(o){
+      return o.agentName===a.name&&(!fd.start||o.date>=fd.start)&&(!fd.end||o.date<=fd.end);
+    });
+    if(!has){coachMissed[a.coach]=(coachMissed[a.coach]||0)+1}
+  });
+  var entries=Object.entries(coachMissed).sort(function(a,b){return b[1]-a[1]}).slice(0,8);
+  var max=entries.length?entries[0][1]:1;
+  var el=document.getElementById('missingChart');
+  if(!entries.length){el.innerHTML='<div style="text-align:center;color:#94a3b8;padding:40px;font-style:italic">No missing data</div>';return}
+  el.innerHTML=entries.map(function(e){
+    var pct=Math.max(8,Math.round((e[1]/max)*100));
+    var parts=e[0].split(' ');
+    var label=parts.length>1?parts[parts.length-1]:parts[0];
+    var tip = e[0] + ': ' + e[1] + ' missed';
+    return '<div class="bar-col" onmouseenter="showTooltip(\''+tip+'\', event.clientX, event.clientY)" onmouseleave="hideTooltip()">' +
+      '<div style="font-size:.65rem;font-weight:800;color:#EF4444;margin-bottom:2px">'+e[1]+'</div>' +
+      '<div class="bar-fill" style="height:0%;" data-h="'+pct+'"></div>' +
+      '<div class="bar-label">'+label+'</div></div>';
+  }).join('');
+
+  // Animate bars
+  gsap.to(el.querySelectorAll('.bar-fill'), {
+    height: function(i, target) { return target.getAttribute('data-h') + '%'; },
+    duration: 1,
+    stagger: 0.05,
+    ease: "power2.out"
+  });
+}
+
+function renderRecentList(){
+  var recent=allObs.slice(0,3);
+  var el=document.getElementById('recentList');
+  if(!recent.length){el.innerHTML='<div style="text-align:center;color:#94a3b8;padding:20px;font-style:italic">No recent observations</div>';return}
+  el.innerHTML=recent.map(function(o){
+    var scoreVal=typeof o.rating==='number'?o.rating+'%':(o.rating||'N/A');
+    var scoreColor=o.rating>=85?'#10B981':o.rating>=60?'#F59E0B':'#4F7DF3';
+    return '<div class="recent-item" onclick="showAgentHistory(\''+o.agentName.replace(/'/g,"\\'")+'\')">' +
+      avatarHTML(o.agentName,40) +
+      '<div class="ri-info">' +
+        '<div class="ri-name">'+o.agentName+'</div>' +
+        '<div class="ri-meta">By <strong>'+o.coachName+'</strong> • '+o.date+'</div>' +
+      '</div>' +
+      '<div class="ri-score">' +
+        '<div class="ri-score-val" style="color:'+scoreColor+'">'+scoreVal+'</div>' +
+        '<div class="ri-score-label">Rating</div>' +
+      '</div></div>';
+  }).join('');
+}
+
+function renderTrendChart(fd){
+  var canvas=document.getElementById('trendChart');
+  if(!canvas)return;
+  var ctx=canvas.getContext('2d');
+  var dpr=window.devicePixelRatio||1;
+  var rect=canvas.getBoundingClientRect();
+  canvas.width=rect.width*dpr;canvas.height=rect.height*dpr;
+  canvas.style.width=rect.width+'px';canvas.style.height=rect.height+'px';
+  ctx.scale(dpr,dpr);
+
+  var dateMap={}, filtered=allObs.filter(function(o){
+    return (!fd.start||o.date>=fd.start)&&(!fd.end||o.date<=fd.end);
+  });
+  filtered.forEach(function(o){
+    if(!dateMap[o.date])dateMap[o.date]={Sales:0,Support:0,Specialty:0};
+    if(o.department.includes('Sales'))dateMap[o.date].Sales++;
+    if(o.department.includes('Support'))dateMap[o.date].Support++;
+    if(o.department.includes('Specialty'))dateMap[o.date].Specialty++;
+  });
+  var dates=Object.keys(dateMap).sort();
+  if(dates.length<1){
+    ctx.fillStyle='#94a3b8';ctx.font='12px Inter';ctx.textAlign='center';
+    ctx.fillText('Not enough data for trend',rect.width/2,rect.height/2);
+    return;
+  }
+  var max=1;dates.forEach(function(d){max=Math.max(max,dateMap[d].Sales,dateMap[d].Support,dateMap[d].Specialty)});
+
+  var draw = function(progress) {
+    ctx.clearRect(0, 0, rect.width, rect.height);
+    var w=rect.width,h=rect.height,pad={l:40,r:20,t:20,b:30};
+    var cw=w-pad.l-pad.r,ch=h-pad.t-pad.b;
+
+    // Grid + Labels (Static)
+    ctx.strokeStyle='#f1f5f9';ctx.lineWidth=1;
+    ctx.fillStyle='#94a3b8';ctx.font='10px Inter';ctx.textAlign='right';
+    for(var i=0;i<=4;i++){
+      var y=pad.t+(ch/4)*i;
+      ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(w-pad.r,y);ctx.stroke();
+      ctx.fillText(Math.round(max-max*(i/4)),pad.l-6,y+3);
+    }
+    
+    // X-axis Labels (Static)
+    ctx.textAlign='center';
+    var step=Math.max(1,Math.floor(dates.length/6));
+    dates.forEach(function(d,i){if(i%step===0){ctx.fillText(d.slice(5),pad.l+xStep*i,h-6)}});
+
+    // Legends (Static)
+    ctx.textAlign='left';
+    var colors={Sales:'#4F7DF3',Support:'#10B981',Specialty:'#F59E0B'};
+    var xStep=dates.length>1?cw/(dates.length-1):0;
+    var legendX=pad.l;
+    ['Sales','Support','Specialty'].forEach(function(key){
+      ctx.fillStyle=colors[key];
+      ctx.beginPath();ctx.arc(legendX,h-18,4,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#64748b';ctx.fillText(key,legendX+8,h-14);
+      legendX+=ctx.measureText(key).width+24;
+    });
+
+    // Animated Lines
+    ['Sales','Support','Specialty'].forEach(function(key){
+      ctx.strokeStyle=colors[key];ctx.lineWidth=2.5;ctx.beginPath();
+      dates.forEach(function(d,i){
+        var x=pad.l+xStep*i;
+        var y=pad.t+ch-(dateMap[d][key]/max)*ch;
+        var pointProgress = i / (dates.length - 1 || 1);
+        if (pointProgress <= progress) {
+          i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+        }
+      });
+      ctx.stroke();
+      
+      // Points
+      if(progress > 0.8) {
+        dates.forEach(function(d,i){
+          var x=pad.l+xStep*i;
+          var y=pad.t+ch-(dateMap[d][key]/max)*ch;
+          var pointProgress = i / (dates.length - 1 || 1);
+          if (pointProgress <= progress) {
+            var alpha = Math.min(1, (progress - 0.8) * 5);
+            ctx.globalAlpha = alpha;
+            ctx.beginPath();ctx.arc(x,y,3,0,Math.PI*2);ctx.fillStyle=colors[key];ctx.fill();
+            ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.stroke();
+          }
+        });
+        ctx.globalAlpha = 1;
+      }
+    });
+  };
+
+  gsap.to({p:0}, {
+    p: 1,
+    duration: 1.5,
+    ease: "power2.inOut",
+    onUpdate: function() { draw(this.targets()[0].p); }
+  });
+  
+  // Hover interaction remains same but needs references
+  canvas.onmousemove = function(e){
+    var r = canvas.getBoundingClientRect();
+    var mx = e.clientX - r.left, my = e.clientY - r.top;
+    var w=r.width, h=r.height, pad={l:40,r:20,t:20,b:30};
+    var cw=w-pad.l-pad.r, ch=h-pad.t-pad.b;
+    var xStep=dates.length>1?cw/(dates.length-1):0;
+    var found=false;
+    ['Sales','Support','Specialty'].forEach(function(key){
+      dates.forEach(function(d,i){
+        var x=pad.l+xStep*i, y=pad.t+ch-(dateMap[d][key]/max)*ch;
+        if(Math.sqrt((x-mx)**2+(y-my)**2)<10){
+          showTooltip(key+' ('+d+'): '+dateMap[d][key], e.clientX, e.clientY);
+          found=true;
+        }
+      });
+    });
+    if(!found) hideTooltip();
+  };
+}
+
+function renderCompletionDonut(fd){
+  var canvas=document.getElementById('completionDonut');
+  if(!canvas)return;
+  var ctx=canvas.getContext('2d');
+  var dpr=window.devicePixelRatio||1;
+  canvas.width=180*dpr;canvas.height=180*dpr;canvas.style.width='180px';canvas.style.height='180px';
+  ctx.scale(dpr,dpr);
+
+  var periodObs=allObs.filter(function(o){if(fd.start&&o.date<fd.start)return false;if(fd.end&&o.date>fd.end)return false;return true});
+  var observed=new Set(periodObs.map(function(o){return o.agentName}));
+  var lobs=[{name:'Sales',color:'#4F7DF3'},{name:'Support',color:'#10B981'},{name:'Specialty',color:'#F59E0B'}];
+  var stats=lobs.map(function(l){
+    var total=AGENTS.filter(function(a){return a.lob===l.name}).length;
+    var obs=AGENTS.filter(function(a){return a.lob===l.name&&observed.has(a.name)}).length;
+    return{name:l.name,color:l.color,total:total,obs:obs,pct:total>0?Math.round(obs/total*100):0};
+  });
+
+  var draw = function(progress) {
+    ctx.clearRect(0, 0, 180, 180);
+    var cx=90,cy=90,r=70,ir=48;
+    var startAngle=-Math.PI/2;
+    var totalPct = stats.reduce(function(a,s){return a+s.pct},0) || 1;
+    
+    stats.forEach(function(s){
+      var slice=(s.pct/totalPct)*Math.PI*2 * progress;
+      ctx.beginPath();
+      ctx.arc(cx,cy,r,startAngle,startAngle+slice);
+      ctx.arc(cx,cy,ir,startAngle+slice,startAngle,true);
+      ctx.closePath();
+      ctx.fillStyle=s.color;ctx.fill();
+      ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();
+      startAngle+=slice;
+    });
+  };
+
+  gsap.to({p:0}, {
+    p: 1,
+    duration: 1.2,
+    ease: "elastic.out(1, 0.75)",
+    onUpdate: function() { draw(this.targets()[0].p); }
+  });
+
+  var overall=AGENTS.length>0?Math.round(observed.size/AGENTS.length*100):0;
+  gsapCount(document.getElementById('overallPct'), overall, "%"); 
+  
+  document.getElementById('completionLegend').innerHTML=stats.map(function(s){
+    return '<div class="legend-item"><span class="legend-dot" style="background:'+s.color+'"></span>'+s.name+'</div>';
+  }).join('');
+  window._lobStats=stats;
+}
+
+function renderNeglectedList(fd,ws){
+  var missed=AGENTS.map(function(a){
+    var has=allObs.some(function(o){return o.agentName===a.name&&(!fd.start||o.date>=fd.start)&&(!fd.end||o.date<=fd.end)});
+    var total=allObs.filter(function(o){return o.agentName===a.name}).length;
+    return{name:a.name,coach:a.coach,lob:a.lob,missed:!has,totalMissed:has?0:1,obsCount:total};
+  }).filter(function(a){return a.missed}).sort(function(a,b){return a.obsCount-b.obsCount}).slice(0,3);
+
+  var el=document.getElementById('neglectedList');
+  if(!missed.length){el.innerHTML='<div style="text-align:center;color:#94a3b8;padding:20px;font-style:italic">No data available</div>';return}
+  var rankColors=['background:#fee2e2;color:#dc2626','background:#ffedd5;color:#ea580c','background:#fef3c7;color:#d97706'];
+  el.innerHTML=missed.map(function(a,i){
+    return '<div class="negl-item" onclick="showAgentHistory(\''+a.name.replace(/'/g,"\\'")+'\')"><div class="negl-rank" style="'+rankColors[i]+'">'+(i+1)+'</div><div class="negl-info"><div class="negl-name">'+a.name+'</div><div class="negl-detail">Coach: '+a.coach+' • '+a.lob+'</div></div><div class="negl-stat"><div class="negl-num">'+a.totalMissed+'</div><div class="negl-label">Missed</div></div></div>';
+  }).join('');
+}
+
+function renderCompletionBars(fd){
+  var stats=window._lobStats||[];
+  var el=document.getElementById('completionBars');
+  el.innerHTML=stats.map(function(s){
+    var badgeStyle=s.pct===100?'background:#ecfdf5;color:#059669;border:1px solid #a7f3d0':'background:#f8fafc;color:#64748b;border:1px solid #e2e8f0';
+    return '<div class="comp-bar-item">' +
+      '<div class="comp-bar-head"><span class="comp-bar-name">'+s.name+'</span><span class="comp-bar-count">'+s.obs+' / '+s.total+'</span></div>' +
+      '<div class="comp-bar-track"><div class="comp-bar-fill" style="width:0%;background:'+s.color+'" data-w="'+s.pct+'"></div></div>' +
+      '<div class="comp-bar-pct"><span class="comp-badge" style="'+badgeStyle+'">'+s.pct+'% COMPLETE</span></div></div>';
+  }).join('');
+
+  // Animate fills
+  gsap.to(el.querySelectorAll('.comp-bar-fill'), {
+    width: function(i, target) { return target.getAttribute('data-w') + '%'; },
+    duration: 1,
+    stagger: 0.1,
+    ease: "power2.out"
+  });
+}
+
+function renderWowTable(fd,ws){
+  var wowData=AGENTS.map(function(a){
+    var tw=countObs(a.name,fd.start,fd.end);
+    var prevEnd=new Date(fd.start);prevEnd.setDate(prevEnd.getDate()-1);
+    var diff=fd.end?new Date(fd.end)-new Date(fd.start):new Date()-new Date(fd.start);
+    var prevStart=new Date(prevEnd.getTime()-diff);
+    var lw=countObs(a.name,fmt(prevStart),fmt(prevEnd));
+    var at=countObs(a.name);
+    return{name:a.name,tw:tw,lw:lw,at:at,wow:tw-lw};
+  }).filter(function(a){return a.at>0}).sort(function(a,b){return b.at-a.at}).slice(0,10);
+
+  var el=document.getElementById('wowList');
+  if(!wowData.length){el.innerHTML='<div style="text-align:center;color:#94a3b8;padding:20px;font-style:italic">No data</div>';return}
+  el.innerHTML=wowData.map(function(a,i){
+    var rc=i<3?'background:#fef3c7;color:#d97706':'background:#f1f5f9;color:#64748b';
+    return '<div class="wow-row" onclick="showAgentHistory(\''+a.name.replace(/'/g,"\\'")+'\')"><div class="wow-agent"><div class="wow-rank" style="'+rc+'">'+(i+1)+'</div><span class="wow-name">'+a.name+'</span></div><div class="wow-val">'+a.tw+'</div><div class="wow-val muted" style="color:#94a3b8">'+a.lw+'</div><div class="text-right">'+wowBadge(a.wow)+'</div></div>';
+  }).join('');
+}
+</script>

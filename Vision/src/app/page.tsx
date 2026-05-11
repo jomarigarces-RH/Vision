@@ -5,13 +5,15 @@ import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import {
   Menu, LayoutDashboard, Users, UserCog, HandHeart, HelpCircle,
-  Settings, ChevronDown, Check, X, Bell, Edit3, Search, Calendar, Filter, History, BarChart as BarChartIcon, BookOpen, TrendingUp, Briefcase, Eye
+  Settings as SettingsIcon, ChevronDown, Check, X, Bell, Edit3, Search, Calendar, Filter, History, BarChart as BarChartIcon, BookOpen, TrendingUp, Briefcase, Eye, LogOut
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, PieChart, Pie, Cell
 } from "recharts";
 import { getESTDate, getMonday, normalizeName } from "../../convex/utils";
+import AuthView from "@/components/AuthView";
+import SettingsView from "@/components/SettingsView";
 
 // --- Data is fetched from Convex backend (staff table) ---
 // Type aliases for staff data
@@ -31,13 +33,61 @@ function getAvatarColor(name: string) {
   return colors[Math.abs(hash) % colors.length];
 }
 
+// Custom hook to replace useQuery for cached endpoints
+function useCachedQuery<T = any>(action: string, params?: Record<string, string | undefined>) {
+  const [data, setData] = useState<T | null>(null);
 
+  useEffect(() => {
+    let url = `/api/proxy?action=${action}`;
+    if (params) {
+      Object.entries(params).forEach(([k, v]) => {
+        if (v !== undefined) {
+          url += `&${k}=${encodeURIComponent(v)}`;
+        }
+      });
+    }
+    fetch(url)
+      .then(r => r.json())
+      .then(d => {
+        setData(d);
+      })
+      .catch(e => {
+        console.error("Vercel Proxy Fetch Error:", e);
+      });
+  }, [action, JSON.stringify(params)]);
+
+  return data;
+}
 
 
 export default function Dashboard() {
+  // --- AUTH STATE ---
+  const [user, setUser] = useState<{ name: string; email: string; preferences?: any } | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('vision_user');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      setUser(parsed);
+      if (parsed.preferences?.defaultView) setFilterPeriod(parsed.preferences.defaultView);
+    }
+    setAuthChecked(true);
+  }, []);
+
+  const handleLogin = (userData: { name: string; email: string; preferences?: any }) => {
+    setUser(userData);
+    localStorage.setItem('vision_user', JSON.stringify(userData));
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    localStorage.removeItem('vision_user');
+  };
+
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [agentsOpen, setAgentsOpen] = useState(false);
-  const [activeView, setActiveView] = useState("observation");
+  const [activeView, setActiveView] = useState<string>("observation");
   const [observationSubTab, setObservationSubTab] = useState<'dashboard' | 'agents' | 'coaches'>('dashboard');
   const [selectedDept, setSelectedDept] = useState<string>('Sales');
 
@@ -51,12 +101,12 @@ export default function Dashboard() {
   const [filterPeriod, setFilterPeriod] = useState<string>('Past week');
   const [notObsDept, setNotObsDept] = useState('Sales');
 
-  const allObservations = useQuery(api.observations.list) ?? [];
+  const allObservations = useCachedQuery<any[]>("observations.list") ?? [];
   const deleteManyObservations = useMutation(api.observations.deleteMany);
 
   // --- Staff data from Convex backend ---
-  const rawStaff = useQuery(api.staff.list) ?? [];
-  const rawCoaches = useQuery(api.staff.listCoaches) ?? [];
+  const rawStaff = useCachedQuery<any[]>("staff.list") ?? [];
+  const rawCoaches = useCachedQuery<any[]>("staff.listCoaches") ?? [];
   const seedStaff = useMutation(api.staff.seed);
 
   // Auto-seed staff table on first load if empty
@@ -90,11 +140,11 @@ export default function Dashboard() {
   const recentObservations = useMemo(() => allObservations.slice(0, 20), [allObservations]);
 
   const weekStats = useMemo(() => {
-    const thisWeekStart = getESTDate(getMonday(new Date()));
+    const thisWeekStart = getESTDate(getMonday(new Date()) || undefined);
     
     const lastMon = new Date();
     lastMon.setDate(lastMon.getDate() - 7);
-    const lastWeekStart = getESTDate(getMonday(lastMon));
+    const lastWeekStart = getESTDate(getMonday(lastMon) || undefined);
     
     const lastSun = new Date();
     const d = lastSun.getDay();
@@ -176,10 +226,10 @@ export default function Dashboard() {
         break;
     }
     return { sinceDate, endDate };
-  }, [filterPeriod, weekStats]);
+  }, [filterPeriod, weekStats, user]); // Added user to deps to respect defaultView
 
   // Convex: fetch observations from database
-  const observedAgentsList = useQuery(api.observations.getObservedAgents, filterDates) ?? [];
+  const observedAgentsList = useCachedQuery<string[]>("observations.getObservedAgents", filterDates as any) ?? [];
   const observedAgents = useMemo(() => new Set(observedAgentsList), [observedAgentsList]);
 
   const getCoachPeriodCount = (coachName: string, start?: string, end?: string) => {
@@ -575,7 +625,8 @@ export default function Dashboard() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-
+  if (!authChecked) return null;
+  if (!user) return <AuthView onLogin={handleLogin} />;
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-[var(--bg-body)] font-sans text-[var(--text-primary)] relative">
@@ -708,7 +759,13 @@ export default function Dashboard() {
             active={activeView === "history"}
             onClick={() => setActiveView("history")}
           />
-          <NavItem icon={<Settings size={20} />} label="Settings" collapsed={sidebarCollapsed} />
+          <NavItem 
+            icon={<SettingsIcon size={20} />} 
+            label="Settings" 
+            collapsed={sidebarCollapsed} 
+            active={activeView === "settings"}
+            onClick={() => setActiveView("settings")}
+          />
         </div>
       </aside>
 
@@ -823,14 +880,53 @@ export default function Dashboard() {
               <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
             </button>
 
-            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gradient-to-tr from-brand-blue to-indigo-400 text-white flex items-center justify-center font-bold text-xs sm:text-sm shadow-sm cursor-pointer shrink-0">
-              JG
+            <div className="group relative">
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gradient-to-tr from-brand-blue to-indigo-400 text-white flex items-center justify-center font-bold text-xs sm:text-sm shadow-sm cursor-pointer shrink-0 overflow-hidden">
+                {user.preferences?.avatar ? (
+                  <img src={user.preferences.avatar} alt="Avatar" className="w-full h-full object-cover" />
+                ) : (
+                  getInitials(user.name)
+                )}
+              </div>
+              
+              {/* Profile Dropdown */}
+              <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 py-2">
+                <div className="px-4 py-2 border-b border-slate-50 dark:border-slate-800 mb-1">
+                  <p className="text-xs font-bold text-slate-800 dark:text-white truncate">{user.name}</p>
+                  <p className="text-[10px] text-slate-400 truncate">{user.email}</p>
+                </div>
+                <button 
+                  onClick={() => setActiveView('settings')}
+                  className="w-full text-left px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center gap-2"
+                >
+                  <SettingsIcon size={14} />
+                  Settings
+                </button>
+                <button 
+                  onClick={handleLogout}
+                  className="w-full text-left px-4 py-2 text-xs font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-slate-800 transition-colors flex items-center gap-2"
+                >
+                  <LogOut size={14} />
+                  Log Out
+                </button>
+              </div>
             </div>
           </div>
         </header>
 
         {/* SCROLLABLE VIEW AREA */}
         <main className="flex-1 overflow-y-auto p-6 scroll-smooth">
+
+          {/* VIEW: SETTINGS */}
+          {activeView === "settings" && (
+            <SettingsView 
+              user={user as any} 
+              onUpdateUser={(updated) => {
+                setUser(updated);
+                localStorage.setItem('vision_user', JSON.stringify(updated));
+              }} 
+            />
+          )}
 
           {/* VIEW: OBSERVATION - DASHBOARD */}
           {activeView === "observation" && observationSubTab === "dashboard" && (
