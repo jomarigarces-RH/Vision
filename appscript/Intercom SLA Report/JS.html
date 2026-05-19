@@ -1,0 +1,662 @@
+<script>
+// ===== STATE =====
+var cpStartDate = '';
+var cpEndDate = '';
+var calViewYear = 0;
+var calViewMonth = 0; // 0-indexed, right panel month
+var calSelecting = 'from'; // 'from' or 'to'
+
+// ===== INITIALIZATION =====
+var isInitialLoad = true;
+document.addEventListener('DOMContentLoaded', function () {
+  updateTime();
+  setInterval(updateTime, 60000);
+  initTheme();
+  initControlPanel();
+  initHeaderRefresh();
+
+  google.script.run
+    .withSuccessHandler(function(saved) {
+      if (saved) {
+        if (saved.cpStartDate) cpStartDate = saved.cpStartDate;
+        if (saved.cpEndDate) cpEndDate = saved.cpEndDate;
+        if (saved.globalAbsentPct) globalAbsentPct = saved.globalAbsentPct;
+        if (saved.globalAbsentCount) globalAbsentCount = saved.globalAbsentCount;
+        if (saved.opsLog) {
+          ['mitigations','causes','keynotes'].forEach(function(k) {
+            if (saved.opsLog[k]) {
+              opsLog[k].applicable = saved.opsLog[k].applicable || false;
+              opsLog[k].selected = saved.opsLog[k].selected || [];
+              opsLog[k].custom = saved.opsLog[k].custom || '';
+              opsLog[k].showCustom = saved.opsLog[k].showCustom || false;
+            }
+          });
+        }
+        if (saved.isDark !== undefined) { isDark = saved.isDark; document.body.className = isDark ? 'dark' : 'light'; }
+        if (saved.activeTab && saved.activeTab !== 'weekly') {
+          activeTab = saved.activeTab;
+          switchTab(activeTab);
+        }
+      }
+      if (!cpStartDate) { cpStartDate = todayStr(); cpEndDate = todayStr(); }
+      if (!cpEndDate) cpEndDate = cpStartDate;
+      isInitialLoad = false;
+      renderAllPanels();
+      updateGlobalAbsent();
+      fetchFromDrive();
+    })
+    .withFailureHandler(function(err) {
+      console.error('loadAppState failed:', err);
+      cpStartDate = todayStr();
+      cpEndDate = todayStr();
+      isInitialLoad = false;
+      renderAllPanels();
+      updateGlobalAbsent();
+      fetchFromDrive();
+    })
+    .loadAppState();
+});
+
+function todayStr() {
+  var d = new Date();
+  return d.getFullYear() + '-' + ('0'+(d.getMonth()+1)).slice(-2) + '-' + ('0'+d.getDate()).slice(-2);
+}
+
+// ===== TABS =====
+function switchTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.tab-panel').forEach(function (p) { p.classList.remove('active'); });
+  
+  if (tab === 'weekly') {
+    var panel = document.getElementById('panelWeekly');
+    if (panel) {
+      panel.classList.add('active');
+      panel.innerHTML = '<div class="weekly-view"><div class="weekly-loading"><div class="wl-spinner"></div>Loading weekly data...</div></div>';
+      google.script.run
+        .withSuccessHandler(function(data) {
+          renderWeeklyOverview(data);
+          if (data && data.errors && data.errors.length) {
+            console.error("Weekly Errors:", data.errors);
+          }
+          showToast('Weekly overview loaded', 'success');
+        })
+        .withFailureHandler(function(err) {
+          panel.innerHTML = '<div class="weekly-view"><div class="weekly-loading" style="color:var(--red)">Failed: ' + err.message + '</div></div>';
+        })
+        .fetchWeeklyBreakdown();
+    }
+  } else {
+    var panel = document.getElementById('panel' + tab.charAt(0).toUpperCase() + tab.slice(1));
+    if (panel) panel.classList.add('active');
+  }
+}
+
+// ===== THEME =====
+function initTheme() {
+  document.body.className = isDark ? 'dark' : 'light';
+}
+function toggleTheme() {
+  isDark = !isDark;
+  document.body.className = isDark ? 'dark' : 'light';
+  buildControlPanel();
+  saveStateToDrive();
+}
+
+// ===== HEADER UPLOAD MODAL =====
+function initHeaderRefresh() {
+  var el = document.getElementById('headerRefresh');
+  var icon = document.getElementById('refreshIcon');
+  el.title = "Click to upload data reports";
+  // Change icon to an upload icon
+  icon.innerHTML = '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>';
+  
+  el.addEventListener('click', function () {
+    openUploadModal();
+  });
+}
+
+var uploadFoldersLoaded = false;
+function openUploadModal() {
+  document.getElementById('uploadOverlay').style.display = 'block';
+  document.getElementById('uploadModal').style.display = 'flex';
+  setTimeout(function(){
+    document.getElementById('uploadOverlay').classList.add('active');
+    document.getElementById('uploadModal').classList.add('active');
+  }, 10);
+  
+  var defaultDate = cpEndDate || todayStr();
+  ['VoiceMetrics', 'ChatSLA', 'VoiceSLA', 'EmailProductivity'].forEach(function(type) {
+    var el = document.getElementById('date-' + type);
+    if (el) el.value = defaultDate;
+  });
+
+  if (!uploadFoldersLoaded) {
+    google.script.run.withSuccessHandler(function(folders) {
+      uploadFoldersLoaded = true;
+      populateUploadDropdown('sel-VoiceMetrics', folders['Voice Metrics']);
+      populateUploadDropdown('sel-ChatSLA', folders['Chat SLA']);
+      populateUploadDropdown('sel-VoiceSLA', folders['Voice SLA']);
+      populateUploadDropdown('sel-EmailProductivity', folders['Email Productivity']);
+    }).getUploadFolders();
+  }
+}
+
+function closeUploadModal() {
+  document.getElementById('uploadOverlay').classList.remove('active');
+  document.getElementById('uploadModal').classList.remove('active');
+  setTimeout(function(){
+    document.getElementById('uploadOverlay').style.display = 'none';
+    document.getElementById('uploadModal').style.display = 'none';
+  }, 300);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  var over = document.getElementById('uploadOverlay');
+  var closeBtn = document.getElementById('uploadCloseBtn');
+  if (over) over.addEventListener('click', closeUploadModal);
+  if (closeBtn) closeBtn.addEventListener('click', closeUploadModal);
+
+  ['VoiceMetrics', 'ChatSLA', 'VoiceSLA', 'EmailProductivity'].forEach(function(type) {
+    var box = document.getElementById('drop-' + type);
+    if (!box) return;
+    var zone = box.querySelector('.ub-dropzone');
+    var fileInput = document.getElementById('file-' + type);
+    
+    zone.addEventListener('click', function() { fileInput.click(); });
+    
+    zone.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      zone.classList.add('dragover');
+    });
+    zone.addEventListener('dragleave', function(e) {
+      e.preventDefault();
+      zone.classList.remove('dragover');
+    });
+    zone.addEventListener('drop', function(e) {
+      e.preventDefault();
+      zone.classList.remove('dragover');
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        handleFileUpload(type, e.dataTransfer.files[0]);
+      }
+    });
+    fileInput.addEventListener('change', function(e) {
+      if (e.target.files && e.target.files.length > 0) {
+        handleFileUpload(type, e.target.files[0]);
+      }
+    });
+  });
+
+  var completeBtn = document.getElementById('uploadCompleteBtn');
+  if (completeBtn) {
+    completeBtn.addEventListener('click', function() {
+      ['VoiceMetrics', 'ChatSLA', 'VoiceSLA', 'EmailProductivity'].forEach(function(type) {
+        var box = document.getElementById('drop-' + type);
+        if (!box) return;
+        var textEl = box.querySelector('.ub-text');
+        var statusEl = box.querySelector('.ub-status');
+        var fileInput = document.getElementById('file-' + type);
+        if (textEl) textEl.innerText = 'Drag & Drop CSV';
+        if (statusEl) {
+          statusEl.className = 'ub-status';
+          statusEl.innerText = '';
+        }
+        if (fileInput) fileInput.value = '';
+      });
+      closeUploadModal();
+      fetchFromDrive();
+    });
+  }
+});
+
+function populateUploadDropdown(id, list) {
+  var sel = document.getElementById(id);
+  sel.innerHTML = '';
+  if (!list || list.length === 0) {
+    sel.innerHTML = '<option value="">No folders found</option>';
+    return;
+  }
+  list.forEach(function(f) {
+    var opt = document.createElement('option');
+    opt.value = f.id;
+    opt.innerText = f.name;
+    sel.appendChild(opt);
+  });
+}
+
+function handleFileUpload(type, file) {
+  var folderId = document.getElementById('sel-' + type).value;
+  var statusEl = document.getElementById('drop-' + type).querySelector('.ub-status');
+  var textEl = document.getElementById('drop-' + type).querySelector('.ub-text');
+  
+  var dateVal = document.getElementById('date-' + type).value;
+  var finalName = file.name;
+  if (dateVal) {
+    var d = new Date(dateVal + 'T12:00:00');
+    var m = d.getMonth() + 1;
+    var day = d.getDate();
+    var yy = d.getFullYear().toString().slice(-2);
+    var formattedDate = m + '-' + day + '-' + yy;
+    
+    var prefix = '';
+    if (type === 'VoiceMetrics') prefix = 'Voice Metrics';
+    if (type === 'ChatSLA') prefix = 'Chat SLA';
+    if (type === 'VoiceSLA') prefix = 'Voice SLA';
+    if (type === 'EmailProductivity') prefix = 'Email Productivity';
+    
+    finalName = prefix + ' ' + formattedDate + '.csv';
+  }
+
+  if (!folderId) {
+    statusEl.className = 'ub-status error';
+    statusEl.innerText = 'No folder selected.';
+    return;
+  }
+  textEl.innerText = finalName;
+  statusEl.className = 'ub-status uploading';
+  statusEl.innerText = 'Reading file...';
+  
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var dataUrl = e.target.result;
+    var base64 = dataUrl.split(',')[1];
+    statusEl.innerText = 'Uploading to Drive...';
+    
+    google.script.run
+      .withSuccessHandler(function(res) {
+        statusEl.className = 'ub-status success';
+        statusEl.innerText = 'Upload successful!';
+        showToast('Uploaded ' + res.name, 'success');
+      })
+      .withFailureHandler(function(err) {
+        statusEl.className = 'ub-status error';
+        statusEl.innerText = 'Failed: ' + err.message;
+      })
+      .uploadFileToDrive(folderId, finalName, base64, file.type || 'text/csv');
+  };
+  reader.readAsDataURL(file);
+}
+
+// ===== FETCH DATA FROM DRIVE =====
+var isFetching = false;
+
+function fetchFromDrive(callback) {
+  if (isFetching) return;
+  isFetching = true;
+  var s = cpStartDate || todayStr();
+  var e = cpEndDate || s;
+  
+  if (!isInitialLoad) {
+    showToast('Fetching live data from Drive...', 'info');
+  }
+
+  google.script.run
+    .withSuccessHandler(function(data) {
+      isFetching = false;
+      if (data && data.slaData) {
+        ['support','sales','serviceRecovery'].forEach(function(lob) {
+          if (data.slaData[lob]) {
+            if (data.slaData[lob].chat) {
+              var src = data.slaData[lob].chat;
+              for (var k in src) { slaData[lob].chat[k] = src[k]; }
+              slaData[lob].chat.abandonRate = calcAbandonRate(slaData[lob].chat.inbound, slaData[lob].chat.abandoned);
+              slaData[lob].chat.status = getSLAStatus(slaData[lob].chat.sla);
+            }
+            if (data.slaData[lob].calls) {
+              var src = data.slaData[lob].calls;
+              for (var k in src) { slaData[lob].calls[k] = src[k]; }
+              slaData[lob].calls.abandonRate = calcAbandonRate(slaData[lob].calls.inbound, slaData[lob].calls.abandoned);
+              slaData[lob].calls.status = getSLAStatus(slaData[lob].calls.sla);
+            }
+          }
+        });
+      }
+      if (data && data.emailData) {
+        emailData.closed = data.emailData.closed || 0;
+        emailData.assigned = data.emailData.assigned || 0;
+        emailData.replied = data.emailData.replied || 0;
+        emailData.sent = data.emailData.sent || 0;
+        emailData.topAgents = data.emailData.topAgents || [];
+      }
+      if (data && data.globalAbsenteeism) {
+        globalAbsentPct = data.globalAbsenteeism.rate || '0%';
+        globalAbsentCount = data.globalAbsenteeism.absent || 0;
+      }
+      if (data && data.absenteeismData && data.absenteeismData.debugInfo) {
+        console.log("Absenteeism Debug:", data.absenteeismData.debugInfo);
+      }
+      renderAllPanels();
+      updateGlobalAbsent();
+      var days = data && data.daysProcessed ? data.daysProcessed : 1;
+      var msg = 'Live data loaded' + (days > 1 ? ' (' + days + ' days)' : '') + ' for ' + (data.date || s);
+      if (data && data.errors && data.errors.length) {
+        console.error("Backend Extraction Errors:", data.errors);
+        showToast(msg + ' (with ' + data.errors.length + ' warnings)', 'info');
+      } else if (data && data.absenteeismData && data.absenteeismData.debugInfo && data.absenteeismData.debugInfo.statuses) {
+        var dbg = data.absenteeismData.debugInfo;
+        var stats = Object.keys(dbg.statuses).map(function(k){return k+':'+dbg.statuses[k]}).join(', ');
+        var skipped = dbg.skippedAbs && dbg.skippedAbs.length ? " | SKP: " + dbg.skippedAbs.join(', ') : "";
+        var colInd = dbg.dateColsIdxs && dbg.dateColsIdxs.length ? dbg.dateColsIdxs.join(',') : '?';
+        showToast(msg + ' | ColIdx: ' + colInd + ' | Active: ' + dbg.activeFound + ' | Codes: ' + stats + skipped, 'success');
+      } else {
+        showToast(msg, 'success');
+      }
+      saveStateToDrive();
+      if (typeof callback === 'function') callback();
+    })
+    .withFailureHandler(function(err) {
+      isFetching = false;
+      showToast('Failed to fetch: ' + err.message, 'error');
+      if (typeof callback === 'function') callback();
+    })
+    .fetchSLAData(s, e);
+}
+
+// ===== SNAP =====
+function doSnap() {
+  var target = document.getElementById('slaApp');
+  if (!window.html2canvas) {
+    var s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    s.onload = function() { captureSnap(target); };
+    document.head.appendChild(s);
+  } else { captureSnap(target); }
+}
+function captureSnap(target) {
+  showToast('Snapping...', 'info');
+  window.html2canvas(target, { useCORS:true, scale:2, backgroundColor: isDark?'#0a0a0a':'#f1f5f9' })
+    .then(function(canvas) {
+      canvas.toBlob(function(blob) {
+        try {
+          navigator.clipboard.write([new ClipboardItem({'image/png':blob})]).then(function() {
+            showToast('Snapped to clipboard!', 'success');
+          });
+        } catch(e) {
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement('a');
+          a.href = url; a.download = 'SLA_Snap.png'; a.click(); URL.revokeObjectURL(url);
+          showToast('Image downloaded.', 'info');
+        }
+      }, 'image/png');
+    }).catch(function() { showToast('Snap failed.', 'error'); });
+}
+
+// ===== CONTROL PANEL =====
+function initControlPanel() {
+  var btn = document.getElementById('controlPanelBtn');
+  var panel = document.getElementById('controlPanel');
+  var overlay = document.getElementById('cpOverlay');
+  var closeBtn = document.getElementById('cpCloseBtn');
+  btn.addEventListener('click', function() {
+    buildControlPanel();
+    panel.classList.add('open');
+    overlay.classList.add('show');
+  });
+  closeBtn.addEventListener('click', function() { panel.classList.remove('open'); overlay.classList.remove('show'); });
+  overlay.addEventListener('click', function() { panel.classList.remove('open'); overlay.classList.remove('show'); });
+}
+
+// ===== DATE HELPERS =====
+function fmtDateLabel(dateStr) {
+  if (!dateStr) return '—';
+  var parts = dateStr.split('-');
+  var d = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]));
+  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+}
+
+function setPreset(type) {
+  var today = new Date();
+  var y = today.getFullYear(), m = today.getMonth(), d = today.getDate();
+  var dow = today.getDay();
+
+  function ds(dt) {
+    return dt.getFullYear() + '-' + ('0'+(dt.getMonth()+1)).slice(-2) + '-' + ('0'+dt.getDate()).slice(-2);
+  }
+
+  switch(type) {
+    case 'today':
+      cpStartDate = cpEndDate = ds(today); break;
+    case 'yesterday':
+      var yd = new Date(y, m, d-1);
+      cpStartDate = cpEndDate = ds(yd); break;
+    case 'thisWeek':
+      var ws = new Date(y, m, d - dow);
+      cpStartDate = ds(ws); cpEndDate = ds(today); break;
+    case 'lastWeek':
+      var lws = new Date(y, m, d - dow - 7);
+      var lwe = new Date(y, m, d - dow - 1);
+      cpStartDate = ds(lws); cpEndDate = ds(lwe); break;
+    case 'thisMonth':
+      cpStartDate = ds(new Date(y, m, 1)); cpEndDate = ds(today); break;
+  }
+  buildControlPanel();
+  fetchFromDrive();
+}
+
+// ===== CALENDAR BUILDER =====
+function buildCalendar() {
+  if (!calViewYear) {
+    var refDate = cpEndDate ? new Date(cpEndDate + 'T12:00:00') : new Date();
+    calViewYear = refDate.getFullYear();
+    calViewMonth = refDate.getMonth();
+  }
+  var leftM = calViewMonth === 0 ? 11 : calViewMonth - 1;
+  var leftY = calViewMonth === 0 ? calViewYear - 1 : calViewYear;
+  var rightM = calViewMonth;
+  var rightY = calViewYear;
+  var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+  var html = '<div class="cal-header">';
+  html += '<div class="cal-from-to">';
+  html += '<div class="cal-ft-item' + (calSelecting==='from'?' active':'') + '" onclick="calSelecting=\'from\';buildControlPanel()">';
+  html += '<div class="cal-ft-label">From</div><div class="cal-ft-value">' + fmtDateLabel(cpStartDate) + '</div></div>';
+  html += '<div class="cal-ft-item' + (calSelecting==='to'?' active':'') + '" onclick="calSelecting=\'to\';buildControlPanel()">';
+  html += '<div class="cal-ft-label">To</div><div class="cal-ft-value">' + fmtDateLabel(cpEndDate) + '</div></div>';
+  html += '</div></div>';
+
+  html += '<div class="cal-months">';
+  // Left month
+  html += '<div class="cal-month">';
+  html += '<div class="cal-month-head"><button class="cal-nav" onclick="calNavPrev()">◀</button>';
+  html += '<span>' + months[leftM] + ' ' + leftY + '</span><span></span></div>';
+  html += buildMonthGrid(leftY, leftM);
+  html += '</div>';
+  // Right month
+  html += '<div class="cal-month">';
+  html += '<div class="cal-month-head"><span></span>';
+  html += '<span>' + months[rightM] + ' ' + rightY + '</span>';
+  html += '<button class="cal-nav" onclick="calNavNext()">▶</button></div>';
+  html += buildMonthGrid(rightY, rightM);
+  html += '</div>';
+  html += '</div>';
+
+  return html;
+}
+
+function buildMonthGrid(year, month) {
+  var html = '<div class="cal-grid">';
+  var days = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+  days.forEach(function(d) { html += '<div class="cal-day-label">' + d + '</div>'; });
+
+  var firstDay = new Date(year, month, 1).getDay();
+  var daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  for (var i = 0; i < firstDay; i++) html += '<div class="cal-cell empty"></div>';
+
+  for (var d = 1; d <= daysInMonth; d++) {
+    var ds = year + '-' + ('0'+(month+1)).slice(-2) + '-' + ('0'+d).slice(-2);
+    var cls = 'cal-cell';
+    if (ds === cpStartDate && ds === cpEndDate) cls += ' selected single';
+    else if (ds === cpStartDate) cls += ' selected start';
+    else if (ds === cpEndDate) cls += ' selected end';
+    else if (cpStartDate && cpEndDate && ds > cpStartDate && ds < cpEndDate) cls += ' in-range';
+    var todayDs = todayStr();
+    if (ds === todayDs) cls += ' today';
+    html += '<div class="' + cls + '" onclick="calPickDate(\'' + ds + '\')">' + d + '</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
+function calNavPrev() { calViewMonth--; if (calViewMonth < 0) { calViewMonth = 11; calViewYear--; } buildControlPanel(); }
+function calNavNext() { calViewMonth++; if (calViewMonth > 11) { calViewMonth = 0; calViewYear++; } buildControlPanel(); }
+
+function calPickDate(ds) {
+  if (calSelecting === 'from') {
+    cpStartDate = ds;
+    if (cpEndDate < ds) cpEndDate = ds;
+    calSelecting = 'to';
+  } else {
+    if (ds < cpStartDate) {
+      cpStartDate = ds;
+    } else {
+      cpEndDate = ds;
+    }
+    calSelecting = 'from';
+  }
+  buildControlPanel();
+}
+
+function calApply() {
+  fetchFromDrive();
+}
+
+// ===== BUILD CONTROL PANEL =====
+function buildControlPanel() {
+  var body = document.getElementById('cpBody');
+  var html = '';
+
+  // ── DATA SOURCE ──
+  html += '<div class="cp-section">';
+  html += '<div class="cp-section-title">Data Source</div>';
+
+  // Presets
+  html += '<div class="cp-presets">';
+  var presets = [
+    { key:'today', label:'Today' },
+    { key:'yesterday', label:'Yesterday' },
+    { key:'thisWeek', label:'This Week' },
+    { key:'lastWeek', label:'Last Week' },
+    { key:'thisMonth', label:'This Month' }
+  ];
+  presets.forEach(function(p) {
+    html += '<button class="cp-preset-btn" onclick="setPreset(\'' + p.key + '\')">' + p.label + '</button>';
+  });
+  html += '</div>';
+
+  // Calendar
+  html += buildCalendar();
+
+  // Apply date button
+  html += '<button class="cp-fetch-btn" style="width:100%;margin-top:8px" onclick="calApply()">' +
+    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">' +
+    '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>' +
+    '<polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> ' +
+    'Fetch Data</button>';
+  html += '</div>';
+
+  // ── DASHBOARD VIEW ──
+  html += '<div class="cp-section">';
+  html += '<div class="cp-section-title">Dashboard View</div>';
+  html += '<div class="cp-tab-selector">';
+  [{key:'overview',label:'Overview'},{key:'support',label:'Support'},{key:'sales',label:'Sales'},{key:'serviceRecovery',label:'Service Recovery'},{key:'weekly',label:'📊 Weekly'}].forEach(function(t) {
+    html += '<button class="cp-tab-btn' + (activeTab===t.key?' active':'') + '" onclick="switchTab(\'' + t.key + '\');buildControlPanel()">' + t.label + '</button>';
+  });
+  html += '</div></div>';
+
+  // ── APPEARANCE ──
+  html += '<div class="cp-section"><div class="cp-section-title">Appearance</div>';
+  html += '<div style="display:flex;align-items:center;justify-content:space-between">';
+  html += '<div class="cp-label" style="font-weight:700">' + (isDark ? '🌙 Dark Mode' : '☀️ Light Mode') + '</div>';
+  html += '<button class="cp-preset-btn" style="padding:5px 14px" onclick="toggleTheme()">' + (isDark ? 'Switch to Light' : 'Switch to Dark') + '</button>';
+  html += '</div></div>';
+
+  // ── EXPORT ──
+  html += '<div class="cp-section"><div class="cp-section-title">Export</div>';
+  html += '<button class="cp-fetch-btn" style="width:100%" onclick="doSnap()">' +
+    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">' +
+    '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>' +
+    '<circle cx="12" cy="13" r="4"/></svg> Snap to Clipboard</button></div>';
+
+
+  // ── OPS LOG ──
+  html += '<div class="cp-section"><div class="cp-section-title">Shift Operations Log</div>';
+  [{key:'mitigations',dot:'amber',title:'Mitigations Made'},{key:'causes',dot:'red',title:'Causes of High Abandoned Rates'},{key:'keynotes',dot:'green',title:'Keynotes'}].forEach(function(f) {
+    var d = opsLog[f.key], isApp = d.applicable;
+    html += '<div style="margin-bottom:18px;padding-bottom:12px;border-bottom:1px dashed var(--border2)">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">';
+    html += '<div class="cp-label" style="display:flex;align-items:center;gap:5px;font-weight:700"><div class="ops-dot ' + f.dot + '"></div>' + f.title + '</div>';
+    html += '<label style="display:flex;align-items:center;gap:6px;font-size:.68rem;font-weight:700;color:var(--text2);cursor:pointer">' +
+      '<input type="checkbox" style="accent-color:var(--brand);cursor:pointer" ' + (isApp?'checked':'') + ' onchange="toggleOpsApplicable(\'' + f.key + '\',this.checked)"> Applicable</label>';
+    html += '</div>';
+    html += '<div id="cp_ops_content_' + f.key + '" style="display:' + (isApp?'block':'none') + '">';
+    if (f.key !== 'keynotes') {
+      html += '<div class="ops-preset-pills">';
+      opsLogPresets[f.key].forEach(function(p) {
+        var sel = d.selected.indexOf(p) !== -1;
+        html += '<button class="preset-pill' + (sel?' selected':'') + '" onclick="toggleOpsPreset(\'' + f.key + '\',\'' + p.replace(/'/g,"\\'") + '\',this)">' + p + '</button>';
+      });
+      html += '<button class="preset-pill custom-toggle' + (d.showCustom?' active':'') + '" onclick="toggleOpsCustom(\'' + f.key + '\',this)">+ Custom Edit</button></div>';
+      if (d.showCustom) {
+        html += '<textarea class="cp-textarea" id="cpTextarea_' + f.key + '" oninput="opsLog[\'' + f.key + '\'].custom=this.value" placeholder="Type custom notes...">' + d.custom + '</textarea>';
+      }
+    } else {
+      html += '<textarea class="cp-textarea" id="cpTextarea_' + f.key + '" style="margin-top:0" oninput="opsLog[\'' + f.key + '\'].custom=this.value" placeholder="Type keynotes...">' + d.custom + '</textarea>';
+    }
+    html += '</div></div>';
+  });
+  html += '</div>';
+
+  // ── APPLY ──
+  html += '<button style="width:100%;padding:10px;border-radius:10px;border:none;background:var(--brand);color:#fff;font-size:.82rem;font-weight:700;cursor:pointer;font-family:inherit;margin-top:4px;margin-bottom:24px" onclick="applyControlPanel()">Apply &amp; Refresh Dashboard</button>';
+
+  body.innerHTML = html;
+}
+
+// ===== CP HELPERS =====
+function toggleOpsPreset(field, preset, btn) {
+  var idx = opsLog[field].selected.indexOf(preset);
+  if (idx === -1) { opsLog[field].selected.push(preset); btn.classList.add('selected'); }
+  else { opsLog[field].selected.splice(idx,1); btn.classList.remove('selected'); }
+}
+function toggleOpsCustom(field, btn) {
+  opsLog[field].showCustom = !opsLog[field].showCustom;
+  btn.classList.toggle('active', opsLog[field].showCustom);
+  var ta = document.getElementById('cpTextarea_' + field);
+  if (opsLog[field].showCustom && !ta) {
+    var area = document.createElement('textarea');
+    area.className = 'cp-textarea'; area.id = 'cpTextarea_' + field;
+    area.value = opsLog[field].custom;
+    area.setAttribute('oninput', "opsLog['" + field + "'].custom=this.value");
+    btn.parentElement.parentElement.appendChild(area);
+  } else if (!opsLog[field].showCustom && ta) { ta.remove(); }
+}
+function toggleOpsApplicable(field, checked) {
+  opsLog[field].applicable = checked;
+  var el = document.getElementById('cp_ops_content_' + field);
+  if (el) el.style.display = checked ? 'block' : 'none';
+}
+
+function applyControlPanel() {
+  renderAllPanels();
+  updateGlobalAbsent();
+  saveStateToDrive();
+  showToast('Dashboard updated & saved!', 'success');
+}
+
+function saveStateToDrive() {
+  var state = {
+    activeTab: activeTab,
+    cpStartDate: cpStartDate,
+    cpEndDate: cpEndDate,
+    globalAbsentPct: globalAbsentPct,
+    globalAbsentCount: globalAbsentCount,
+    opsLog: opsLog,
+    isDark: isDark
+  };
+  google.script.run
+    .withSuccessHandler(function() { console.log('State saved'); })
+    .withFailureHandler(function(err) { console.error('Save failed:', err); })
+    .saveAppState(state);
+}
+</script>

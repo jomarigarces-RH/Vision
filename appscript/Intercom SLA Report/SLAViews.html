@@ -1,0 +1,402 @@
+<script>
+// ===== VIEW BUILDERS =====
+
+// ---- LOB Group Card (for Overview) ----
+function buildLOBGroupCard(title, lob, lobKey) {
+  var d = slaData[lobKey];
+
+  function slaRowHTML(ch) {
+    var val = parsePct(ch.sla);
+    var isAlert = val < 80;
+    var cls = isAlert ? ' alert-row' : '';
+    var valCls = isAlert ? 'alert' : 'ok';
+    return '<div class="sla-row' + cls + '">' +
+      '<div class="sla-row-label">' +
+        '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>' +
+        'Service Level (SLA)' +
+      '</div>' +
+      '<span class="sla-value ' + valCls + '">' + ch.sla + '</span>' +
+    '</div>';
+  }
+
+  function metricVal(v, type) {
+    var cls = '';
+    if (type === 'aband') cls = parsePct(v) > 5 ? ' alert' : '';
+    if (type === 'absent') cls = parsePct(v) > 8 ? ' alert' : '';
+    return cls;
+  }
+
+  var chatStatus = d.chat.status === 'alert' ? 'failed' : (d.chat.status === 'warning' ? 'warning' : 'passed');
+  var chatLabel = d.chat.status === 'alert' ? 'Failed' : (d.chat.status === 'warning' ? 'Warning' : 'Passed');
+
+  var voiceStatus = d.calls.status === 'alert' ? 'failed' : (d.calls.status === 'warning' ? 'warning' : 'passed');
+  var voiceLabel = d.calls.status === 'alert' ? 'Failed' : (d.calls.status === 'warning' ? 'Warning' : 'Passed');
+
+  return '<div class="sla-card">' +
+    '<div class="card-head"><h2>' + title + '</h2></div>' +
+
+
+    // CHAT SECTION
+    '<div class="lob-section">' +
+      '<div class="channel-pill">' +
+        '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>' +
+        'Chat' +
+        '<span class="status-badge ' + chatStatus + '" style="font-size:.55rem;padding:1px 6px;margin-left:6px">' + chatLabel + '</span>' +
+      '</div>' +
+      '<div class="metrics-grid">' +
+        '<div class="metric-item"><div class="metric-label">Inbound</div><div class="metric-value">' + d.chat.inbound + '</div></div>' +
+        '<div class="metric-item"><div class="metric-label">FRT</div><div class="metric-value">' + d.chat.frt + '</div></div>' +
+        '<div class="metric-item"><div class="metric-label">AHT</div><div class="metric-value">' + d.chat.aht + '</div></div>' +
+        '<div class="metric-item"><div class="metric-label">Absenteeism</div><div class="metric-value' + metricVal(d.chat.absenteeism,'absent') + '" style="display:flex;align-items:center;gap:6px">' + d.chat.absenteeism + ' <span class="ga-badge" style="font-size:0.55rem;padding:2px 6px">' + (d.chat.absentCount||0) + ' Absent</span></div></div>' +
+        slaRowHTML(d.chat) +
+      '</div>' +
+    '</div>' +
+
+    // DIVIDER
+    '<div class="channel-divider">' +
+      '<div class="divider-line"></div>' +
+      '<div class="divider-notch left"></div>' +
+      '<div style="position:absolute;left:50%;transform:translateX(-50%);z-index:2;display:flex;align-items:center;gap:5px;padding:4px 12px;border-radius:20px;background:var(--pill-bg);border:1px solid var(--pill-border);font-size:.65rem;font-weight:900;text-transform:uppercase;letter-spacing:.07em;color:var(--text)">' +
+        '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2.5"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 15a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 4.26h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 11a16 16 0 0 0 6 6l.92-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7a2 2 0 0 1 1.72 2.03z"/></svg>' +
+        'Voice' +
+        '<span class="status-badge ' + voiceStatus + '" style="font-size:.55rem;padding:1px 6px;margin-left:6px">' + voiceLabel + '</span>' +
+      '</div>' +
+      '<div class="divider-notch right"></div>' +
+    '</div>' +
+
+
+    // VOICE SECTION
+    '<div class="lob-section">' +
+      '<div class="metrics-grid">' +
+        '<div class="metric-item"><div class="metric-label">Inbound</div><div class="metric-value">' + d.calls.inbound + '</div></div>' +
+        '<div class="metric-item"><div class="metric-label">Abandoned</div><div class="metric-value">' + d.calls.abandoned + '</div></div>' +
+        '<div class="metric-item"><div class="metric-label">Abandon Rate</div><div class="metric-value' + metricVal(d.calls.abandonRate,'aband') + '">' + d.calls.abandonRate + '</div></div>' +
+        '<div class="metric-item"><div class="metric-label">Absenteeism</div><div class="metric-value' + metricVal(d.calls.absenteeism,'absent') + '" style="display:flex;align-items:center;gap:6px">' + d.calls.absenteeism + ' <span class="ga-badge" style="font-size:0.55rem;padding:2px 6px">' + (d.calls.absentCount||0) + ' Absent</span></div></div>' +
+        slaRowHTML(d.calls) +
+      '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+// ---- Email Productivity Card ----
+function buildEmailCard() {
+  var agentsHTML = '';
+  if (emailData.topAgents.length === 0) {
+    agentsHTML = '<div class="ops-empty">No data yet — fetch from Drive.</div>';
+  } else {
+    agentsHTML = emailData.topAgents.map(function(a, i) {
+      return '<div class="agent-row">' +
+        '<span class="agent-rank">' + (i+1) + '.</span>' +
+        '<span class="agent-name">' + a.name + '</span>' +
+        '<span class="agent-score">' + a.score + '</span>' +
+      '</div>';
+    }).join('');
+  }
+
+  var colors = ['blue','indigo','green','purple'];
+  var labels = ['Total Closed','Total Assigned','Total Replied','Replies Sent'];
+  var fields = ['closed','assigned','replied','sent'];
+  var statsHTML = fields.map(function(f, i) {
+    return '<div class="email-stat ' + colors[i] + '">' +
+      '<div class="email-stat-label">' + labels[i] + '</div>' +
+      '<div class="email-stat-val">' + emailData[f] + '</div>' +
+    '</div>';
+  }).join('');
+
+  return '<div class="sla-card">' +
+    '<div class="card-head">' +
+      '<h2>' +
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:5px"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>' +
+        'Resident Home – Email Productivity' +
+      '</h2>' +
+    '</div>' +
+    '<div class="email-card-body">' +
+      '<div class="email-stats">' + statsHTML + '</div>' +
+      '<div class="top-agents">' +
+        '<div class="top-agents-title">' +
+          '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>' +
+          'Top 5 Agents' +
+        '</div>' +
+        agentsHTML +
+      '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+// ---- Ops Log Card ----
+function buildOpsLogCard() {
+  var anyApplicable = opsLog.mitigations.applicable || opsLog.causes.applicable || opsLog.keynotes.applicable;
+
+  var bodyHTML = '';
+  if (!anyApplicable) {
+    bodyHTML = '<div class="casual-business-container">' +
+      '<div class="casual-business-badge">' +
+        '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5">' +
+          '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>' +
+          '<polyline points="22 4 12 14.01 9 11.01"/>' +
+        '</svg>' +
+      '</div>' +
+      '<div class="casual-business-title">Casual Business</div>' +
+      '<div class="casual-business-subtitle">All systems normal. No critical mitigations or blockers reported.</div>' +
+    '</div>';
+  } else {
+    function section(field, dotCls, label) {
+      var d = opsLog[field];
+      if (!d || !d.applicable) return '';
+      
+      var items = [];
+      if (d.selected) {
+        items = d.selected.slice();
+      }
+      if (d.showCustom && d.custom && d.custom.trim()) {
+        items.push(d.custom.trim());
+      }
+      
+      var listHTML = items.length
+        ? '<ul class="ops-list">' + items.map(function(t){ return '<li>' + t + '</li>'; }).join('') + '</ul>'
+        : '<div class="ops-empty">No notes logged.</div>';
+        
+      return '<div class="ops-section-block">' +
+        '<div class="ops-section-label"><div class="ops-dot ' + dotCls + '"></div>' + label + '</div>' +
+        listHTML +
+      '</div>';
+    }
+    bodyHTML = section('mitigations','amber','Mitigations made:') +
+               section('causes','red','Causes of High Abandonment:') +
+               section('keynotes','green','Keynotes:');
+  }
+
+  return '<div class="sla-card">' +
+    '<div class="card-head">' +
+      '<h2>Shift Operations Log</h2>' +
+      '<span style="font-size:.62rem;font-weight:800;padding:2px 7px;border-radius:4px;background:var(--border2);color:var(--text2);border:1px solid var(--border)">WFM NOTES</span>' +
+    '</div>' +
+    '<div class="ops-body">' +
+      bodyHTML +
+    '</div>' +
+  '</div>';
+}
+
+// ---- Overview Panel ----
+function renderOverview() {
+  var el = document.getElementById('panelOverview');
+  el.innerHTML =
+    '<div class="overview-grid">' +
+      buildLOBGroupCard('Support Operations','support','support') +
+      buildLOBGroupCard('Sales Operations','sales','sales') +
+      buildLOBGroupCard('Service Recovery','serviceRecovery','serviceRecovery') +
+    '</div>' +
+    '<div class="bottom-grid">' +
+      buildEmailCard() +
+      buildOpsLogCard() +
+    '</div>';
+}
+
+// ---- Detail View (Support / Sales / Service Recovery tabs) ----
+function renderDetailView(title, lobKey) {
+  var d = slaData[lobKey];
+
+  function dcCard(label, val, highlight, isSLA) {
+    var cls = 'detail-card';
+    var vcls = '';
+    if (isSLA) { cls += ' sla-card-highlight'; vcls = ' sla-ok'; }
+    else if (highlight === 'alert') { cls += ' alert-card'; vcls = ' alert'; }
+    else if (highlight === 'warning') { cls += ' warning-card'; vcls = ' warning'; }
+    return '<div class="' + cls + '"><div class="dc-label">' + label + '</div><div class="dc-value' + vcls + '">' + val + '</div></div>';
+  }
+
+  var voiceHighlight = d.calls.status === 'alert' ? 'alert' : (d.calls.status === 'warning' ? 'warning' : '');
+  var chatHighlight  = d.chat.status === 'alert' ? 'alert' : '';
+
+  var html = '<div class="detail-view">' +
+    '<div class="detail-header">' +
+      '<h2>' + title + ' — Detailed Performance</h2>' +
+    '</div>' +
+
+    // Voice Panel
+    '<div class="detail-panel">' +
+      '<div class="detail-panel-head">' +
+        '<div class="channel-icon voice"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 15a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 4.26h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 11a16 16 0 0 0 6 6l.92-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7a2 2 0 0 1 1.72 2.03z"/></svg></div>' +
+        '<h3>Voice Operations</h3>' +
+      '</div>' +
+      '<div class="detail-metrics-grid">' +
+        dcCard('Service Level (SLA)', d.calls.sla, voiceHighlight, true) +
+        dcCard('Inbound Calls',       d.calls.inbound, '') +
+        dcCard('Abandoned Calls',     d.calls.abandoned, '') +
+        dcCard('Abandon Rate',        d.calls.abandonRate, parsePct(d.calls.abandonRate)>5?'alert':'') +
+        dcCard('Absenteeism Rate',    d.calls.absenteeism, parsePct(d.calls.absenteeism)>8?'alert':'') +
+        dcCard('Avg AHT',             d.calls.aht, '') +
+        dcCard('Avg Call in Queue',   d.calls.inQueue, '') +
+        dcCard('Missed Calls',        d.calls.missed, '') +
+        dcCard('AAT',                 d.calls.aat, '') +
+        dcCard('Avg Hold Time',       d.calls.holdTime, '') +
+      '</div>' +
+    '</div>' +
+
+    // Chat Panel
+    '<div class="detail-panel">' +
+      '<div class="detail-panel-head">' +
+        '<div class="channel-icon chat"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>' +
+        '<h3>Chat Operations</h3>' +
+      '</div>' +
+      '<div class="detail-metrics-grid">' +
+        dcCard('Service Level (SLA)', d.chat.sla, chatHighlight, true) +
+        dcCard('Chat Inbound',        d.chat.inbound, '') +
+        dcCard('FRT (First Response)', d.chat.frt, '') +
+        dcCard('Avg AHT',             d.chat.aht, '') +
+        dcCard('Absenteeism Rate',    d.chat.absenteeism, parsePct(d.chat.absenteeism)>8?'alert':'') +
+      '</div>' +
+    '</div>' +
+
+  '</div>';
+
+  return html;
+}
+
+function renderDetailPanel(panelId, title, lobKey) {
+  var el = document.getElementById(panelId);
+  if (el) el.innerHTML = renderDetailView(title, lobKey);
+}
+
+// ---- Render all tabs ----
+function renderAllPanels() {
+  renderOverview();
+  renderDetailPanel('panelSupport',         'Support Operations',  'support');
+  renderDetailPanel('panelSales',           'Sales Operations',    'sales');
+  renderDetailPanel('panelServiceRecovery', 'Service Recovery',    'serviceRecovery');
+}
+
+// ---- Global Absenteeism ----
+function updateGlobalAbsent() {
+  var p = document.getElementById('gaPct');
+  var b = document.getElementById('gaBadge');
+  if (p) p.textContent = globalAbsentPct;
+  if (b) b.textContent = globalAbsentCount + ' Absent';
+}
+
+// ---- Weekly Overview ----
+function renderWeeklyOverview(data) {
+  var el = document.getElementById('panelWeekly');
+  if (!data || !data.weeklyData || data.weeklyData.length === 0) {
+    el.innerHTML = '<div class="weekly-view"><div class="weekly-loading">No weekly data available.</div></div>';
+    return;
+  }
+  
+  var days = data.weeklyData;
+  var lobNames = { support: 'Support', sales: 'Sales', serviceRecovery: 'Service Recovery' };
+  
+  function slaColor(v) { return v >= 88 ? 'ok' : (v >= 80 ? 'warn' : 'alert'); }
+  function slaPillClass(v) { return v >= 88 ? 'good' : (v >= 80 ? 'warning' : 'bad'); }
+  function heatColor(v) { return v >= 88 ? 'var(--green)' : (v >= 80 ? 'var(--amber)' : 'var(--red)'); }
+  function fmtSecs(s) {
+    if (!s || s <= 0) return '0s';
+    var m = Math.floor(s / 60); var sec = s % 60;
+    return m > 0 ? m + 'm ' + (sec < 10 ? '0':'') + sec + 's' : sec + 's';
+  }
+  
+  var html = '<div class="weekly-view">';
+  html += '<div class="weekly-header"><h2>Weekly Performance Timeline</h2><span class="wh-badge">WEEK OVERVIEW</span></div>';
+  
+  html += '<div class="weekly-timeline">';
+  
+  days.forEach(function(day, idx) {
+    var isExpanded = day.isToday && day.hasData;
+    var todayClass = day.isToday ? ' today' : '';
+    var expandedClass = isExpanded ? ' expanded' : '';
+    
+    html += '<div class="day-card' + todayClass + expandedClass + '" id="dayCard' + idx + '">';
+    
+    if (!day.hasData) {
+      // No data day — collapsed, simple header
+      html += '<div class="day-head" style="cursor:default">';
+      html += '<div class="day-label"><span class="dl-name">' + day.label + '</span>';
+      if (day.isToday) html += '<span class="dl-today">Today</span>';
+      html += '</div>';
+      html += '<span style="font-size:.65rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em">No Data</span>';
+      html += '</div>';
+      html += '</div>';
+      return;
+    }
+    
+    // Compute quick SLA summaries for the header pills
+    var avgVoiceSLA = 0, avgChatSLA = 0, vCount = 0, cCount = 0;
+    ['support','sales','serviceRecovery'].forEach(function(lob) {
+      if (day[lob]) {
+        if (day[lob].voiceSLA >= 0) { avgVoiceSLA += day[lob].voiceSLA; vCount++; }
+        if (day[lob].chatSLA >= 0) { avgChatSLA += day[lob].chatSLA; cCount++; }
+      }
+    });
+    if (vCount > 0) avgVoiceSLA = (avgVoiceSLA / vCount);
+    if (cCount > 0) avgChatSLA = (avgChatSLA / cCount);
+    
+    // Day Header
+    html += '<div class="day-head" onclick="document.getElementById(\'dayCard' + idx + '\').classList.toggle(\'expanded\')">';
+    html += '<div class="day-label"><span class="dl-name">' + day.label + '</span>';
+    if (day.isToday) html += '<span class="dl-today">Today</span>';
+    html += '</div>';
+    html += '<div style="display:flex;align-items:center;gap:10px">';
+    html += '<div class="day-sla-pills">';
+    if (vCount > 0) html += '<span class="day-sla-pill ' + slaPillClass(avgVoiceSLA) + '">Voice ' + avgVoiceSLA.toFixed(2) + '%</span>';
+    if (cCount > 0) html += '<span class="day-sla-pill ' + slaPillClass(avgChatSLA) + '">Chat ' + avgChatSLA.toFixed(2) + '%</span>';
+    html += '</div>';
+    html += '<svg class="day-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>';
+    html += '</div></div>';
+    
+    // Day Body
+    html += '<div class="day-body">';
+    html += '<div class="day-lob-grid">';
+    
+    ['support','sales','serviceRecovery'].forEach(function(lob) {
+      var d = day[lob];
+      if (!d) return;
+      
+      var vSLA = d.voiceSLA >= 0 ? d.voiceSLA.toFixed(2) + '%' : '—';
+      var cSLA = d.chatSLA >= 0 ? d.chatSLA.toFixed(2) + '%' : '—';
+      var vSLAWidth = d.voiceSLA >= 0 ? d.voiceSLA : 0;
+      var cSLAWidth = d.chatSLA >= 0 ? d.chatSLA : 0;
+      
+      html += '<div class="day-lob">';
+      html += '<div class="day-lob-title">' + lobNames[lob] + '</div>';
+      
+      // Voice metrics
+      html += '<div class="day-metric-row"><span class="dmr-label">Voice SLA</span><span class="dmr-value ' + (d.voiceSLA >= 0 ? slaColor(d.voiceSLA) : '') + '">' + vSLA + '</span></div>';
+      if (d.voiceSLA >= 0) html += '<div class="sla-heatbar"><div class="sla-heatbar-fill" style="width:' + vSLAWidth + '%;background:' + heatColor(d.voiceSLA) + '"></div></div>';
+      html += '<div class="day-metric-row" style="margin-top:6px"><span class="dmr-label">Voice Inbound</span><span class="dmr-value">' + d.voiceInbound + '</span></div>';
+      html += '<div class="day-metric-row"><span class="dmr-label">Voice Abandoned</span><span class="dmr-value' + (d.voiceAbandoned > 5 ? ' alert' : '') + '">' + d.voiceAbandoned + '</span></div>';
+      html += '<div class="day-metric-row"><span class="dmr-label">Voice AHT</span><span class="dmr-value">' + fmtSecs(d.voiceAHT) + '</span></div>';
+      
+      // Chat metrics
+      html += '<div class="day-metric-row" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border2)"><span class="dmr-label">Chat SLA</span><span class="dmr-value ' + (d.chatSLA >= 0 ? slaColor(d.chatSLA) : '') + '">' + cSLA + '</span></div>';
+      if (d.chatSLA >= 0) html += '<div class="sla-heatbar"><div class="sla-heatbar-fill" style="width:' + cSLAWidth + '%;background:' + heatColor(d.chatSLA) + '"></div></div>';
+      html += '<div class="day-metric-row" style="margin-top:6px"><span class="dmr-label">Chat Inbound</span><span class="dmr-value">' + d.chatInbound + '</span></div>';
+      html += '<div class="day-metric-row"><span class="dmr-label">Chat FRT</span><span class="dmr-value">' + fmtSecs(d.chatFRT) + '</span></div>';
+      html += '<div class="day-metric-row"><span class="dmr-label">Chat AHT</span><span class="dmr-value">' + fmtSecs(d.chatAHT) + '</span></div>';
+      
+      // Absenteeism
+      html += '<div class="day-metric-row" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border2)"><span class="dmr-label">Absenteeism</span><span class="dmr-value">' + d.absentRate + ' <span class="ga-badge" style="font-size:0.5rem;padding:1px 5px">' + d.absentCount + '</span></span></div>';
+      
+      html += '</div>';
+    });
+    
+    html += '</div>';
+    
+    // Email row
+    if (day.email) {
+      html += '<div class="day-email-row">';
+      html += '<div class="day-email-item">Emails Closed:<span>' + day.email.closed + '</span></div>';
+      html += '<div class="day-email-item">Assigned:<span>' + day.email.assigned + '</span></div>';
+      html += '<div class="day-email-item">Replied:<span>' + day.email.replied + '</span></div>';
+      html += '<div class="day-email-item">Sent:<span>' + day.email.sent + '</span></div>';
+      html += '</div>';
+    }
+    
+    html += '</div>'; // day-body
+    html += '</div>'; // day-card
+  });
+  
+  html += '</div>'; // weekly-timeline
+  html += '</div>'; // weekly-view
+  
+  el.innerHTML = html;
+}
+</script>

@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Intercom SLA Report - Real-time Operations & Workforce Metrics Dashboard">
+  <title>Intercom SLA Report</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <?!= include('CSS'); ?>
+</head>
+<body class="dark">
+
+  <!-- ===== TOAST ===== -->
+  <div class="toast" id="toast">
+    <svg class="toast-icon" id="toastIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+    <span id="toastMsg"></span>
+  </div>
+
+  <!-- ===== MAIN WRAPPER ===== -->
+  <div class="sla-app" id="slaApp">
+    <div class="sla-container">
+
+      <!-- HEADER -->
+      <header class="sla-header" id="slaHeader">
+        <div class="header-brand">
+          <div class="header-title-row" id="headerRefresh" title="Click to sync data">
+            <h1 class="sla-title">Intercom SLA Report</h1>
+            <svg class="refresh-icon" id="refreshIcon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          </div>
+          <div class="header-meta">
+            <span class="meta-sub">Real-time Operations & Workforce Metrics</span>
+            <div class="time-badge" id="timeBadge">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <span id="reportTime">Loading...</span>
+            </div>
+          </div>
+        </div>
+        <div class="header-actions">
+          <button class="action-btn" id="controlPanelBtn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            <span>Control Panel</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- TAB NAV & GLOBAL ABSENTEEISM -->
+      <div class="tab-row">
+        <div class="tab-pills" id="tabPills" style="display:none"></div>
+        <div class="global-absent" id="globalAbsent">
+          <div class="ga-label">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            <span>Global Absenteeism</span>
+          </div>
+          <div class="ga-value">
+            <span class="ga-pct" id="gaPct">6.8%</span>
+            <span class="ga-badge" id="gaBadge">48 Absent</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- CONTENT AREA -->
+      <div class="sla-content" id="slaContent">
+        <!-- Overview Tab -->
+        <div class="tab-panel active" id="panelOverview"></div>
+        <!-- Support Tab -->
+        <div class="tab-panel" id="panelSupport"></div>
+        <!-- Sales Tab -->
+        <div class="tab-panel" id="panelSales"></div>
+        <!-- Service Recovery Tab -->
+        <div class="tab-panel" id="panelServiceRecovery"></div>
+        <!-- Weekly Overview Tab -->
+        <div class="tab-panel" id="panelWeekly"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ===== AI INSIGHTS MODAL ===== -->
+  <div class="modal-overlay" id="aiModal">
+    <div class="modal-box">
+      <div class="modal-head">
+        <h3 id="aiModalTitle">AI Insights</h3>
+        <button class="close-btn" onclick="document.getElementById('aiModal').classList.remove('show')">&times;</button>
+      </div>
+      <div class="modal-body" id="aiModalBody">
+        <div class="ai-loading" id="aiLoading">
+          <div class="ai-spinner"></div>
+          <p>Analyzing operations data...</p>
+        </div>
+        <div class="ai-response" id="aiResponse"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn-close" onclick="document.getElementById('aiModal').classList.remove('show')">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== CONTROL PANEL SIDEBAR ===== -->
+  <!-- ===== UPLOAD MODAL ===== -->
+  <div class="upload-overlay" id="uploadOverlay" style="display:none"></div>
+  <div class="upload-modal" id="uploadModal" style="display:none">
+    <div class="upload-head">
+      <h2>Upload Data Reports</h2>
+      <button class="close-btn" id="uploadCloseBtn">&times;</button>
+    </div>
+    <div class="upload-body" id="uploadBody">
+      <div class="upload-grid">
+        <!-- Voice Metrics -->
+        <div class="upload-box" id="drop-VoiceMetrics">
+          <div class="ub-title">Voice Metrics</div>
+          <div style="display:flex;gap:8px">
+            <select class="ub-select" id="sel-VoiceMetrics" style="flex:1"><option>Loading folders...</option></select>
+            <input type="date" class="ub-select" id="date-VoiceMetrics" style="flex:1" title="Report Date">
+          </div>
+          <div class="ub-dropzone">
+            <input type="file" id="file-VoiceMetrics" accept=".csv" hidden>
+            <div class="ub-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg></div>
+            <div class="ub-text">Drag & Drop CSV</div>
+            <div class="ub-status"></div>
+          </div>
+        </div>
+        <!-- Chat SLA -->
+        <div class="upload-box" id="drop-ChatSLA">
+          <div class="ub-title">Chat SLA</div>
+          <div style="display:flex;gap:8px">
+            <select class="ub-select" id="sel-ChatSLA" style="flex:1"><option>Loading folders...</option></select>
+            <input type="date" class="ub-select" id="date-ChatSLA" style="flex:1" title="Report Date">
+          </div>
+          <div class="ub-dropzone">
+            <input type="file" id="file-ChatSLA" accept=".csv" hidden>
+            <div class="ub-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg></div>
+            <div class="ub-text">Drag & Drop CSV</div>
+            <div class="ub-status"></div>
+          </div>
+        </div>
+        <!-- Voice SLA -->
+        <div class="upload-box" id="drop-VoiceSLA">
+          <div class="ub-title">Voice SLA</div>
+          <div style="display:flex;gap:8px">
+            <select class="ub-select" id="sel-VoiceSLA" style="flex:1"><option>Loading folders...</option></select>
+            <input type="date" class="ub-select" id="date-VoiceSLA" style="flex:1" title="Report Date">
+          </div>
+          <div class="ub-dropzone">
+            <input type="file" id="file-VoiceSLA" accept=".csv" hidden>
+            <div class="ub-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg></div>
+            <div class="ub-text">Drag & Drop CSV</div>
+            <div class="ub-status"></div>
+          </div>
+        </div>
+        <!-- Email Productivity -->
+        <div class="upload-box" id="drop-EmailProductivity">
+          <div class="ub-title">Email Productivity</div>
+          <div style="display:flex;gap:8px">
+            <select class="ub-select" id="sel-EmailProductivity" style="flex:1"><option>Loading folders...</option></select>
+            <input type="date" class="ub-select" id="date-EmailProductivity" style="flex:1" title="Report Date">
+          </div>
+          <div class="ub-dropzone">
+            <input type="file" id="file-EmailProductivity" accept=".csv" hidden>
+            <div class="ub-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg></div>
+            <div class="ub-text">Drag & Drop CSV</div>
+            <div class="ub-status"></div>
+          </div>
+        </div>
+      </div>
+      <button class="cp-fetch-btn" id="uploadCompleteBtn" style="width:100%;margin-top:16px;padding:10px;font-size:.82rem">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        Complete &amp; Reset
+      </button>
+    </div>
+  </div>
+
+  <div class="cp-overlay" id="cpOverlay"></div>
+  <aside class="control-panel" id="controlPanel">
+    <div class="cp-head">
+      <div class="cp-title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        Control Panel
+      </div>
+      <button class="close-btn" id="cpCloseBtn">&times;</button>
+    </div>
+    <div class="cp-body" id="cpBody">
+      <!-- Populated by JS -->
+    </div>
+  </aside>
+
+  <?!= include('Helpers'); ?>
+  <?!= include('SLAViews'); ?>
+  <?!= include('JS'); ?>
+</body>
+</html>

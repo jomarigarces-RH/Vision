@@ -1,0 +1,99 @@
+<script>
+// ===== SHARED STATE =====
+var isDark = true;
+
+var slaData = {
+  support: {
+    chat:  { inbound:'0', abandoned:'0', abandonRate:'0.0%', absenteeism:'0.0%', sla:'0.00%', status:'good', frt:'0s', aht:'0s', inQueue:'0s' },
+    calls: { inbound:'0', abandoned:'0', abandonRate:'0.0%', absenteeism:'0.0%', sla:'0.00%', status:'good', aht:'0s', inQueue:'0s', missed:'0', aat:'0s', holdTime:'0s' }
+  },
+  sales: {
+    chat:  { inbound:'0', abandoned:'0', abandonRate:'0.0%', absenteeism:'0.0%', sla:'0.00%', status:'good', frt:'0s', aht:'0s', inQueue:'0s' },
+    calls: { inbound:'0', abandoned:'0', abandonRate:'0.0%', absenteeism:'0.0%', sla:'0.00%', status:'good', aht:'0s', inQueue:'0s', missed:'0', aat:'0s', holdTime:'0s' }
+  },
+  serviceRecovery: {
+    chat:  { inbound:'0', abandoned:'0', abandonRate:'0.0%', absenteeism:'0.0%', sla:'0.00%', status:'good', frt:'0s', aht:'0s', inQueue:'0s' },
+    calls: { inbound:'0', abandoned:'0', abandonRate:'0.0%', absenteeism:'0.0%', sla:'0.00%', status:'good', aht:'0s', inQueue:'0s', missed:'0', aat:'0s', holdTime:'0s' }
+  }
+};
+
+var emailData = {
+  closed: 0, assigned: 0, replied: 0, sent: 0,
+  topAgents: []
+};
+
+var globalAbsentPct = '';
+var globalAbsentCount = '';
+
+var opsLog = {
+  mitigations: { applicable: false, selected:[], custom:'', showCustom:false },
+  causes:      { applicable: false, selected:[], custom:'', showCustom:false },
+  keynotes:    { applicable: false, custom:'', showCustom:false }
+};
+
+var opsLogPresets = {
+  mitigations: [
+    'Offered Restday Overtime/ Pre or Post Shift Overtime',
+    'Break Schedule Adjustments',
+    'IT Ticket Created',
+    'Crossskilled agents as a counteract on a increasing abandoned rates',
+    'Cancelled offline activities',
+    'Movements has been posted to WFM_callout channel'
+  ],
+  causes: [
+    'Power Outage',
+    'Work Interrruption (Emergency)',
+    'System issues',
+    'Unexpected high call volume during overnight',
+    'Unexpected high call volume'
+  ],
+  keynotes: []
+};
+
+var activeTab = 'overview';
+
+// ===== UTILITIES =====
+function parsePct(v){ return parseFloat(String(v).replace('%','')) || 0; }
+
+function calcAbandonRate(inbound, abandoned) {
+  var i = parseFloat(String(inbound).replace(/,/g,'')) || 0;
+  var a = parseFloat(String(abandoned).replace(/,/g,'')) || 0;
+  return i > 0 ? (a/i*100).toFixed(1) + '%' : '0.0%';
+}
+
+function getSLAStatus(slaStr) {
+  var v = parsePct(slaStr);
+  return (v >= 80 && v <= 87) ? 'good' : 'alert';
+}
+
+function updateLobMetric(lob, channel, field, value) {
+  slaData[lob][channel][field] = value;
+  var ch = slaData[lob][channel];
+  if (field === 'inbound' || field === 'abandoned') {
+    ch.abandonRate = calcAbandonRate(ch.inbound, ch.abandoned);
+  }
+  if (field === 'sla') {
+    ch.status = getSLAStatus(value);
+  }
+}
+
+// ===== TIME =====
+function updateTime() {
+  var now = new Date();
+  var timeStr = now.toLocaleTimeString('en-US', { timeZone:'America/Los_Angeles', hour:'numeric', hour12:true });
+  var parts = timeStr.split(' ');
+  var hour = parts[0].split(':')[0];
+  var period = parts[1] || 'PST';
+  var el = document.getElementById('reportTime');
+  if (el) el.textContent = 'Time of Report: ' + hour + ':00 ' + period + ' PST';
+}
+
+function showToast(msg, type) {
+  var t = document.getElementById('toast');
+  var m = document.getElementById('toastMsg');
+  if (!t || !m) return;
+  m.textContent = msg;
+  t.className = 'toast show';
+  setTimeout(function(){ t.className = 'toast'; }, 3500);
+}
+</script>

@@ -1,0 +1,1007 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { 
+  PhoneCall, 
+  MessageSquare, 
+  Users, 
+  AlertTriangle, 
+  CheckCircle2, 
+  Clock,
+  Activity,
+  Sparkles,
+  X,
+  Loader2,
+  Mail,
+  Trophy,
+  Settings,
+  Upload,
+  Camera,
+  Moon,
+  Sun,
+  RefreshCw
+} from 'lucide-react';
+
+export default function App() {
+  const [activeTab, setActiveTab] = useState('Overview');
+  const [isDark, setIsDark] = useState(true); 
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiResponse, setAiResponse] = useState('');
+  const [aiModalOpen, setAiModalOpen] = useState(false);
+  const [aiModalTitle, setAiModalTitle] = useState('');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const dashboardRef = useRef(null);
+  const [isSnapping, setIsSnapping] = useState(false);
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+  const [reportTime, setReportTime] = useState('');
+  const [reportDate, setReportDate] = useState('');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      const timeString = now.toLocaleTimeString('en-US', {
+        timeZone: 'America/Los_Angeles',
+        hour: 'numeric',
+        hour12: true
+      });
+      const [hour, period] = timeString.split(' ');
+      setReportTime(`Time of Report: ${hour}:00 ${period} PST`);
+
+      const dateString = now.toLocaleDateString('en-US', {
+        timeZone: 'America/Los_Angeles',
+        month: 'numeric',
+        day: 'numeric',
+        year: 'numeric'
+      });
+      setReportDate(dateString);
+    };
+    updateTime();
+    const interval = setInterval(updateTime, 60000); 
+    return () => clearInterval(interval);
+  }, []);
+
+  const [lobData, setLobData] = useState({
+    support: {
+      chat: { inbound: '1,245', abandoned: '24', abandonRate: '1.9%', absenteeism: '3.2%', sla: '95%', status: 'good', frt: '45s', aht: '12m 30s', inQueue: '5' },
+      calls: { inbound: '3,890', abandoned: '350', abandonRate: '8.9%', absenteeism: '12.4%', sla: '74%', status: 'alert', aht: '15m 10s', inQueue: '3m 45s', missed: '42', aat: '11m 20s', holdTime: '2m 15s' }
+    },
+    sales: {
+      chat: { inbound: '850', abandoned: '12', abandonRate: '1.4%', absenteeism: '2.1%', sla: '98%', status: 'good', frt: '30s', aht: '8m 45s', inQueue: '2' },
+      calls: { inbound: '1,420', abandoned: '68', abandonRate: '4.7%', absenteeism: '4.5%', sla: '86%', status: 'good', aht: '18m 20s', inQueue: '1m 15s', missed: '15', aat: '14m 10s', holdTime: '1m 05s' }
+    },
+    serviceRecovery: {
+      chat: { inbound: '310', abandoned: '5', abandonRate: '1.6%', absenteeism: '1.0%', sla: '99%', status: 'good', frt: '20s', aht: '15m 00s', inQueue: '0' },
+      calls: { inbound: '540', abandoned: '18', abandonRate: '3.3%', absenteeism: '5.8%', sla: '82%', status: 'warning', aht: '24m 30s', inQueue: '2m 10s', missed: '8', aat: '20m 15s', holdTime: '4m 30s' }
+    }
+  });
+
+  const [emailData, setEmailData] = useState({
+    closed: 969,
+    assigned: 939,
+    replied: 971,
+    sent: 900,
+    topAgents: [
+      { name: 'Sarah Jenkins', score: 145 },
+      { name: 'Mike Ross', score: 132 },
+      { name: 'Elena Gilbert', score: 128 },
+      { name: 'David Chen', score: 115 },
+      { name: 'Anita Patel', score: 109 }
+    ]
+  });
+
+  // Upgraded OpsLog State to handle multi-select and custom text arrays
+  const [opsLog, setOpsLog] = useState({
+    mitigations: {
+      selected: [],
+      custom: "Posted added inbox to agents in WFM_callouts, Crossskill agents as soon as it is showing increase in incoming call or ABA.",
+      showCustom: true
+    },
+    causes: {
+      selected: ["High Absenteeism (>9%)"],
+      custom: "Unplanned Absenteeism Rate: 9.43%",
+      showCustom: true
+    },
+    keynotes: {
+      selected: [],
+      custom: "By 00:00 - 11:00 EST, Sales AHT running at around 20min and FRT at 56s for Inbound and 45s for Support. Added Inbound Sales Chat to Support agents at 12:30 EST.",
+      showCustom: true
+    }
+  });
+
+  const opsLogPresets = {
+    mitigations: [
+      "Cross-skill & Added Inbox",
+      "Re-allocated Chat to Voice",
+      "Offered Overtime (OT)",
+      "Approved VTO",
+      "Pushed Agents to Available"
+    ],
+    causes: [
+      "High Absenteeism (>9%)",
+      "Volume Spike",
+      "System Latency / Outage",
+      "Understaffed"
+    ],
+    keynotes: [
+      "Sales AHT / Added Sales Chat",
+      "All Queues Running Smoothly",
+      "System Issues (Resolved)",
+      "Absenteeism Impacting Voice"
+    ]
+  };
+
+  const tabs = ['Overview', 'Support', 'Sales', 'Service Recovery'];
+  const apiKey = ""; 
+
+  // --- Refresh Data Simulation ---
+  const handleRefreshData = () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    
+    setTimeout(() => {
+      // Simulates a refresh/sync state without randomizing or overwriting 
+      // the exact metrics the user has entered in the Control Panel.
+      setIsRefreshing(false);
+      showToast('Dashboard synced with latest Control Panel data.', 'success');
+    }, 800);
+  };
+
+  // --- Helper to Auto-Calculate Abandon Rate & Status ---
+  const updateLobMetric = (lob, channel, field, value) => {
+    setLobData(prev => {
+      const newChannelData = { ...prev[lob][channel], [field]: value };
+      
+      if (field === 'inbound' || field === 'abandoned') {
+        const inb = parseFloat(String(newChannelData.inbound).replace(/,/g, '')) || 0;
+        const abnd = parseFloat(String(newChannelData.abandoned).replace(/,/g, '')) || 0;
+        
+        if (inb > 0) {
+          newChannelData.abandonRate = ((abnd / inb) * 100).toFixed(1) + '%';
+        } else {
+          newChannelData.abandonRate = '0.0%';
+        }
+      }
+
+      if (field === 'sla') {
+        const slaVal = parseFloat(String(value).replace(/%/g, ''));
+        if (!isNaN(slaVal)) {
+          newChannelData.status = slaVal < 80 ? 'alert' : 'good';
+        }
+      }
+      
+      return {
+        ...prev,
+        [lob]: {
+          ...prev[lob],
+          [channel]: newChannelData
+        }
+      };
+    });
+  };
+
+  // --- Theme Mapping ---
+  const t = {
+    bg: isDark ? 'bg-[#0a0a0a]' : 'bg-slate-100',
+    textMain: isDark ? 'text-white' : 'text-slate-900',
+    textMuted: isDark ? 'text-neutral-400' : 'text-slate-500',
+    cardBg: isDark ? 'bg-neutral-900' : 'bg-white',
+    cardBorder: isDark ? 'border-neutral-800' : 'border-slate-200',
+    pillBg: isDark ? 'bg-neutral-800' : 'bg-white',
+    pillBorder: isDark ? 'border-neutral-700' : 'border-slate-200',
+    btnDefault: isDark 
+      ? 'text-neutral-300 bg-neutral-900 hover:bg-neutral-800 border-neutral-800' 
+      : 'text-slate-600 bg-white hover:bg-slate-50 border-slate-200',
+    inputBg: isDark ? 'bg-neutral-900' : 'bg-white',
+    inputBorder: isDark ? 'border-neutral-700' : 'border-slate-300'
+  };
+
+  const fetchWithRetry = async (url, options, retries = 5) => {
+    const delays = [1000, 2000, 4000, 8000, 16000];
+    for (let i = 0; i < retries; i++) {
+      try {
+        const response = await fetch(url, options);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return await response.json();
+      } catch (error) {
+        if (i === retries - 1) throw error;
+        await new Promise(res => setTimeout(res, delays[i]));
+      }
+    }
+  };
+
+  const generateInsights = async (prompt, title) => {
+    setAiModalTitle(title);
+    setAiResponse('');
+    setAiModalOpen(true);
+    setAiLoading(true);
+
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+      const options = {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          systemInstruction: { 
+            parts: [{ text: "You are an expert Call Center Operations and Workforce Management AI assistant. Provide concise, actionable, and analytical responses. Use bold text for key metrics and concepts." }] 
+          }
+        })
+      };
+
+      const result = await fetchWithRetry(url, options);
+      const text = result.candidates?.[0]?.content?.parts?.[0]?.text || "No insights generated.";
+      setAiResponse(text);
+    } catch (error) {
+      setAiResponse("Failed to connect to AI services. Please try again later.");
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleLOBAnalysis = (title, lobData) => {
+    const prompt = `Analyze the following real-time metrics for the ${title} department:
+    Chat Operations - Inbound: ${lobData.chat.inbound}, Abandon Rate: ${lobData.chat.abandonRate}, Absenteeism: ${lobData.chat.absenteeism}.
+    Call Operations - Inbound: ${lobData.calls.inbound}, Abandon Rate: ${lobData.calls.abandonRate}, Absenteeism: ${lobData.calls.absenteeism}.
+    Provide a brief health check of this department and 2 immediate actionable steps to improve SLA or manage workforce effectively.`;
+    generateInsights(prompt, `LOB Insights: ${title}`);
+  };
+
+  const showToast = (message, type = 'success') => {
+    setToast({ show: true, message, type });
+    setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 4000);
+  };
+
+  const handleSnap = async () => {
+    if (!dashboardRef.current) return;
+    setIsSnapping(true);
+
+    try {
+      if (!window.html2canvas) {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+          script.onload = resolve;
+          script.onerror = reject;
+          document.head.appendChild(script);
+        });
+      }
+
+      const canvas = await window.html2canvas(dashboardRef.current, {
+        useCORS: true,
+        scale: 2,
+        backgroundColor: isDark ? '#0a0a0a' : '#f1f5f9' 
+      });
+
+      canvas.toBlob(async (blob) => {
+        try {
+          await navigator.clipboard.write([
+            new ClipboardItem({ 'image/png': blob })
+          ]);
+          showToast('Dashboard snapped directly to clipboard!', 'success');
+        } catch (err) {
+          console.warn("Clipboard write failed, downloading instead", err);
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `SLA_Dashboard_Snap_${new Date().toISOString().slice(0,10)}.png`;
+          a.click();
+          URL.revokeObjectURL(url);
+          showToast('Clipboard blocked. Image downloaded instead.', 'info');
+        } finally {
+          setIsSnapping(false);
+        }
+      }, 'image/png');
+    } catch (error) {
+      console.error("Error snapping dashboard:", error);
+      showToast('Failed to snap dashboard.', 'error');
+      setIsSnapping(false);
+    }
+  };
+
+  const MetricInfo = ({ label, value, highlight }) => {
+    let colorClass = isDark ? "text-neutral-100" : "text-slate-900";
+    if (highlight === 'alert') colorClass = isDark ? "text-red-400" : "text-red-600";
+    if (highlight === 'warning') colorClass = isDark ? "text-amber-400" : "text-amber-600";
+
+    return (
+      <div className="flex flex-col">
+        <span className={`text-[10px] font-semibold uppercase tracking-wider mb-0.5 ${t.textMuted}`}>{label}</span>
+        <span className={`text-base font-semibold ${colorClass}`}>
+          {value}
+        </span>
+      </div>
+    );
+  };
+
+  const SLAMetric = ({ value }) => {
+    const isAlert = parseFloat(value) < 80;
+    const bgClass = isAlert 
+      ? (isDark ? "bg-red-950/20 border-red-900/40" : "bg-gradient-to-br from-red-50 to-white border-red-200")
+      : (isDark ? "bg-neutral-800/40 border-neutral-700/50" : "bg-gradient-to-br from-indigo-50 to-white border-indigo-200");
+    const textClass = isAlert 
+      ? (isDark ? "text-red-400" : "text-red-600") 
+      : (isDark ? "text-white" : "text-indigo-700");
+    const labelClass = isAlert 
+      ? (isDark ? "text-red-500" : "text-red-700") 
+      : (isDark ? "text-neutral-400" : "text-indigo-700");
+    const badgeBg = isAlert 
+      ? (isDark ? "bg-red-900/30 text-red-400" : "bg-red-100 text-red-600") 
+      : (isDark ? "bg-neutral-700/50 text-neutral-300" : "bg-indigo-100 text-indigo-600");
+
+    return (
+      <div className={`col-span-2 mt-2 flex items-center justify-between px-3 py-2.5 rounded-xl border ${isDark ? '' : 'border-2'} shadow-sm ${bgClass}`}>
+        <div className="flex items-center gap-2">
+          <div className={`p-1.5 rounded-md ${badgeBg}`}>
+             <Activity className="w-3.5 h-3.5" />
+          </div>
+          <span className={`text-[11px] font-bold uppercase tracking-wider ${labelClass}`}>
+             Service Level (SLA)
+          </span>
+        </div>
+        <span className={`text-xl font-black tracking-tight ${textClass}`}>
+          {value}
+        </span>
+      </div>
+    );
+  };
+
+  const LOBGroupCard = ({ title, lobData }) => (
+    <div className={`${t.cardBg} rounded-xl border ${t.cardBorder} shadow-xl overflow-hidden flex flex-col relative`}>
+      <div className={`${isDark ? 'bg-neutral-900 border-neutral-800' : 'bg-slate-50 border-slate-200'} px-4 py-3 border-b flex justify-between items-center relative z-20`}>
+        <div className="flex items-center gap-2">
+          <h2 className={`text-xs font-bold uppercase tracking-wide ${isDark ? 'text-neutral-200' : 'text-slate-800'}`}>{title}</h2>
+        </div>
+        {/* Chat Status Badge */}
+        {lobData.chat.status === 'alert' ? (
+          <span className={`flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm ${
+            isDark ? 'text-red-400 bg-red-950/30 border border-red-900/50' : 'text-red-600 bg-red-50 border border-red-100'
+          }`}>
+            <AlertTriangle className="w-3 h-3 mr-1" /> Failed
+          </span>
+        ) : (
+          <span className={`flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm ${
+            isDark ? 'text-green-400 bg-green-950/30 border border-green-900/50' : 'text-emerald-600 bg-emerald-50 border border-emerald-100'
+          }`}>
+            <CheckCircle2 className="w-3 h-3 mr-1" /> Passed
+          </span>
+        )}
+      </div>
+
+      <div className="p-4 flex-1 pt-6 relative">
+        <div className={`absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 px-6 py-1.5 rounded-full shadow-[0_4px_12px_-2px_rgba(0,0,0,0.12)] flex items-center gap-2 border z-30 ${t.pillBg} ${t.pillBorder} ${t.textMain}`}>
+           <MessageSquare className={`w-3.5 h-3.5 ${isDark ? 'text-blue-400' : 'text-blue-600'}`} />
+           <span className="text-[11px] font-black uppercase tracking-widest">Chat</span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-y-3 gap-x-2 mt-1">
+          <MetricInfo label="Inbound" value={lobData.chat.inbound} />
+          <MetricInfo label="Abandoned" value={lobData.chat.abandoned} />
+          <MetricInfo 
+            label="Abandon Rate" 
+            value={lobData.chat.abandonRate} 
+            highlight={parseFloat(lobData.chat.abandonRate) > 5 ? 'alert' : 'good'} 
+          />
+          <MetricInfo 
+            label="Absenteeism" 
+            value={lobData.chat.absenteeism} 
+            highlight={parseFloat(lobData.chat.absenteeism) > 8 ? 'alert' : 'good'} 
+          />
+          <SLAMetric value={lobData.chat.sla} />
+        </div>
+      </div>
+
+      <div className="relative h-6 flex items-center justify-center my-2 z-20">
+        <div className={`w-full border-t-2 border-dashed ${isDark ? 'border-neutral-800' : 'border-slate-200'}`}></div>
+        <div className={`absolute -left-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full border shadow-inner ${isDark ? 'bg-[#0a0a0a] border-neutral-800' : 'bg-slate-100 border-slate-200'}`}></div>
+        <div className={`absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full border shadow-inner ${isDark ? 'bg-[#0a0a0a] border-neutral-800' : 'bg-slate-100 border-slate-200'}`}></div>
+        
+        <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 px-6 py-1.5 rounded-full shadow-[0_4px_12px_-2px_rgba(0,0,0,0.12)] flex items-center gap-2 border ${t.pillBg} ${t.pillBorder} ${t.textMain}`}>
+           <PhoneCall className={`w-3.5 h-3.5 ${isDark ? 'text-indigo-400' : 'text-indigo-600'}`} />
+           <span className="text-[11px] font-black uppercase tracking-widest">Voice</span>
+        </div>
+
+        {/* Voice Status Badge */}
+        {lobData.calls.status === 'alert' ? (
+          <span className={`absolute right-4 top-1/2 -translate-y-1/2 flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm ${
+            isDark ? 'text-red-400 bg-red-950/30 border border-red-900/50' : 'text-red-600 bg-red-50 border border-red-100'
+          }`}>
+            <AlertTriangle className="w-3 h-3 mr-1" /> Failed
+          </span>
+        ) : (
+          <span className={`absolute right-4 top-1/2 -translate-y-1/2 flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm ${
+            isDark ? 'text-green-400 bg-green-950/30 border border-green-900/50' : 'text-emerald-600 bg-emerald-50 border border-emerald-100'
+          }`}>
+            <CheckCircle2 className="w-3 h-3 mr-1" /> Passed
+          </span>
+        )}
+      </div>
+
+      <div className="p-4 flex-1 pt-6 relative">
+        <div className="grid grid-cols-2 gap-y-3 gap-x-2 mt-1">
+          <MetricInfo label="Inbound" value={lobData.calls.inbound} />
+          <MetricInfo label="Abandoned" value={lobData.calls.abandoned} />
+          <MetricInfo 
+            label="Abandon Rate" 
+            value={lobData.calls.abandonRate} 
+            highlight={parseFloat(lobData.calls.abandonRate) > 5 ? 'alert' : parseFloat(lobData.calls.abandonRate) > 3 ? 'warning' : 'good'} 
+          />
+          <MetricInfo 
+            label="Absenteeism" 
+            value={lobData.calls.absenteeism} 
+            highlight={parseFloat(lobData.calls.absenteeism) > 8 ? 'alert' : 'good'} 
+          />
+          <SLAMetric value={lobData.calls.sla} />
+        </div>
+      </div>
+    </div>
+  );
+
+  // --- New Detailed View Components ---
+  const DetailMetricCard = ({ label, value, highlight, isSLA }) => {
+    let colorClass = isDark ? "text-neutral-100" : "text-slate-900";
+    let bgClass = isDark ? "bg-neutral-950/50 border-neutral-800" : "bg-white border-slate-200 shadow-sm";
+
+    if (highlight === 'alert') {
+      colorClass = isDark ? "text-red-400" : "text-red-600";
+      bgClass = isDark ? "bg-red-950/20 border-red-900/40" : "bg-red-50/50 border-red-100 shadow-sm";
+    } else if (highlight === 'warning') {
+      colorClass = isDark ? "text-amber-400" : "text-amber-600";
+      bgClass = isDark ? "bg-amber-950/20 border-amber-900/40" : "bg-amber-50/50 border-amber-100 shadow-sm";
+    } else if (isSLA) {
+      colorClass = isDark ? "text-indigo-400" : "text-indigo-700";
+      bgClass = isDark ? "bg-indigo-950/20 border-indigo-900/40" : "bg-indigo-50/50 border-indigo-100 shadow-sm";
+    }
+
+    return (
+      <div className={`p-5 rounded-xl border flex flex-col justify-center transition-all hover:scale-[1.02] ${bgClass}`}>
+        <span className={`text-[10px] font-bold uppercase tracking-wider mb-2 ${isDark ? 'text-neutral-400' : 'text-slate-500'}`}>{label}</span>
+        <div className={`text-3xl font-black tracking-tight ${colorClass}`}>
+          {value}
+        </div>
+      </div>
+    );
+  };
+
+  const LOBDetailView = ({ title, data }) => (
+    <div className="space-y-6 animate-in fade-in duration-500">
+      <div className="flex items-center justify-between pb-2 border-b border-neutral-800">
+         <h2 className={`text-xl font-bold tracking-tight ${t.textMain}`}>{title} - Detailed Performance</h2>
+      </div>
+
+      {/* Voice Operations Detail Panel */}
+      <div className={`${t.cardBg} rounded-xl border ${t.cardBorder} shadow-xl overflow-hidden`}>
+        <div className={`px-5 py-4 border-b flex justify-between items-center ${isDark ? 'border-neutral-800 bg-neutral-900/50' : 'border-slate-200 bg-slate-50'}`}>
+           <div className="flex items-center gap-2">
+             <div className={`p-1.5 rounded-md ${isDark ? 'bg-indigo-500/20' : 'bg-indigo-100'}`}>
+               <PhoneCall className={`w-4 h-4 ${isDark ? 'text-indigo-400' : 'text-indigo-600'}`} />
+             </div>
+             <h3 className={`text-sm font-bold uppercase tracking-widest ${t.textMain}`}>Voice Operations</h3>
+           </div>
+        </div>
+        <div className="p-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+           <DetailMetricCard label="Service Level (SLA)" value={data.calls.sla} highlight={data.calls.status === 'alert' ? 'alert' : ''} isSLA={true} />
+           <DetailMetricCard label="Inbound Calls" value={data.calls.inbound} />
+           <DetailMetricCard label="Abandoned Calls" value={data.calls.abandoned} />
+           <DetailMetricCard label="Abandon Rate" value={data.calls.abandonRate} highlight={parseFloat(data.calls.abandonRate) > 5 ? 'alert' : ''} />
+           <DetailMetricCard label="Absenteeism Rate" value={data.calls.absenteeism} highlight={parseFloat(data.calls.absenteeism) > 8 ? 'alert' : ''} />
+           
+           <DetailMetricCard label="Avg AHT" value={data.calls.aht} />
+           <DetailMetricCard label="Avg Call in Queue" value={data.calls.inQueue} />
+           <DetailMetricCard label="Missed Calls" value={data.calls.missed} />
+           <DetailMetricCard label="AAT" value={data.calls.aat} />
+           <DetailMetricCard label="Avg Hold Time" value={data.calls.holdTime} />
+        </div>
+      </div>
+
+      {/* Chat Operations Detail Panel */}
+      <div className={`${t.cardBg} rounded-xl border ${t.cardBorder} shadow-xl overflow-hidden`}>
+        <div className={`px-5 py-4 border-b flex justify-between items-center ${isDark ? 'border-neutral-800 bg-neutral-900/50' : 'border-slate-200 bg-slate-50'}`}>
+           <div className="flex items-center gap-2">
+             <div className={`p-1.5 rounded-md ${isDark ? 'bg-blue-500/20' : 'bg-blue-100'}`}>
+               <MessageSquare className={`w-4 h-4 ${isDark ? 'text-blue-400' : 'text-blue-600'}`} />
+             </div>
+             <h3 className={`text-sm font-bold uppercase tracking-widest ${t.textMain}`}>Chat Operations</h3>
+           </div>
+        </div>
+        <div className="p-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+           <DetailMetricCard label="Service Level (SLA)" value={data.chat.sla} highlight={data.chat.status === 'alert' ? 'alert' : ''} isSLA={true} />
+           <DetailMetricCard label="Chat Inbound" value={data.chat.inbound} />
+           <DetailMetricCard label="Abandoned Chats" value={data.chat.abandoned} />
+           <DetailMetricCard label="Abandon Rate" value={data.chat.abandonRate} highlight={parseFloat(data.chat.abandonRate) > 5 ? 'alert' : ''} />
+           
+           <DetailMetricCard label="Absenteeism Rate" value={data.chat.absenteeism} highlight={parseFloat(data.chat.absenteeism) > 8 ? 'alert' : ''} />
+           <DetailMetricCard label="FRT Avg" value={data.chat.frt} />
+           <DetailMetricCard label="Avg AHT" value={data.chat.aht} />
+           <DetailMetricCard label="Chat in Queue" value={data.chat.inQueue} />
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className={`min-h-screen ${t.bg} p-4 md:p-6 font-sans ${t.textMain} transition-colors duration-300`} ref={dashboardRef}>
+      <div className="max-w-7xl mx-auto space-y-5">
+        
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2">
+          <div>
+            <div 
+              className="flex items-center gap-2 group cursor-pointer" 
+              onClick={handleRefreshData}
+              title="Click to fetch latest data"
+            >
+              <h1 className="text-2xl font-bold tracking-tight group-hover:opacity-80 transition-opacity">Intercom SLA Report</h1>
+              <RefreshCw className={`w-5 h-5 opacity-0 group-hover:opacity-100 transition-all duration-300 ${isDark ? 'text-indigo-400' : 'text-indigo-600'} ${isRefreshing ? 'animate-spin opacity-100' : ''}`} />
+            </div>
+            <div className="flex items-center mt-1.5 space-x-3">
+              <p className={`text-xs font-medium ${t.textMuted}`}>Real-time Operations & Workforce Metrics</p>
+              <div className={`flex items-center text-xs font-bold px-3 py-1 rounded-full shadow-sm border ${
+                isDark ? 'text-neutral-300 bg-neutral-900 border-neutral-800' : 'text-indigo-700 bg-indigo-50 border-indigo-100'
+              }`}>
+                <Clock className={`w-3.5 h-3.5 mr-1.5 ${isDark ? 'text-indigo-400' : 'text-indigo-500'}`} />
+                {reportTime}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Dark Mode Toggle Button */}
+            <button 
+              onClick={() => setIsDark(!isDark)}
+              className={`flex items-center space-x-1.5 text-xs font-bold px-4 py-1.5 rounded-full border shadow-sm transition-colors ${t.btnDefault}`}
+            >
+              {isDark ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-indigo-500" />}
+              <span>{isDark ? 'Light Mode' : 'Dark Mode'}</span>
+            </button>
+
+            <button 
+              onClick={handleSnap}
+              disabled={isSnapping}
+              className={`flex items-center space-x-1.5 text-xs font-bold px-4 py-1.5 rounded-full border shadow-sm disabled:opacity-50 transition-colors ${t.btnDefault}`}
+            >
+              {isSnapping ? <Loader2 className={`w-3.5 h-3.5 animate-spin ${isDark ? 'text-neutral-400' : 'text-slate-400'}`} /> : <Camera className={`w-3.5 h-3.5 ${isDark ? 'text-neutral-400' : 'text-slate-400'}`} />}
+              <span>{isSnapping ? 'Snapping...' : 'Snap'}</span>
+            </button>
+            <button 
+              onClick={() => setIsSidebarOpen(true)}
+              className={`flex items-center space-x-1.5 text-xs font-bold px-4 py-1.5 rounded-full border shadow-sm transition-colors ${t.btnDefault}`}
+            >
+              <Settings className={`w-3.5 h-3.5 ${isDark ? 'text-neutral-400' : 'text-slate-400'}`} />
+              <span>Control Panel</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Tab Navigation & Global Absenteeism */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+          <div className={`${isDark ? 'bg-neutral-900 border-neutral-800' : 'bg-white border-slate-200'} p-1 rounded-full shadow-sm border inline-flex`}>
+            {tabs.map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-5 py-2 text-xs font-bold rounded-full transition-all duration-200 ${
+                  activeTab === tab 
+                    ? (isDark ? 'bg-neutral-700 text-white shadow-sm' : 'bg-slate-900 text-white shadow-sm') 
+                    : (isDark ? 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/50' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50')
+                }`}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+          
+          <div className={`${isDark ? 'bg-neutral-900 border-neutral-800' : 'bg-white border-slate-200'} px-5 py-1.5 rounded-full border shadow-sm flex items-center gap-4`}>
+             <div className="flex items-center space-x-1.5">
+                <Activity className={`w-4 h-4 ${isDark ? 'text-blue-400' : 'text-blue-600'}`} />
+                <h3 className={`text-[11px] font-bold uppercase tracking-wider ${isDark ? 'text-neutral-400' : 'text-slate-500'}`}>Global Absenteeism</h3>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className={`text-lg font-black ${t.textMain}`}>6.8%</span>
+                <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md shadow-sm ${
+                  isDark ? 'text-red-400 bg-red-950/40 border border-red-900/50' : 'text-rose-600 bg-rose-50 border border-rose-100'
+                }`}>
+                  48 Absent
+                </span>
+              </div>
+          </div>
+        </div>
+
+        {/* Main Dashboard Content Area */}
+        <div className="mt-2">
+          {activeTab === 'Overview' && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <LOBGroupCard title="Support Operations" lobData={lobData.support} />
+                <LOBGroupCard title="Sales Operations" lobData={lobData.sales} />
+                <LOBGroupCard title="Service Recovery" lobData={lobData.serviceRecovery} />
+              </div>
+
+              {/* Lower Section: Productivity & Notes */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                
+                {/* Email Productivity Card */}
+                <div className={`${t.cardBg} rounded-xl border ${t.cardBorder} shadow-xl overflow-hidden flex flex-col md:col-span-2`}>
+                  <div className={`px-4 py-3 border-b flex items-center gap-2 ${isDark ? 'bg-neutral-900 border-neutral-800' : 'bg-slate-50 border-slate-200'}`}>
+                    <Mail className={`w-4 h-4 ${t.textMuted}`} />
+                    <div>
+                      <h2 className={`text-xs font-bold uppercase tracking-wide ${isDark ? 'text-neutral-200' : 'text-slate-800'}`}>Resident Home - Email Productivity</h2>
+                      <p className={`text-[10px] font-medium mt-0.5 ${t.textMuted}`}>Period: {reportDate} to {reportDate}</p>
+                    </div>
+                  </div>
+                  <div className="p-4 flex flex-col md:flex-row gap-5">
+                    {/* 4 Summary Cards */}
+                    <div className="grid grid-cols-2 gap-3 flex-1">
+                      <div className={`p-3.5 rounded-xl border flex flex-col justify-center ${isDark ? 'bg-neutral-950 border-neutral-800' : 'bg-blue-50/70 border-blue-100'}`}>
+                        <div className={`text-[10px] font-bold uppercase mb-1 ${isDark ? 'text-blue-400' : 'text-blue-700'}`}>Total Closed</div>
+                        <div className={`text-2xl font-black ${t.textMain}`}>{emailData.closed}</div>
+                      </div>
+                      <div className={`p-3.5 rounded-xl border flex flex-col justify-center ${isDark ? 'bg-neutral-950 border-neutral-800' : 'bg-indigo-50/70 border-indigo-100'}`}>
+                        <div className={`text-[10px] font-bold uppercase mb-1 ${isDark ? 'text-indigo-400' : 'text-indigo-700'}`}>Total Assigned</div>
+                        <div className={`text-2xl font-black ${t.textMain}`}>{emailData.assigned}</div>
+                      </div>
+                      <div className={`p-3.5 rounded-xl border flex flex-col justify-center ${isDark ? 'bg-neutral-950 border-neutral-800' : 'bg-emerald-50/70 border-emerald-100'}`}>
+                        <div className={`text-[10px] font-bold uppercase mb-1 ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>Total Replied</div>
+                        <div className={`text-2xl font-black ${t.textMain}`}>{emailData.replied}</div>
+                      </div>
+                      <div className={`p-3.5 rounded-xl border flex flex-col justify-center ${isDark ? 'bg-neutral-950 border-neutral-800' : 'bg-fuchsia-50/70 border-fuchsia-100'}`}>
+                        <div className={`text-[10px] font-bold uppercase mb-1 ${isDark ? 'text-fuchsia-400' : 'text-fuchsia-700'}`}>Replies Sent</div>
+                        <div className={`text-2xl font-black ${t.textMain}`}>{emailData.sent}</div>
+                      </div>
+                    </div>
+                    
+                    {/* Top 5 Agents */}
+                    <div className={`flex-1 border-t md:border-t-0 md:border-l pt-4 md:pt-0 md:pl-5 ${isDark ? 'border-neutral-800' : 'border-slate-100'}`}>
+                      <div className="flex items-center gap-1.5 mb-3">
+                        <Trophy className="w-3.5 h-3.5 text-amber-500" />
+                        <h3 className={`text-[11px] font-bold uppercase tracking-wide ${isDark ? 'text-neutral-300' : 'text-slate-700'}`}>Top 5 Agents</h3>
+                      </div>
+                      <div className="space-y-2">
+                        {emailData.topAgents.map((agent, index) => (
+                          <div key={index} className={`flex items-center justify-between px-2.5 py-1.5 rounded border ${isDark ? 'bg-neutral-950 border-neutral-800' : 'bg-slate-50 border-slate-100'}`}>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-[10px] font-bold w-3 ${isDark ? 'text-neutral-500' : 'text-slate-400'}`}>{index + 1}.</span>
+                              <span className={`text-xs font-semibold ${isDark ? 'text-neutral-300' : 'text-slate-700'}`}>{agent.name}</span>
+                            </div>
+                            <span className={`text-xs font-bold px-2 py-0.5 rounded shadow-sm border ${isDark ? 'text-neutral-200 bg-neutral-800 border-neutral-700' : 'text-slate-900 bg-white border-slate-200'}`}>
+                              {agent.score}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Operations Log Notes Card */}
+                <div className={`${t.cardBg} rounded-xl border ${t.cardBorder} shadow-xl overflow-hidden flex flex-col md:col-span-1`}>
+                  <div className={`px-4 py-3 border-b flex items-center justify-between ${isDark ? 'bg-neutral-900 border-neutral-800' : 'bg-slate-50 border-slate-200'}`}>
+                    <h2 className={`text-xs font-bold uppercase tracking-wide ${isDark ? 'text-neutral-200' : 'text-slate-800'}`}>Shift Operations Log</h2>
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold border ${isDark ? 'bg-neutral-800 text-neutral-400 border-neutral-700' : 'bg-slate-200 text-slate-600 border-slate-300'}`}>WFM NOTES</span>
+                  </div>
+                  <div className="p-4 space-y-4">
+                    <div>
+                      <div className={`flex items-center gap-1.5 font-semibold mb-1.5 text-sm ${isDark ? 'text-neutral-200' : 'text-slate-800'}`}>
+                        <div className="w-2 h-2 rounded-full bg-amber-400"></div>
+                        Mitigations made:
+                      </div>
+                      <ul className={`text-xs pl-4 space-y-1.5 list-disc ml-2 ${isDark ? 'text-neutral-400' : 'text-slate-600'}`}>
+                        {opsLog.mitigations.selected.map((item, i) => <li key={i}>{item}</li>)}
+                        {opsLog.mitigations.custom && <li>{opsLog.mitigations.custom}</li>}
+                        {opsLog.mitigations.selected.length === 0 && !opsLog.mitigations.custom && <li className="list-none -ml-4 italic opacity-50">No mitigations logged.</li>}
+                      </ul>
+                    </div>
+                    <div>
+                      <div className={`flex items-center gap-1.5 font-semibold mb-1.5 text-sm ${isDark ? 'text-neutral-200' : 'text-slate-800'}`}>
+                        <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                        Causes of High Abandonment:
+                      </div>
+                      <ul className={`text-xs pl-4 space-y-1.5 list-disc ml-2 ${isDark ? 'text-neutral-400' : 'text-slate-600'}`}>
+                        {opsLog.causes.selected.map((item, i) => <li key={i}>{item}</li>)}
+                        {opsLog.causes.custom && <li>{opsLog.causes.custom}</li>}
+                        {opsLog.causes.selected.length === 0 && !opsLog.causes.custom && <li className="list-none -ml-4 italic opacity-50">No causes logged.</li>}
+                      </ul>
+                    </div>
+                    <div>
+                      <div className={`flex items-center gap-1.5 font-semibold mb-1.5 text-sm ${isDark ? 'text-neutral-200' : 'text-slate-800'}`}>
+                        <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                        Keynotes:
+                      </div>
+                      <ul className={`text-xs pl-4 space-y-1.5 list-disc ml-2 ${isDark ? 'text-neutral-400' : 'text-slate-600'}`}>
+                        {opsLog.keynotes.selected.map((item, i) => <li key={i}>{item}</li>)}
+                        {opsLog.keynotes.custom && <li>{opsLog.keynotes.custom}</li>}
+                        {opsLog.keynotes.selected.length === 0 && !opsLog.keynotes.custom && <li className="list-none -ml-4 italic opacity-50">No keynotes logged.</li>}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'Support' && (
+             <LOBDetailView title="Support Operations" data={lobData.support} />
+          )}
+          {activeTab === 'Sales' && (
+             <LOBDetailView title="Sales Operations" data={lobData.sales} />
+          )}
+          {activeTab === 'Service Recovery' && (
+             <LOBDetailView title="Service Recovery" data={lobData.serviceRecovery} />
+          )}
+        </div>
+
+        {/* AI Insights Modal */}
+        {aiModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <div className={`${isDark ? 'bg-neutral-900 border-neutral-800' : 'bg-white border-slate-200'} rounded-lg shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[80vh] border`}>
+              <div className={`px-5 py-4 border-b flex justify-between items-center ${isDark ? 'border-neutral-800 bg-neutral-900/50' : 'border-slate-100 bg-slate-50'}`}>
+                <h3 className={`text-sm font-semibold flex items-center gap-2 ${t.textMain}`}>
+                  {aiModalTitle}
+                </h3>
+                <button 
+                  onClick={() => setAiModalOpen(false)}
+                  className={`p-1 rounded transition-colors ${isDark ? 'text-neutral-400 hover:text-white hover:bg-neutral-800' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-200'}`}
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              
+              <div className={`p-5 overflow-y-auto ${isDark ? 'bg-neutral-900' : 'bg-white'}`}>
+                {aiLoading ? (
+                  <div className={`flex flex-col items-center justify-center py-10 ${isDark ? 'text-neutral-400' : 'text-slate-500'}`}>
+                    <Loader2 className={`w-8 h-8 animate-spin mb-3 ${isDark ? 'text-neutral-500' : 'text-slate-400'}`} />
+                    <p className="text-sm font-medium">Analyzing operations data...</p>
+                  </div>
+                ) : (
+                  <div className={`prose ${isDark ? 'prose-invert text-neutral-300' : 'prose-slate text-slate-700'} prose-sm max-w-none whitespace-pre-wrap leading-relaxed`}>
+                    {aiResponse.split('\n').map((line, i) => {
+                      const formattedLine = line.split(/(\*\*.*?\*\*)/g).map((part, j) => 
+                        part.startsWith('**') && part.endsWith('**') ? 
+                          <strong key={j} className={`font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>{part.slice(2, -2)}</strong> : part
+                      );
+                      return <div key={i} className="mb-2">{formattedLine}</div>;
+                    })}
+                  </div>
+                )}
+              </div>
+              
+              <div className={`px-5 py-3 border-t flex justify-end ${isDark ? 'border-neutral-800 bg-neutral-900/50' : 'border-slate-100 bg-slate-50'}`}>
+                <button 
+                  onClick={() => setAiModalOpen(false)}
+                  className={`px-4 py-1.5 rounded-md text-xs font-medium transition-colors shadow-sm border ${isDark ? 'bg-neutral-800 border-neutral-700 text-neutral-200 hover:bg-neutral-700' : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'}`}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Control Panel Sidebar */}
+        {isSidebarOpen && (
+          <div className="fixed inset-0 z-[100] flex justify-end">
+            <div className={`absolute inset-0 backdrop-blur-sm transition-opacity ${isDark ? 'bg-black/60' : 'bg-slate-900/20'}`} onClick={() => setIsSidebarOpen(false)}></div>
+            <div className={`relative w-full max-w-[450px] h-full shadow-2xl flex flex-col animate-in slide-in-from-right overflow-y-auto border-l ${isDark ? 'bg-neutral-900 border-neutral-800' : 'bg-white border-slate-200'}`}>
+              
+              <div className={`px-5 py-4 border-b flex justify-between items-center sticky top-0 z-10 ${isDark ? 'border-neutral-800 bg-neutral-900' : 'border-slate-200 bg-white shadow-sm'}`}>
+                <h3 className={`text-sm font-semibold flex items-center gap-2 ${t.textMain}`}>
+                  <Settings className={`w-4 h-4 ${isDark ? 'text-neutral-400' : 'text-slate-500'}`} /> Control Panel
+                </h3>
+                <button onClick={() => setIsSidebarOpen(false)} className={`p-1 rounded transition-colors ${isDark ? 'text-neutral-400 hover:text-white hover:bg-neutral-800' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'}`}>
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-6">
+                
+                <div className="space-y-3">
+                  <h4 className={`text-[11px] font-bold uppercase tracking-wide border-b pb-1 ${isDark ? 'text-neutral-400 border-neutral-800' : 'text-slate-500 border-slate-200'}`}>Data Import</h4>
+                  <div className={`border border-dashed rounded-lg p-5 flex flex-col items-center justify-center text-center transition-colors ${isDark ? 'border-neutral-700 bg-neutral-900 hover:bg-neutral-800/50' : 'border-slate-300 bg-slate-50 hover:bg-slate-100'}`}>
+                    <Upload className={`w-5 h-5 mb-2 ${isDark ? 'text-neutral-500' : 'text-slate-400'}`} />
+                    <p className={`text-xs font-medium mb-3 ${isDark ? 'text-neutral-300' : 'text-slate-600'}`}>Upload CSV to sync dashboard</p>
+                    <input 
+                      type="file" 
+                      accept=".csv" 
+                      className={`text-[10px] file:mr-4 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-[10px] file:font-medium cursor-pointer ${
+                        isDark 
+                          ? 'text-neutral-400 file:bg-neutral-800 file:border file:border-neutral-700 file:text-neutral-200 hover:file:bg-neutral-700' 
+                          : 'text-slate-500 file:bg-white file:border file:border-slate-200 file:text-slate-700 hover:file:bg-slate-50'
+                      }`} 
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h4 className={`text-[11px] font-bold uppercase tracking-wide border-b pb-1 ${isDark ? 'text-neutral-400 border-neutral-800' : 'text-slate-500 border-slate-200'}`}>Edit LOB Metrics</h4>
+                  
+                  {['support', 'sales', 'serviceRecovery'].map(lob => (
+                    <div key={lob} className={`p-3.5 rounded-xl border shadow-sm space-y-4 ${isDark ? 'bg-neutral-950 border-neutral-800' : 'bg-slate-50 border-slate-200'}`}>
+                      <h5 className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-neutral-300' : 'text-slate-800'}`}>
+                        {lob === 'serviceRecovery' ? 'Service Recovery' : lob}
+                      </h5>
+                      
+                      {/* Edit Chat Metrics */}
+                      <div className="space-y-2">
+                        <div className={`text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 ${isDark ? 'text-neutral-400' : 'text-slate-400'}`}>
+                           <MessageSquare className="w-3 h-3 text-blue-500" /> Chat
+                        </div>
+                        <div className="flex gap-2">
+                          <div className="flex-1">
+                            <label className={`text-[9px] font-medium ${isDark ? 'text-neutral-500' : 'text-slate-500'}`}>Inbound</label>
+                            <input 
+                              type="text" 
+                              value={lobData[lob].chat.inbound} 
+                              onChange={(e) => updateLobMetric(lob, 'chat', 'inbound', e.target.value)}
+                              className={`w-full mt-1 px-2 py-1 text-xs font-semibold border rounded outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 ${t.inputBg} ${t.inputBorder} ${t.textMain}`} 
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <label className={`text-[9px] font-medium ${isDark ? 'text-neutral-500' : 'text-slate-500'}`}>Abandoned</label>
+                            <input 
+                              type="text" 
+                              value={lobData[lob].chat.abandoned} 
+                              onChange={(e) => updateLobMetric(lob, 'chat', 'abandoned', e.target.value)}
+                              className={`w-full mt-1 px-2 py-1 text-xs font-semibold border rounded outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 ${t.inputBg} ${t.inputBorder} ${t.textMain}`} 
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <label className={`text-[9px] font-medium ${isDark ? 'text-neutral-500' : 'text-slate-500'}`}>SLA %</label>
+                            <input 
+                              type="text" 
+                              value={lobData[lob].chat.sla} 
+                              onChange={(e) => updateLobMetric(lob, 'chat', 'sla', e.target.value)}
+                              className={`w-full mt-1 px-2 py-1 text-xs font-semibold border rounded outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 ${t.inputBg} ${t.inputBorder} ${t.textMain}`} 
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Edit Voice Metrics */}
+                      <div className="space-y-2">
+                        <div className={`text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 ${isDark ? 'text-neutral-400' : 'text-slate-400'}`}>
+                           <PhoneCall className="w-3 h-3 text-indigo-500" /> Voice
+                        </div>
+                        <div className="flex gap-2">
+                          <div className="flex-1">
+                            <label className={`text-[9px] font-medium ${isDark ? 'text-neutral-500' : 'text-slate-500'}`}>Inbound</label>
+                            <input 
+                              type="text" 
+                              value={lobData[lob].calls.inbound} 
+                              onChange={(e) => updateLobMetric(lob, 'calls', 'inbound', e.target.value)}
+                              className={`w-full mt-1 px-2 py-1 text-xs font-semibold border rounded outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 ${t.inputBg} ${t.inputBorder} ${t.textMain}`} 
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <label className={`text-[9px] font-medium ${isDark ? 'text-neutral-500' : 'text-slate-500'}`}>Abandoned</label>
+                            <input 
+                              type="text" 
+                              value={lobData[lob].calls.abandoned} 
+                              onChange={(e) => updateLobMetric(lob, 'calls', 'abandoned', e.target.value)}
+                              className={`w-full mt-1 px-2 py-1 text-xs font-semibold border rounded outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 ${t.inputBg} ${t.inputBorder} ${t.textMain}`} 
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <label className={`text-[9px] font-medium ${isDark ? 'text-neutral-500' : 'text-slate-500'}`}>SLA %</label>
+                            <input 
+                              type="text" 
+                              value={lobData[lob].calls.sla} 
+                              onChange={(e) => updateLobMetric(lob, 'calls', 'sla', e.target.value)}
+                              className={`w-full mt-1 px-2 py-1 text-xs font-semibold border rounded outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 ${t.inputBg} ${t.inputBorder} ${t.textMain}`} 
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                    </div>
+                  ))}
+                </div>
+
+                <div className="space-y-3">
+                  <h4 className={`text-[11px] font-bold uppercase tracking-wide border-b pb-1 ${isDark ? 'text-neutral-400 border-neutral-800' : 'text-slate-500 border-slate-200'}`}>Email Productivity</h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    {['closed', 'assigned', 'replied', 'sent'].map(field => (
+                      <div key={field}>
+                        <label className={`text-[10px] font-medium uppercase ${isDark ? 'text-neutral-500' : 'text-slate-500'}`}>{field}</label>
+                        <input 
+                          type="number" 
+                          value={emailData[field]} 
+                          onChange={(e) => setEmailData(prev => ({...prev, [field]: parseInt(e.target.value) || 0}))}
+                          className={`w-full mt-1 px-2.5 py-1.5 text-xs font-semibold border rounded outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 ${t.inputBg} ${t.inputBorder} ${t.textMain}`} 
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-6 pb-8">
+                  <h4 className={`text-[11px] font-bold uppercase tracking-wide border-b pb-1 ${isDark ? 'text-neutral-400 border-neutral-800' : 'text-slate-500 border-slate-200'}`}>Shift Operations Log</h4>
+                  
+                  {['mitigations', 'causes', 'keynotes'].map(field => {
+                    const data = opsLog[field];
+                    const presets = opsLogPresets[field];
+                    
+                    const togglePreset = (preset) => {
+                      setOpsLog(prev => ({
+                        ...prev,
+                        [field]: {
+                          ...prev[field],
+                          selected: prev[field].selected.includes(preset)
+                            ? prev[field].selected.filter(p => p !== preset)
+                            : [...prev[field].selected, preset]
+                        }
+                      }));
+                    };
+
+                    const dotColor = field === 'mitigations' ? 'bg-amber-400' : field === 'causes' ? 'bg-red-500' : 'bg-emerald-500';
+                    const title = field === 'mitigations' ? 'Mitigations Made' : field === 'causes' ? 'Causes of Abandonment' : 'Keynotes';
+
+                    return (
+                      <div key={field} className="space-y-2">
+                        <label className={`text-[10px] font-medium uppercase flex items-center gap-1.5 ${isDark ? 'text-neutral-400' : 'text-slate-500'}`}>
+                          <div className={`w-1.5 h-1.5 rounded-full ${dotColor}`}></div> {title}
+                        </label>
+                        
+                        {/* Multi-select Pills */}
+                        <div className="flex flex-wrap gap-1.5">
+                          {presets.map(preset => {
+                            const isSelected = data.selected.includes(preset);
+                            return (
+                              <button
+                                key={preset}
+                                onClick={() => togglePreset(preset)}
+                                className={`px-2 py-1 text-[10px] font-semibold rounded border transition-colors ${
+                                  isSelected 
+                                    ? (isDark ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/50' : 'bg-indigo-50 text-indigo-700 border-indigo-200')
+                                    : (isDark ? 'bg-transparent text-neutral-500 border-neutral-700 hover:border-neutral-500' : 'bg-transparent text-slate-500 border-slate-300 hover:border-slate-400')
+                                }`}
+                              >
+                                {preset}
+                              </button>
+                            );
+                          })}
+                          
+                          {/* Custom Edit Toggle */}
+                          <button
+                            onClick={() => setOpsLog(prev => ({...prev, [field]: {...prev[field], showCustom: !prev[field].showCustom}}))}
+                            className={`px-2 py-1 text-[10px] font-semibold rounded border border-dashed transition-colors ${
+                              data.showCustom
+                                ? (isDark ? 'bg-neutral-800 text-white border-neutral-600' : 'bg-slate-200 text-slate-800 border-slate-400')
+                                : (isDark ? 'bg-transparent text-neutral-500 border-neutral-700 hover:border-neutral-500' : 'bg-transparent text-slate-500 border-slate-300 hover:border-slate-400')
+                            }`}
+                          >
+                            + Custom Edit
+                          </button>
+                        </div>
+
+                        {/* Custom Textarea */}
+                        {data.showCustom && (
+                          <textarea
+                            value={data.custom}
+                            onChange={(e) => setOpsLog(prev => ({...prev, [field]: {...prev[field], custom: e.target.value}}))}
+                            placeholder={`Type custom ${field} note here...`}
+                            className={`w-full mt-2 px-2.5 py-2 text-xs font-medium border rounded outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 min-h-[50px] ${t.inputBg} ${t.inputBorder} ${t.textMain}`}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Toast Notification System */}
+        {toast.show && (
+          <div className={`fixed bottom-6 right-6 px-4 py-3 rounded-lg shadow-lg border flex items-center gap-2 z-[200] animate-in slide-in-from-bottom-5 ${
+            toast.type === 'success' ? (isDark ? 'bg-neutral-900 border-green-900/50 text-green-400' : 'bg-white border-emerald-200 text-emerald-800') : toast.type === 'error' ? (isDark ? 'bg-neutral-900 border-red-900/50 text-red-400' : 'bg-white border-red-200 text-red-800') : (isDark ? 'bg-neutral-900 border-neutral-700 text-neutral-200' : 'bg-white border-slate-200 text-slate-800')
+          }`}>
+            {toast.type === 'success' ? <CheckCircle2 className={`w-4 h-4 ${isDark ? 'text-green-500' : 'text-emerald-500'}`} /> : <Activity className={`w-4 h-4 ${isDark ? 'text-neutral-500' : 'text-slate-500'}`} />}
+            <span className="text-xs font-semibold">{toast.message}</span>
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}
