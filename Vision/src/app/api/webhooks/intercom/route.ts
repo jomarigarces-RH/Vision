@@ -20,11 +20,33 @@ export async function POST(req: Request) {
       return NextResponse.json({ status: 'ignored', reason: 'No conversation item found' });
     }
 
-    // 1. Map department (Intercom team) to our dashboard departments
+    // 1. Map department and channel using Team Names AND Tags
     let mappedDept = 'Support Operations';
-    const teamName = conversation.team_assignee?.name || 'Support';
-    if (teamName.toLowerCase().includes('sales')) mappedDept = 'Sales Operations';
-    if (teamName.toLowerCase().includes('recovery')) mappedDept = 'Service Recovery';
+    let mappedChannel = 'Chat';
+    
+    // Extract metadata for better matching
+    const teamName = (conversation.team_assignee?.name || '').toLowerCase();
+    const tags = (conversation.tags?.tags || []).map((t: any) => t.name.toLowerCase());
+    const allIdentifiers = [teamName, ...tags].join(' ');
+
+    // Department Mapping
+    if (allIdentifiers.includes('sales')) mappedDept = 'Sales Operations';
+    else if (allIdentifiers.includes('recovery')) mappedDept = 'Service Recovery';
+
+    // Channel Mapping (Voice vs Chat)
+    const sourceType = (conversation.source?.type || '').toLowerCase();
+    const deliveryMethod = (conversation.source?.delivery_method || '').toLowerCase();
+    
+    if (
+      allIdentifiers.includes('voice') || 
+      allIdentifiers.includes('phone') || 
+      allIdentifiers.includes('call') ||
+      sourceType === 'phone' || 
+      sourceType === 'call' || 
+      deliveryMethod === 'phone'
+    ) {
+      mappedChannel = 'Voice';
+    }
 
     const today = new Date().toISOString().split('T')[0];
     const stats = conversation.statistics;
@@ -65,17 +87,6 @@ export async function POST(req: Request) {
 
     if (!shouldUpdate) {
       return NextResponse.json({ status: 'ignored', reason: 'Non-matching event workflow' });
-    }
-
-    console.log(`[Webhook] ${eventType} for ${mappedDept}. SLA: ${isSlaPass}, Abandon: ${isAbandon}, Queue: ${queueTime}s, AHT: ${handleTime}s`);
-
-    // 2. Detect Channel (Chat vs Voice)
-    let mappedChannel = 'Chat';
-    const sourceType = conversation.source?.type?.toLowerCase();
-    
-    // Most Intercom voice integrations (like Aircall) use 'phone' or 'call' as the source type
-    if (sourceType === 'phone' || sourceType === 'call' || conversation.source?.delivery_method === 'phone') {
-      mappedChannel = 'Voice';
     }
 
     console.log(`[Webhook] ${eventType} for ${mappedDept} [${mappedChannel}]. SLA: ${isSlaPass}, Abandon: ${isAbandon}, Queue: ${queueTime}s, AHT: ${handleTime}s`);
