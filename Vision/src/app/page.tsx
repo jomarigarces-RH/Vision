@@ -905,7 +905,7 @@ export default function Dashboard() {
                 </div>
                 <button 
                   onClick={() => setActiveView('settings')}
-                  className="w-full text-left px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center gap-2"
+                  className="w-full text-left px-4 py-2 text-xs font-bold text-[var(--text-secondary)] hover:bg-white/5 transition-all flex items-center gap-2"
                 >
                   <SettingsIcon size={14} />
                   Settings
@@ -1005,23 +1005,23 @@ export default function Dashboard() {
                         />
                       </div>
                     </div>
-                    <div className="h-[200px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
+                    <div className="h-[200px] w-full relative">
+                      <ResponsiveContainer width="99%" height="100%">
                         <BarChart data={notObservedStats} barGap={2}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
-                          <Tooltip
-                            cursor={{ fill: '#F8FAFC' }}
-                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                            formatter={(val: any, name: any, props: any) => [`${val} Agents`, props.payload.fullName]}
-                          />
-                          <Bar dataKey="val" fill="#EF4444" radius={[2, 2, 0, 0]} barSize={16} />
-                          <XAxis
-                            dataKey="name"
-                            axisLine={false}
-                            tickLine={false}
-                            tick={{ fontSize: 8, fontWeight: 700, fill: '#64748b' }}
-                            interval={0}
-                          />
+                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#222" />
+                           <Tooltip
+                             cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                             contentStyle={{ backgroundColor: '#141414', border: '1px solid #222', borderRadius: '8px' }}
+                             formatter={(val: any, name: any, props: any) => [`${val} Agents`, props.payload.fullName]}
+                           />
+                           <Bar dataKey="val" fill="#EF4444" radius={[2, 2, 0, 0]} barSize={16} />
+                           <XAxis
+                             dataKey="name"
+                             axisLine={false}
+                             tickLine={false}
+                             tick={{ fontSize: 8, fontWeight: 700, fill: 'var(--text-secondary)' }}
+                             interval={0}
+                           />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -1042,22 +1042,22 @@ export default function Dashboard() {
                       </button>
                     </div>
                     <div className="flex flex-col gap-3">
-                      {recentObservations.slice(0, 3).map((obs, i) => (
+                       {recentObservations.slice(0, 3).map((obs, i) => (
                         <div
                           key={i}
-                          className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-xl cursor-pointer transition-colors group"
+                          className="flex items-center gap-3 p-2 hover:bg-white/5 rounded-xl cursor-pointer transition-colors group"
                           onClick={() => setSelectedObs(obs)}
                         >
-                          <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-xs" style={{ backgroundColor: getAvatarColor(obs.agentName) }}>
+                          <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-xs shadow-md" style={{ backgroundColor: getAvatarColor(obs.agentName) }}>
                             {getInitials(obs.agentName)}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <h4 className="font-bold text-sm text-slate-800 truncate">{obs.agentName}</h4>
-                            <p className="text-[11px] text-slate-400 font-medium">By {obs.coachName} • {obs.date}</p>
+                            <h4 className="font-bold text-sm text-[var(--text-primary)] truncate">{obs.agentName}</h4>
+                            <p className="text-[11px] text-[var(--text-secondary)] font-medium">By {obs.coachName} • {obs.date}</p>
                           </div>
                           <div className="text-right">
                             <div className="text-sm font-bold text-brand-blue">{obs.rating}%</div>
-                            <div className="text-[9px] font-bold text-slate-400 uppercase">Score</div>
+                            <div className="text-[9px] font-bold text-[var(--text-tertiary)] uppercase">Score</div>
                           </div>
                         </div>
                       ))}
@@ -1076,13 +1076,13 @@ export default function Dashboard() {
                       <h2 className="font-bold text-lg text-[var(--text-primary)]">Observation Index</h2>
                       <p className="text-[11px] text-[var(--text-secondary)] font-medium">Daily observation trend lines per LOB over the selected period.</p>
                     </div>
-                    <div className="h-[200px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
+                    <div className="h-[200px] w-full relative">
+                      <ResponsiveContainer width="99%" height="100%">
                         <LineChart data={observationTrendData}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
-                          <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#64748b' }} />
-                          <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#64748b' }} />
-                          <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#222" />
+                          <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: 'var(--text-secondary)' }} />
+                          <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: 'var(--text-secondary)' }} />
+                          <Tooltip contentStyle={{ backgroundColor: '#141414', border: '1px solid #222', borderRadius: '8px' }} />
                           <Line type="monotone" dataKey="Sales" stroke="#4F7DF3" strokeWidth={2} dot={{ r: 2 }} name="Sales" />
                           <Line type="monotone" dataKey="Support" stroke="#10B981" strokeWidth={2} dot={{ r: 2 }} name="Support" />
                           <Line type="monotone" dataKey="Specialty" stroke="#F59E0B" strokeWidth={2} dot={{ r: 2 }} name="Specialty" />
@@ -1098,7 +1098,7 @@ export default function Dashboard() {
                       <p className="text-[11px] text-[var(--text-secondary)] font-medium">Percentage of agents observed per department during the selected period.</p>
                     </div>
                     <div className="h-[200px] w-full flex items-center justify-center relative">
-                      <ResponsiveContainer width="100%" height="100%">
+                      <ResponsiveContainer width="99%" height="100%">
                         <PieChart>
                           <Pie
                             data={lobsStats}
@@ -1112,19 +1112,19 @@ export default function Dashboard() {
                           >
                             {lobsStats.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
                           </Pie>
-                          <Tooltip formatter={(val: any) => `${val}% Completed`} />
+                          <Tooltip contentStyle={{ backgroundColor: '#141414', border: '1px solid #222', borderRadius: '8px' }} formatter={(val: any) => `${val}% Completed`} />
                         </PieChart>
                       </ResponsiveContainer>
                       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                        <span className="text-3xl font-bold text-slate-800">{overallCompletion}%</span>
-                        <span className="text-xs text-slate-500">Overall</span>
+                        <span className="text-3xl font-bold text-[var(--text-primary)]">{overallCompletion}%</span>
+                        <span className="text-xs text-[var(--text-secondary)]">Overall</span>
                       </div>
                     </div>
                     <div className="flex justify-center gap-4 mt-2">
                       {lobsStats.map((s, i) => (
                         <div key={i} className="flex items-center gap-1.5">
                           <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.color }}></div>
-                          <span className="text-[10px] font-bold text-slate-500 uppercase">{s.name}</span>
+                          <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase">{s.name}</span>
                         </div>
                       ))}
                     </div>
@@ -1156,12 +1156,12 @@ export default function Dashboard() {
                             {i + 1}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <h4 className="font-bold text-sm text-slate-700 truncate">{agent.name}</h4>
-                            <p className="text-[10px] text-slate-400 font-medium">Coach: {agent.coach} • {agent.lob}</p>
+                            <h4 className="font-bold text-sm text-[var(--text-primary)] truncate">{agent.name}</h4>
+                            <p className="text-[10px] text-[var(--text-secondary)] font-medium">Coach: {agent.coach} • {agent.lob}</p>
                           </div>
                           <div className="text-right">
                              <div className="text-sm font-black text-rose-500">{agent.totalWeeksMissed}</div>
-                             <div className="text-[8px] font-bold text-slate-400 uppercase">Weeks Missed</div>
+                             <div className="text-[8px] font-bold text-[var(--text-secondary)] uppercase">Weeks Missed</div>
                           </div>
                         </div>
                       ))}
@@ -1183,8 +1183,8 @@ export default function Dashboard() {
                       {lobsStats.map((stat, i) => (
                         <div key={i} className="space-y-1.5">
                           <div className="flex justify-between text-sm">
-                            <span className="font-bold text-slate-700">{stat.name}</span>
-                            <span className="text-slate-500 font-medium">{stat.observed} / {stat.total}</span>
+                            <span className="font-bold text-[var(--text-primary)]">{stat.name}</span>
+                            <span className="text-[var(--text-secondary)] font-medium">{stat.observed} / {stat.total}</span>
                           </div>
                           <div className="h-2.5 w-full bg-white/5 rounded-full overflow-hidden shadow-inner">
                             <div
@@ -1193,7 +1193,7 @@ export default function Dashboard() {
                             />
                           </div>
                           <div className="flex justify-end">
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded shadow-sm ${stat.value === 100 ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-slate-50 text-slate-500 border border-slate-100'}`}>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded shadow-sm ${stat.value === 100 ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-white/5 text-[var(--text-secondary)] border border-[var(--border-light)]'}`}>
                               {stat.value}% COMPLETE
                             </span>
                           </div>
@@ -1219,7 +1219,7 @@ export default function Dashboard() {
 
                     <div className="flex flex-col">
                       {/* Mini Header */}
-                      <div className="grid grid-cols-5 gap-1 mb-2 px-1 text-[9px] font-bold text-slate-400 uppercase tracking-tighter">
+                      <div className="grid grid-cols-5 gap-1 mb-2 px-1 text-[9px] font-bold text-[var(--text-secondary)] uppercase tracking-tighter">
                         <div className="col-span-2">Agent</div>
                         <div className="text-center">TW</div>
                         <div className="text-center">LW</div>
@@ -1232,7 +1232,7 @@ export default function Dashboard() {
                           return (
                             <div key={i} className="grid grid-cols-5 gap-1 items-center p-2 hover:bg-white/5 rounded-lg transition-colors border border-transparent hover:border-[var(--border-light)] group">
                               <div className="col-span-2 flex items-center gap-2 min-w-0">
-                                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${i < 3 ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-600'}`}>
+                                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${i < 3 ? 'bg-amber-100 text-amber-600' : 'bg-white/5 text-[var(--text-secondary)]'}`}>
                                   {i + 1}
                                 </div>
                                 <span className="text-[11px] font-bold text-[var(--text-primary)] opacity-80 truncate group-hover:text-brand-blue transition-colors">{agent.name}</span>
@@ -1266,7 +1266,7 @@ export default function Dashboard() {
                   <h2 className="text-2xl font-bold text-[var(--text-primary)]">Coaches List</h2>
                   <p className="text-[var(--text-secondary)] mt-1">Manage and observe all assigned coaches.</p>
                 </div>
-                <div className="bg-white border border-[var(--border-light)] rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] shadow-sm">
+                <div className="bg-[var(--bg-card)] border border-[var(--border-light)] rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] shadow-sm">
                   Showing <span className="font-bold text-[var(--text-primary)]">{COACHES.length}</span> coaches
                 </div>
               </div>
@@ -1275,8 +1275,8 @@ export default function Dashboard() {
                 {/* Table Header */}
                 <div className="bg-white/5 border-b border-[var(--border-light)] flex items-center px-4 py-3 gap-4">
                   <div className="w-10 shrink-0"></div>
-                  <div className="flex-1 font-bold text-xs text-slate-500 uppercase tracking-wider">Coach Details</div>
-                  <div className="hidden sm:grid grid-cols-4 gap-4 flex-1 max-w-[450px] font-bold text-[10px] text-slate-400 uppercase tracking-widest text-center">
+                  <div className="flex-1 font-bold text-xs text-[var(--text-secondary)] uppercase tracking-wider">Coach Details</div>
+                  <div className="hidden sm:grid grid-cols-4 gap-4 flex-1 max-w-[450px] font-bold text-[10px] text-[var(--text-secondary)] uppercase tracking-widest text-center">
                     <div>This Week</div>
                     <div>Last Week</div>
                     <div>All Time</div>
@@ -1295,7 +1295,7 @@ export default function Dashboard() {
                     const allTime = getCoachPeriodCount(coach.name);
 
                     const wow = thisWeek - lastWeek;
-                    const wowColor = wow > 0 ? 'text-emerald-500 bg-emerald-500/10' : wow < 0 ? 'text-rose-500 bg-rose-500/10' : 'text-slate-400 bg-slate-500/10';
+                    const wowColor = wow > 0 ? 'text-emerald-500 bg-emerald-500/10' : wow < 0 ? 'text-rose-500 bg-rose-500/10' : 'text-slate-400 bg-white/5';
 
                     return (
                       <div
@@ -1310,9 +1310,9 @@ export default function Dashboard() {
                           {initials}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h3 className="font-bold text-slate-800 truncate group-hover:text-brand-blue transition-colors">{coach.name}</h3>
+                          <h3 className="font-bold text-[var(--text-primary)] truncate group-hover:text-brand-blue transition-colors">{coach.name}</h3>
                           <div className="flex items-center gap-2">
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${coach.dept === 'Sales' ? 'bg-blue-50 text-blue-600' : coach.dept === 'Support' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${coach.dept === 'Sales' ? 'bg-blue-500/10 text-blue-400' : coach.dept === 'Support' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'
                               }`}>{coach.dept}</span>
                           </div>
                         </div>
@@ -1355,7 +1355,7 @@ export default function Dashboard() {
                       onClick={() => setSelectedDept(dept)}
                       className={`px-3 py-1.5 text-sm font-semibold rounded-lg transition-colors ${selectedDept === dept
                           ? 'bg-brand-blue text-white shadow-sm'
-                          : 'bg-white border border-[var(--border-light)] text-slate-600 hover:bg-slate-50'
+                          : 'bg-[var(--bg-card)] border border-[var(--border-light)] text-[var(--text-secondary)] hover:bg-white/5'
                         }`}
                     >
                       {dept}
@@ -1469,7 +1469,7 @@ export default function Dashboard() {
                       setDeleteMode(!deleteMode);
                       setSelectedForDeletion(new Set());
                     }}
-                    className={`px-4 py-2 font-bold rounded-lg transition-colors shadow-sm ${deleteMode ? 'bg-slate-800 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                    className={`px-4 py-2 font-bold rounded-lg transition-colors shadow-sm ${deleteMode ? 'bg-slate-800 text-white' : 'bg-[var(--bg-card)] border border-[var(--border-light)] text-[var(--text-secondary)] hover:bg-white/5'}`}
                   >
                     {deleteMode ? 'Cancel Selection' : 'Manage Data'}
                   </button>
@@ -1505,11 +1505,11 @@ export default function Dashboard() {
                           }`}
                       >
                         <div className="text-xs font-black text-brand-blue bg-blue-50 px-2 py-1 rounded w-fit">{obs._id.slice(-8).toUpperCase()}</div>
-                        <div className="font-bold text-sm text-slate-700 truncate">{obs.agentName}</div>
-                        <div className="text-sm text-slate-500 truncate">{obs.coachName}</div>
-                        <div className="text-sm text-slate-400 text-center">{obs.date}</div>
+                        <div className="font-bold text-sm text-[var(--text-primary)] truncate">{obs.agentName}</div>
+                        <div className="text-sm text-[var(--text-secondary)] truncate">{obs.coachName}</div>
+                        <div className="text-sm text-[var(--text-secondary)] text-center">{obs.date}</div>
                         <div className="text-right pr-4">
-                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${obs.department.includes('Sales') ? 'bg-blue-50 text-blue-600' : obs.department.includes('Support') ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${obs.department.includes('Sales') ? 'bg-blue-500/10 text-blue-400' : obs.department.includes('Support') ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'
                             }`}>
                             {obs.department[0]}
                           </span>
@@ -1536,7 +1536,7 @@ export default function Dashboard() {
                   <p className="text-[var(--text-secondary)] mt-1 font-medium text-xs">Compare Sales Agents and Support Agents</p>
                 </div>
                 <div className="flex items-center gap-2">
-                   <div className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold text-slate-500 flex items-center gap-2 shadow-sm">
+                   <div className="bg-[var(--bg-card)] border border-[var(--border-light)] rounded-lg px-3 py-2 text-xs font-bold text-[var(--text-secondary)] flex items-center gap-2 shadow-sm">
                       <Calendar size={14} className="text-brand-blue" />
                       OCT 1 - OCT 31, 2023
                       <ChevronDown size={14} />
@@ -1547,19 +1547,19 @@ export default function Dashboard() {
               {/* Summary Cards */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                 {businessVolumeData.summary.map((card, i) => (
-                  <div key={i} className="bg-white rounded-2xl p-6 shadow-[var(--shadow-sm)] border border-[var(--border-light)] flex flex-col justify-between group hover:border-brand-blue/30 transition-all">
+                  <div key={i} className="bg-[var(--bg-card)] rounded-2xl p-6 shadow-[var(--shadow-sm)] border border-[var(--border-light)] flex flex-col justify-between group hover:border-brand-blue/30 transition-all">
                     <div>
-                      <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">{card.label}:</p>
+                      <p className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-1">{card.label}:</p>
                       <div className="flex items-baseline gap-3">
-                         <p className="text-4xl font-black text-slate-800">{card.value}</p>
+                         <p className="text-4xl font-black text-[var(--text-primary)]">{card.value}</p>
                          {card.type === 'agents' && card.sub && (
-                           <div className="flex flex-col text-[10px] font-bold text-slate-500">
+                           <div className="flex flex-col text-[10px] font-bold text-[var(--text-secondary)]">
                               <span className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-brand-blue"></div> {card.sub.sales} Sales</span>
-                              <span className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-orange-400"></div> {card.sub.support} Support</span>
+                              <span className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-500"></div> {card.sub.support} Support</span>
                            </div>
                          )}
                          {card.type === 'volume' && card.sub && (
-                           <div className="flex flex-col text-[10px] font-bold text-slate-500">
+                           <div className="flex flex-col text-[10px] font-bold text-[var(--text-secondary)]">
                               <span className="flex items-center gap-1.5">📞 {card.sub.calls} Calls</span>
                               <span className="flex items-center gap-1.5">💬 {card.sub.chats} Chats</span>
                            </div>
@@ -1573,15 +1573,15 @@ export default function Dashboard() {
               {/* Charts Row */}
               <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
                 {/* Workload Comparison */}
-                <div className="xl:col-span-2 bg-white rounded-2xl p-6 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
-                   <h3 className="font-bold text-slate-800 mb-1">Agent Workload Comparison (Calls & Chats)</h3>
+                <div className="xl:col-span-2 bg-[var(--bg-card)] rounded-2xl p-6 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
+                   <h3 className="font-bold text-[var(--text-primary)] mb-1">Agent Workload Comparison (Calls & Chats)</h3>
                    <div className="h-[300px] w-full mt-6">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={businessVolumeData.workload} barGap={12}>
-                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                           <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 700, fill: '#64748b' }} />
-                           <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 700, fill: '#64748b' }} />
-                           <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
+                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#222" />
+                           <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 700, fill: 'var(--text-secondary)' }} />
+                           <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 700, fill: 'var(--text-secondary)' }} />
+                           <Tooltip cursor={{ fill: 'rgba(255,255,255,0.05)' }} contentStyle={{ backgroundColor: '#141414', border: '1px solid #222', borderRadius: '12px' }} />
                            <Bar dataKey="salesCalls" stackId="a" fill="#1E3A6E" radius={[0, 0, 0, 0]} barSize={40} name="Sales Calls" />
                            <Bar dataKey="supportCalls" stackId="a" fill="#4F7DF3" radius={[4, 4, 0, 0]} barSize={40} name="Support Calls" />
                            <Bar dataKey="salesChats" stackId="b" fill="#F97316" radius={[0, 0, 0, 0]} barSize={40} name="Sales Chats" />
@@ -1596,7 +1596,7 @@ export default function Dashboard() {
                         { label: 'Sales Chats', color: 'bg-[#F97316]' },
                         { label: 'Support Chats', color: 'bg-[#FDBA74]' },
                       ].map((l, i) => (
-                        <div key={i} className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                        <div key={i} className="flex items-center gap-2 text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">
                            <div className={`w-3 h-3 rounded-sm ${l.color}`}></div>
                            {l.label}
                         </div>
@@ -1605,8 +1605,8 @@ export default function Dashboard() {
                 </div>
 
                 {/* Interaction Distribution */}
-                <div className="bg-white rounded-2xl p-6 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
-                   <h3 className="font-bold text-slate-800 mb-6">Channel Interaction Distribution by Role</h3>
+                <div className="bg-[var(--bg-card)] rounded-2xl p-6 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
+                   <h3 className="font-bold text-[var(--text-primary)] mb-6">Channel Interaction Distribution by Role</h3>
                    <div className="flex flex-col gap-8">
                       {/* Sales Donut */}
                       <div className="relative h-[120px] flex items-center justify-center">
@@ -1623,11 +1623,12 @@ export default function Dashboard() {
                                      <Cell key={`cell-${index}`} fill={entry.color} />
                                   ))}
                                </Pie>
+                               <Tooltip contentStyle={{ backgroundColor: '#141414', border: '1px solid #222', borderRadius: '8px' }} />
                             </PieChart>
                          </ResponsiveContainer>
                          <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
-                            <span className="text-[9px] font-black leading-tight text-slate-700 uppercase">Sales<br/>Agents</span>
-                            <span className="text-[8px] font-bold text-slate-400">1840 interactions</span>
+                            <span className="text-[9px] font-black leading-tight text-[var(--text-primary)] uppercase">Sales<br/>Agents</span>
+                            <span className="text-[8px] font-bold text-[var(--text-secondary)]">1840 interactions</span>
                          </div>
                       </div>
                       
@@ -1646,17 +1647,18 @@ export default function Dashboard() {
                                      <Cell key={`cell-${index}`} fill={entry.color} />
                                   ))}
                                </Pie>
+                               <Tooltip contentStyle={{ backgroundColor: '#141414', border: '1px solid #222', borderRadius: '8px' }} />
                             </PieChart>
                          </ResponsiveContainer>
                          <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
-                            <span className="text-[9px] font-black leading-tight text-slate-700 uppercase">Support<br/>Agents</span>
-                            <span className="text-[8px] font-bold text-slate-400">1780 interactions</span>
+                            <span className="text-[9px] font-black leading-tight text-[var(--text-primary)] uppercase">Support<br/>Agents</span>
+                            <span className="text-[8px] font-bold text-[var(--text-secondary)]">1780 interactions</span>
                          </div>
                       </div>
                    </div>
                    <div className="grid grid-cols-2 gap-2 mt-8">
                       {businessVolumeData.distribution.support.map((l, i) => (
-                         <div key={i} className="flex items-center gap-1.5 text-[9px] font-bold text-slate-500 uppercase">
+                         <div key={i} className="flex items-center gap-1.5 text-[9px] font-bold text-[var(--text-secondary)] uppercase">
                             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: l.color }}></div>
                             <span className="truncate">{l.name}</span>
                          </div>
@@ -1666,39 +1668,39 @@ export default function Dashboard() {
               </div>
 
               {/* Activity Table */}
-              <div className="bg-white rounded-2xl shadow-[var(--shadow-sm)] border border-[var(--border-light)] overflow-hidden">
-                <div className="p-5 border-b border-slate-50">
-                   <h3 className="font-bold text-slate-800 uppercase tracking-tight">Recent Agent Activity</h3>
+              <div className="bg-[var(--bg-card)] rounded-2xl shadow-[var(--shadow-sm)] border border-[var(--border-light)] overflow-hidden">
+                <div className="p-5 border-b border-[var(--border-light)]">
+                   <h3 className="font-bold text-[var(--text-primary)] uppercase tracking-tight">Recent Agent Activity</h3>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse">
-                    <thead className="bg-slate-50/80 border-b border-slate-100 sticky top-0 z-10">
-                       <tr className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                    <thead className="bg-white/5 border-b border-[var(--border-light)] sticky top-0 z-10">
+                       <tr className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-wider">
                           <th className="py-4 px-6">Agent Name</th>
                           <th className="py-4 px-4 text-center">Role</th>
                           <th className="py-4 px-4 text-center">Team</th>
-                          <th className="py-4 px-4 text-center bg-slate-100/50">Total Calls</th>
+                          <th className="py-4 px-4 text-center bg-white/5">Total Calls</th>
                           <th className="py-4 px-4 text-center">Sales C.</th>
                           <th className="py-4 px-4 text-center">Support C.</th>
-                          <th className="py-4 px-4 text-center bg-slate-100/50">Total Chats</th>
+                          <th className="py-4 px-4 text-center bg-white/5">Total Chats</th>
                           <th className="py-4 px-4 text-center">Sales Ch.</th>
                           <th className="py-4 px-4 text-center">Support Ch.</th>
                        </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-50">
+                    <tbody className="divide-y divide-[var(--border-light)]">
                        {businessVolumeData.recentActivity.map((row, i) => (
-                         <tr key={i} className="hover:bg-slate-50 transition-colors group">
-                            <td className="py-4 px-6 text-sm font-bold text-slate-700">{row.name}</td>
+                         <tr key={i} className="hover:bg-white/5 transition-colors group">
+                            <td className="py-4 px-6 text-sm font-bold text-[var(--text-primary)]">{row.name}</td>
                             <td className="py-4 px-4 text-center">
-                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${row.role === 'Sales' ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>{row.role}</span>
+                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${row.role === 'Sales' ? 'bg-blue-500/10 text-blue-400' : 'bg-amber-500/10 text-amber-500'}`}>{row.role}</span>
                             </td>
-                            <td className="py-4 px-4 text-center text-sm font-medium text-slate-500">{row.team}</td>
-                            <td className="py-4 px-4 text-center text-sm font-black text-slate-800 bg-slate-50/30">{row.tCalls}</td>
-                            <td className="py-4 px-4 text-center text-sm font-bold text-slate-500">{row.sCalls}</td>
-                            <td className="py-4 px-4 text-center text-sm font-bold text-slate-500">{row.supCalls}</td>
-                            <td className="py-4 px-4 text-center text-sm font-black text-slate-800 bg-slate-50/30">{row.tChats}</td>
-                            <td className="py-4 px-4 text-center text-sm font-bold text-slate-500">{row.sChats}</td>
-                            <td className="py-4 px-4 text-center text-sm font-bold text-slate-500">{row.supChats}</td>
+                            <td className="py-4 px-4 text-center text-sm font-medium text-[var(--text-secondary)]">{row.team}</td>
+                            <td className="py-4 px-4 text-center text-sm font-black text-[var(--text-primary)] bg-white/5">{row.tCalls}</td>
+                            <td className="py-4 px-4 text-center text-sm font-bold text-[var(--text-secondary)]">{row.sCalls}</td>
+                            <td className="py-4 px-4 text-center text-sm font-bold text-[var(--text-secondary)]">{row.supCalls}</td>
+                            <td className="py-4 px-4 text-center text-sm font-black text-[var(--text-primary)] bg-white/5">{row.tChats}</td>
+                            <td className="py-4 px-4 text-center text-sm font-bold text-[var(--text-secondary)]">{row.sChats}</td>
+                            <td className="py-4 px-4 text-center text-sm font-bold text-[var(--text-secondary)]">{row.supChats}</td>
                          </tr>
                        ))}
                     </tbody>
@@ -1714,62 +1716,62 @@ export default function Dashboard() {
       {/* Missed Observations Modal */}
       {missedObsModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
-          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" onClick={() => setMissedObsModalOpen(false)}></div>
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[85vh] relative z-10 animate-in zoom-in-95 duration-200">
-            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 rounded-t-3xl">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-md transition-opacity" onClick={() => setMissedObsModalOpen(false)}></div>
+          <div className="bg-[var(--bg-card)] rounded-3xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[85vh] relative z-10 animate-in zoom-in-95 duration-200 border border-[var(--border-light)]">
+            <div className="p-6 border-b border-[var(--border-light)] flex items-center justify-between bg-white/5 rounded-t-3xl">
               <div>
-                <h2 className="text-xl font-black text-slate-800">Neglected Agents (Full List)</h2>
-                <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mt-0.5">Tracking consecutive weeks with no coaching sessions recorded</p>
+                <h2 className="text-xl font-black text-[var(--text-primary)]">Neglected Agents (Full List)</h2>
+                <p className="text-xs text-[var(--text-secondary)] font-bold uppercase tracking-wider mt-0.5">Tracking consecutive weeks with no coaching sessions recorded</p>
               </div>
-              <button onClick={() => setMissedObsModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors">
+              <button onClick={() => setMissedObsModalOpen(false)} className="p-2 text-[var(--text-secondary)] hover:text-white hover:bg-white/5 rounded-full transition-colors">
                 <X size={20} />
               </button>
             </div>
             
-            <div className="overflow-y-auto p-2 scroll-smooth">
-               <div className="bg-slate-50 border-y border-slate-100 px-6 py-2.5 grid grid-cols-5 gap-4 sticky top-0 z-10">
-                  <div className="col-span-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Agent Details</div>
-                  <div className="text-center text-[10px] font-bold text-slate-400 uppercase tracking-wider">This Wk</div>
-                  <div className="text-center text-[10px] font-bold text-slate-400 uppercase tracking-wider">Last Wk</div>
-                  <div className="text-right text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Missed</div>
+            <div className="overflow-y-auto p-2 scroll-smooth custom-scrollbar">
+               <div className="bg-white/5 border-y border-[var(--border-light)] px-6 py-2.5 grid grid-cols-5 gap-4 sticky top-0 z-10">
+                  <div className="col-span-2 text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Agent Details</div>
+                  <div className="text-center text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">This Wk</div>
+                  <div className="text-center text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Last Wk</div>
+                  <div className="text-right text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Total Missed</div>
                </div>
                <div className="flex flex-col">
                   {missedObservationsStats.map((agent, i) => (
-                    <div key={i} className="grid grid-cols-5 gap-4 items-center p-4 hover:bg-slate-50 rounded-xl transition-colors group">
+                    <div key={i} className="grid grid-cols-5 gap-4 items-center p-4 hover:bg-white/5 rounded-xl transition-colors group">
                        <div className="col-span-2 flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-500">
+                          <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-[10px] font-bold text-[var(--text-secondary)]">
                              {getInitials(agent.name)}
                           </div>
                           <div className="min-w-0">
-                             <div className="font-bold text-sm text-slate-700 truncate">{agent.name}</div>
-                             <div className="text-[10px] text-slate-400 font-medium">{agent.coach} • {agent.lob}</div>
+                             <div className="font-bold text-sm text-[var(--text-primary)] truncate">{agent.name}</div>
+                             <div className="text-[10px] text-[var(--text-secondary)] font-medium">{agent.coach} • {agent.lob}</div>
                           </div>
                        </div>
                        <div className="flex justify-center">
                           {agent.missedThisWeek ? (
-                            <div className="px-2 py-1 bg-rose-50 text-rose-500 rounded text-[9px] font-black border border-rose-100">MISSED</div>
+                            <div className="px-2 py-1 bg-rose-500/10 text-rose-500 rounded text-[9px] font-black border border-rose-500/20">MISSED</div>
                           ) : (
-                            <div className="px-2 py-1 bg-emerald-50 text-emerald-500 rounded text-[9px] font-black border border-emerald-100">OBSERVED</div>
+                            <div className="px-2 py-1 bg-emerald-500/10 text-emerald-500 rounded text-[9px] font-black border border-emerald-500/20">OBSERVED</div>
                           )}
                        </div>
                        <div className="flex justify-center">
                           {agent.missedLastWeek ? (
-                            <div className="px-2 py-1 bg-rose-50/50 text-rose-400 rounded text-[9px] font-black border border-rose-50">MISSED</div>
+                            <div className="px-2 py-1 bg-rose-500/5 text-rose-400 rounded text-[9px] font-black border border-rose-500/10">MISSED</div>
                           ) : (
-                            <div className="px-2 py-1 bg-emerald-50/50 text-emerald-400 rounded text-[9px] font-black border border-emerald-50">OBSERVED</div>
+                            <div className="px-2 py-1 bg-emerald-500/5 text-emerald-400 rounded text-[9px] font-black border border-emerald-500/10">OBSERVED</div>
                           )}
                        </div>
                        <div className="text-right pr-2">
-                          <div className="text-lg font-black text-slate-700">{agent.totalWeeksMissed}</div>
-                          <div className="text-[8px] font-bold text-slate-400 uppercase leading-tight">Weeks</div>
+                          <div className="text-lg font-black text-[var(--text-primary)]">{agent.totalWeeksMissed}</div>
+                          <div className="text-[8px] font-bold text-[var(--text-secondary)] uppercase leading-tight">Weeks</div>
                        </div>
                     </div>
                   ))}
                </div>
             </div>
             
-            <div className="p-4 border-t border-slate-50 bg-slate-50/30 rounded-b-3xl text-center">
-               <p className="text-[10px] font-bold text-slate-400 italic">Historical data is calculated based on available observation records from the database.</p>
+            <div className="p-4 border-t border-[var(--border-light)] bg-white/5 rounded-b-3xl text-center">
+               <p className="text-[10px] font-bold text-[var(--text-secondary)] italic">Historical data is calculated based on available observation records from the database.</p>
             </div>
           </div>
         </div>
@@ -1787,10 +1789,10 @@ export default function Dashboard() {
         const observedCount = coachAgents.filter(a => observedAgents.has(a.name)).length;
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
-            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" onClick={() => setCoachModalOpen(false)}></div>
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[600px] flex flex-col max-h-[85vh] relative z-10 animate-in zoom-in-95 duration-200">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-md transition-opacity" onClick={() => setCoachModalOpen(false)}></div>
+            <div className="bg-[var(--bg-card)] rounded-2xl shadow-2xl w-full max-w-[600px] flex flex-col max-h-[85vh] relative z-10 animate-in zoom-in-95 duration-200 border border-[var(--border-light)]">
               {/* Header */}
-              <div className="p-6 border-b border-[var(--border-light)] bg-slate-50/50 rounded-t-2xl shrink-0">
+              <div className="p-6 border-b border-[var(--border-light)] bg-white/5 rounded-t-2xl shrink-0">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-4">
                     <div
@@ -1804,14 +1806,14 @@ export default function Dashboard() {
                       <p className="text-sm text-[var(--text-secondary)]">{coach?.dept} Department Coach</p>
                     </div>
                   </div>
-                  <button onClick={() => setCoachModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors">
+                  <button onClick={() => setCoachModalOpen(false)} className="p-2 text-[var(--text-secondary)] hover:text-white hover:bg-white/5 rounded-full transition-colors">
                     <X size={20} />
                   </button>
                 </div>
 
                 {/* Completion Bar */}
                 <div className="mt-4 flex items-center gap-3">
-                  <div className="flex-1 h-3 bg-slate-200 rounded-full overflow-hidden">
+                  <div className="flex-1 h-3 bg-white/5 rounded-full overflow-hidden">
                     <div
                       className="h-full rounded-full transition-all duration-500"
                       style={{
@@ -1834,7 +1836,7 @@ export default function Dashboard() {
                     return (
                       <div
                         key={i}
-                        className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors group"
+                        className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 cursor-pointer transition-colors group"
                         onClick={() => { setCoachModalOpen(false); }}
                       >
                         <div
@@ -1847,8 +1849,8 @@ export default function Dashboard() {
                           <h4 className="font-semibold text-sm text-[var(--text-primary)] truncate">{agent.name}</h4>
                         </div>
                         <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full shrink-0 ${isObserved
-                            ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
-                            : 'bg-slate-100 text-slate-500 border border-slate-200'
+                            ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
+                            : 'bg-white/5 text-[var(--text-secondary)] border border-[var(--border-light)]'
                           }`}>
                           {isObserved ? '✓ Observed' : 'Pending'}
                         </span>
@@ -1860,8 +1862,8 @@ export default function Dashboard() {
               </div>
 
               {/* Footer */}
-              <div className="p-4 border-t border-[var(--border-light)] flex justify-end bg-slate-50/50 rounded-b-2xl shrink-0">
-                <button onClick={() => setCoachModalOpen(false)} className="px-5 py-2.5 rounded-lg font-semibold text-slate-600 hover:bg-slate-200 transition-colors">
+              <div className="p-4 border-t border-[var(--border-light)] flex justify-end bg-white/5 rounded-b-2xl shrink-0">
+                <button onClick={() => setCoachModalOpen(false)} className="px-5 py-2.5 rounded-lg font-semibold text-[var(--text-secondary)] hover:bg-white/10 transition-colors">
                   Close
                 </button>
               </div>
@@ -1874,14 +1876,14 @@ export default function Dashboard() {
       {/* Recent Observations List Modal */}
       {recentObsModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setRecentObsModalOpen(false)}></div>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[600px] flex flex-col max-h-[80vh] relative z-10 animate-in zoom-in-95 duration-200">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 rounded-t-2xl">
-              <h2 className="text-xl font-bold flex items-center gap-2 text-slate-800">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={() => setRecentObsModalOpen(false)}></div>
+          <div className="bg-[var(--bg-card)] rounded-2xl shadow-2xl w-full max-w-[600px] flex flex-col max-h-[80vh] relative z-10 animate-in zoom-in-95 duration-200 border border-[var(--border-light)]">
+            <div className="p-6 border-b border-[var(--border-light)] flex justify-between items-center bg-white/5 rounded-t-2xl">
+              <h2 className="text-xl font-bold flex items-center gap-2 text-[var(--text-primary)]">
                 <History className="text-brand-blue" size={22} />
                 Recent Observations
               </h2>
-              <button onClick={() => setRecentObsModalOpen(false)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-colors">
+              <button onClick={() => setRecentObsModalOpen(false)} className="p-2 text-[var(--text-secondary)] hover:bg-white/5 rounded-full transition-colors">
                 <X size={20} />
               </button>
             </div>
@@ -1890,7 +1892,7 @@ export default function Dashboard() {
                 {recentObservations.map((obs, i) => (
                   <div
                     key={i}
-                    className="flex items-center gap-4 p-4 hover:bg-slate-50 rounded-2xl cursor-pointer transition-all border border-transparent hover:border-slate-200 group"
+                    className="flex items-center gap-4 p-4 hover:bg-white/5 rounded-2xl cursor-pointer transition-all border border-transparent hover:border-[var(--border-light)] group"
                     onClick={() => setSelectedObs(obs)}
                   >
                     <div className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-sm" style={{ backgroundColor: getAvatarColor(obs.agentName) }}>
@@ -1899,13 +1901,13 @@ export default function Dashboard() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
-                          <h4 className="font-bold text-slate-800 truncate">{obs.agentName}</h4>
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded uppercase">MTD</span>
+                          <h4 className="font-bold text-[var(--text-primary)] truncate">{obs.agentName}</h4>
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 bg-blue-500/10 text-blue-400 rounded uppercase">MTD</span>
                         </div>
-                        <span className="text-[10px] font-black text-brand-blue bg-blue-50 px-2 py-0.5 rounded uppercase">ID: {obs._id.slice(-8).toUpperCase()}</span>
+                        <span className="text-[10px] font-black text-brand-blue bg-brand-blue/10 px-2 py-0.5 rounded uppercase">ID: {obs._id.slice(-8).toUpperCase()}</span>
                       </div>
-                      <p className="text-xs text-slate-500 mt-0.5">Coached by <span className="font-semibold text-slate-700">{obs.coachName}</span></p>
-                      <p className="text-[10px] text-slate-400 mt-1 font-medium flex items-center gap-1">
+                      <p className="text-xs text-[var(--text-secondary)] mt-0.5">Coached by <span className="font-semibold text-[var(--text-primary)]">{obs.coachName}</span></p>
+                      <p className="text-[10px] text-[var(--text-tertiary)] mt-1 font-medium flex items-center gap-1">
                         <Calendar size={10} /> {obs.date}
                       </p>
                     </div>
@@ -1913,7 +1915,7 @@ export default function Dashboard() {
                       <div className="text-lg font-black text-brand-blue">{obs.rating}%</div>
                       <div className="flex gap-0.5">
                         {[1, 2, 3, 4, 5].map((s) => (
-                          <div key={s} className={`w-1 h-1 rounded-full ${s <= (obs.rating / 20) ? 'bg-brand-blue' : 'bg-slate-200'}`}></div>
+                          <div key={s} className={`w-1 h-1 rounded-full ${s <= (obs.rating / 20) ? 'bg-brand-blue' : 'bg-white/10'}`}></div>
                         ))}
                       </div>
                     </div>
@@ -1928,15 +1930,15 @@ export default function Dashboard() {
       {/* Observation Detail Modal (History View) */}
       {selectedObs && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setSelectedObs(null)}></div>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[800px] flex flex-col max-h-[90vh] relative z-10 animate-in zoom-in-95 duration-200">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedObs(null)}></div>
+          <div className="bg-[var(--bg-card)] rounded-2xl shadow-2xl w-full max-w-[800px] flex flex-col max-h-[90vh] relative z-10 animate-in zoom-in-95 duration-200 border border-[var(--border-light)]">
             {/* Header matches Observation Form */}
-            <div className="p-6 border-b border-[var(--border-light)] flex justify-between items-center bg-slate-50/50 rounded-t-2xl shrink-0">
+            <div className="p-6 border-b border-[var(--border-light)] flex justify-between items-center bg-white/5 rounded-t-2xl shrink-0">
               <div>
-                <h2 className="text-xl font-bold">Observation History</h2>
+                <h2 className="text-xl font-bold text-[var(--text-primary)]">Observation History</h2>
                 <p className="text-sm text-[var(--text-secondary)] mt-1">Review the observation details below.</p>
               </div>
-              <button onClick={() => setSelectedObs(null)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors">
+              <button onClick={() => setSelectedObs(null)} className="p-2 text-[var(--text-secondary)] hover:text-white hover:bg-white/5 rounded-full transition-colors">
                 <X size={20} />
               </button>
             </div>
@@ -1945,26 +1947,26 @@ export default function Dashboard() {
               {/* Grid 1: Basic Info (Same as form) */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5 mb-8">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Department</label>
-                  <div className="w-full bg-slate-50 border border-[var(--border-light)] rounded-lg px-4 py-2.5 text-slate-600 font-medium">
+                  <label className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-2">Department</label>
+                  <div className="w-full bg-white/5 border border-[var(--border-light)] rounded-lg px-4 py-2.5 text-[var(--text-primary)] font-medium">
                     {selectedObs.department.join(', ') || 'Not specified'}
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Date of Observation</label>
-                  <div className="w-full bg-slate-50 border border-[var(--border-light)] rounded-lg px-4 py-2.5 text-slate-600 font-medium">
+                  <label className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-2">Date of Observation</label>
+                  <div className="w-full bg-white/5 border border-[var(--border-light)] rounded-lg px-4 py-2.5 text-[var(--text-primary)] font-medium">
                     {selectedObs.date}
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Coach Name</label>
-                  <div className="w-full bg-slate-50 border border-[var(--border-light)] rounded-lg px-4 py-2.5 text-slate-600 font-medium">
+                  <label className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-2">Coach Name</label>
+                  <div className="w-full bg-white/5 border border-[var(--border-light)] rounded-lg px-4 py-2.5 text-[var(--text-primary)] font-medium">
                     {selectedObs.coachName}
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Agent Name</label>
-                  <div className="w-full bg-slate-50 border border-[var(--border-light)] rounded-lg px-4 py-2.5 flex items-center gap-3">
+                  <label className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-2">Agent Name</label>
+                  <div className="w-full bg-white/5 border border-[var(--border-light)] rounded-lg px-4 py-2.5 flex items-center gap-3">
                     <div
                       className="w-7 h-7 rounded-full flex items-center justify-center text-white font-bold text-[10px] shadow-sm shrink-0"
                       style={{ backgroundColor: getAvatarColor(selectedObs.agentName) }}
@@ -1979,14 +1981,14 @@ export default function Dashboard() {
               {/* Grid 2: Observation Types */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5 mb-8">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Session Type</label>
-                  <div className="w-full bg-slate-50 border border-[var(--border-light)] rounded-lg px-4 py-2.5 text-slate-600 font-medium">
+                  <label className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-2">Session Type</label>
+                  <div className="w-full bg-white/5 border border-[var(--border-light)] rounded-lg px-4 py-2.5 text-[var(--text-primary)] font-medium">
                     {selectedObs.sessionType.join(', ') || 'None'}
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Categories</label>
-                  <div className="w-full bg-slate-50 border border-[var(--border-light)] rounded-lg px-4 py-2.5 text-slate-600 font-medium">
+                  <label className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-2">Categories</label>
+                  <div className="w-full bg-white/5 border border-[var(--border-light)] rounded-lg px-4 py-2.5 text-[var(--text-primary)] font-medium">
                     {selectedObs.categories.join(', ') || 'None'}
                   </div>
                 </div>
@@ -2001,9 +2003,9 @@ export default function Dashboard() {
                   { label: 'Action Plan', value: selectedObs.actionPlan },
                 ].map(field => (
                   <div key={field.label}>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">{field.label}</label>
-                    <div className="w-full min-h-[80px] bg-slate-50/50 border border-[var(--border-light)] rounded-xl p-4 text-[14px] text-slate-700 whitespace-pre-wrap leading-relaxed">
-                      {field.value || <span className="text-slate-400 italic">No notes provided.</span>}
+                    <label className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-2">{field.label}</label>
+                    <div className="w-full min-h-[80px] bg-white/5 border border-[var(--border-light)] rounded-xl p-4 text-[14px] text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed">
+                      {field.value || <span className="text-[var(--text-tertiary)] italic">No notes provided.</span>}
                     </div>
                   </div>
                 ))}
@@ -2012,14 +2014,14 @@ export default function Dashboard() {
               {/* Grid 3: Rating & Additional */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5 mb-8">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Overall Performance Rating</label>
-                  <div className="w-full bg-slate-50 border border-[var(--border-light)] rounded-lg px-4 py-2.5 text-slate-600 font-bold">
+                  <label className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-2">Overall Performance Rating</label>
+                  <div className="w-full bg-white/5 border border-[var(--border-light)] rounded-lg px-4 py-2.5 text-[var(--text-primary)] font-bold">
                     {selectedObs.overallRating.join(', ') || 'N/A'}
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Order Number, Phone, or Email</label>
-                  <div className="w-full bg-slate-50 border border-[var(--border-light)] rounded-lg px-4 py-2.5 text-slate-600 font-medium">
+                  <label className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-2">Order Number, Phone, or Email</label>
+                  <div className="w-full bg-white/5 border border-[var(--border-light)] rounded-lg px-4 py-2.5 text-[var(--text-primary)] font-medium">
                     {selectedObs.orderNumber || 'None'}
                   </div>
                 </div>
@@ -2032,19 +2034,19 @@ export default function Dashboard() {
                   { label: 'Team Lead Feedback', value: selectedObs.teamLeadFeedback }
                 ].map(field => (
                   <div key={field.label}>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">{field.label}</label>
-                    <div className="w-full min-h-[80px] bg-slate-50/50 border border-[var(--border-light)] rounded-xl p-4 text-[14px] text-slate-700 whitespace-pre-wrap leading-relaxed">
-                      {field.value || <span className="text-slate-400 italic">No additional feedback provided.</span>}
+                    <label className="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-2">{field.label}</label>
+                    <div className="w-full min-h-[80px] bg-white/5 border border-[var(--border-light)] rounded-xl p-4 text-[14px] text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed">
+                      {field.value || <span className="text-[var(--text-tertiary)] italic">No additional feedback provided.</span>}
                     </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="p-6 border-t border-[var(--border-light)] flex justify-end gap-3 bg-slate-50/50 rounded-b-2xl shrink-0">
+            <div className="p-6 border-t border-[var(--border-light)] flex justify-end gap-3 bg-white/5 rounded-b-2xl shrink-0">
               <button
                 onClick={() => setSelectedObs(null)}
-                className="px-6 py-2.5 rounded-xl font-bold bg-slate-900 text-white shadow-xl shadow-slate-200 hover:bg-black transition-all active:scale-[0.98]"
+                className="px-6 py-2.5 rounded-xl font-bold bg-brand-blue text-white hover:bg-blue-600 transition-all active:scale-[0.98]"
               >
                 Close History
               </button>
@@ -2056,19 +2058,19 @@ export default function Dashboard() {
       {/* WOW Charts Modal */}
       {wowChartsModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setWowChartsModalOpen(false)}></div>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[650px] flex flex-col max-h-[80vh] relative z-10 animate-in zoom-in-95 duration-200">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 rounded-t-2xl">
-              <h2 className="text-xl font-bold flex items-center gap-2 text-slate-800">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={() => setWowChartsModalOpen(false)}></div>
+          <div className="bg-[var(--bg-card)] rounded-2xl shadow-2xl w-full max-w-[650px] flex flex-col max-h-[80vh] relative z-10 animate-in zoom-in-95 duration-200 border border-[var(--border-light)]">
+            <div className="p-6 border-b border-[var(--border-light)] flex justify-between items-center bg-white/5 rounded-t-2xl">
+              <h2 className="text-xl font-bold flex items-center gap-2 text-[var(--text-primary)]">
                 <BarChartIcon className="text-brand-blue" size={22} />
                 WOW Charts
               </h2>
-              <button onClick={() => setWowChartsModalOpen(false)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-colors">
+              <button onClick={() => setWowChartsModalOpen(false)} className="p-2 text-[var(--text-secondary)] hover:bg-white/5 rounded-full transition-colors">
                 <X size={20} />
               </button>
             </div>
 
-            <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center gap-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">
+            <div className="p-4 border-b border-[var(--border-light)] bg-white/5 flex items-center gap-4 text-[10px] font-black text-[var(--text-tertiary)] uppercase tracking-widest text-center">
               <div className="w-10">Rank</div>
               <div className="flex-1 text-left">Agent</div>
               <div className="w-16">This Week</div>
@@ -2082,23 +2084,23 @@ export default function Dashboard() {
                 {wowChartsData.slice(0, 10).map((agent, i) => (
                   <div
                     key={i}
-                    className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-xl cursor-pointer transition-all border border-transparent hover:border-slate-100 group"
+                    className="flex items-center gap-4 p-3 hover:bg-white/5 rounded-xl cursor-pointer transition-all border border-transparent hover:border-[var(--border-light)] group"
                     onClick={() => { setWowChartsModalOpen(false); }}
                   >
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm ${i === 0 ? 'bg-amber-100 text-amber-600' : i === 1 ? 'bg-slate-100 text-slate-600' : i === 2 ? 'bg-orange-50 text-orange-600' : 'bg-slate-50 text-slate-400'}`}>
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm ${i === 0 ? 'bg-amber-500/10 text-amber-500' : i === 1 ? 'bg-white/10 text-[var(--text-secondary)]' : i === 2 ? 'bg-orange-500/10 text-orange-500' : 'bg-white/5 text-[var(--text-tertiary)]'}`}>
                       {i + 1}
                     </div>
                     <div className="flex-1 flex items-center gap-3 min-w-0">
                       <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs" style={{ backgroundColor: getAvatarColor(agent.name) }}>
                         {getInitials(agent.name)}
                       </div>
-                      <span className="font-bold text-slate-700 truncate group-hover:text-brand-blue transition-colors">{agent.name}</span>
+                      <span className="font-bold text-[var(--text-primary)] truncate group-hover:text-brand-blue transition-colors">{agent.name}</span>
                     </div>
-                    <div className="w-16 text-center text-sm font-bold text-slate-800">{agent.thisWeek}</div>
-                    <div className="w-16 text-center text-sm font-bold text-slate-400">{agent.lastWeek}</div>
-                    <div className="w-16 text-center text-sm font-bold text-brand-blue bg-blue-50/50 rounded-md py-1">{agent.month}</div>
+                    <div className="w-16 text-center text-sm font-bold text-[var(--text-primary)]">{agent.thisWeek}</div>
+                    <div className="w-16 text-center text-sm font-bold text-[var(--text-secondary)]">{agent.lastWeek}</div>
+                    <div className="w-16 text-center text-sm font-bold text-brand-blue bg-brand-blue/10 rounded-md py-1">{agent.month}</div>
                     <div className="w-16 flex justify-end">
-                      <div className={`px-2 py-1 rounded-md text-[10px] font-black ${agent.wow > 0 ? 'text-emerald-500 bg-emerald-50' : agent.wow < 0 ? 'text-rose-500 bg-rose-50' : 'text-slate-400 bg-slate-50'} min-w-[40px] text-center`}>
+                      <div className={`px-2 py-1 rounded-md text-[10px] font-black ${agent.wow > 0 ? 'text-emerald-500 bg-emerald-500/10' : agent.wow < 0 ? 'text-rose-500 bg-rose-500/10' : 'text-[var(--text-tertiary)] bg-white/5'} min-w-[40px] text-center`}>
                         {agent.wow > 0 ? '▲' : agent.wow < 0 ? '▼' : '—'}
                         {agent.wow !== 0 && Math.abs(agent.wow)}
                       </div>
@@ -2108,8 +2110,8 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="p-4 border-t border-slate-100 text-center">
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Ranked by Total Observations This Month</p>
+            <div className="p-4 border-t border-[var(--border-light)] text-center">
+               <p className="text-[10px] text-[var(--text-tertiary)] font-bold uppercase tracking-widest">Ranked by Total Observations This Month</p>
             </div>
           </div>
         </div>
@@ -2126,25 +2128,25 @@ export default function Dashboard() {
                   <BookOpen size={20} />
                 </div>
                 <div>
-                  <h3 className="font-black text-slate-800 uppercase tracking-widest text-xs">Viewing Detail</h3>
+                  <h3 className="font-black text-[var(--text-tertiary)] uppercase tracking-widest text-xs">Viewing Detail</h3>
                   <p className="text-sm font-bold text-brand-blue">{expandedNote.label}</p>
                 </div>
               </div>
-              <button onClick={() => setExpandedNote(null)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors">
+              <button onClick={() => setExpandedNote(null)} className="p-2 text-[var(--text-secondary)] hover:text-white hover:bg-white/5 rounded-full transition-colors">
                 <X size={20} />
               </button>
             </div>
 
             <div className="p-8 overflow-y-auto flex-1 custom-scrollbar">
-              <div className="text-slate-700 text-base leading-relaxed whitespace-pre-wrap font-medium">
+              <div className="text-[var(--text-primary)] text-base leading-relaxed whitespace-pre-wrap font-medium">
                 {expandedNote.content}
               </div>
             </div>
 
-            <div className="p-6 border-t border-slate-100 bg-slate-50/30">
+            <div className="p-6 border-t border-[var(--border-light)] bg-white/5">
               <button
                 onClick={() => setExpandedNote(null)}
-                className="w-full py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-black transition-all"
+                className="w-full py-3 bg-brand-blue text-white rounded-xl font-bold hover:bg-blue-600 transition-all"
               >
                 Done Reading
               </button>
@@ -2163,12 +2165,12 @@ function NavItem({ icon, label, collapsed, active, onClick }: { icon: React.Reac
   return (
     <div
       className={`flex items-center px-3 py-2.5 rounded-lg cursor-pointer font-medium transition-colors
-        ${active ? 'bg-brand-blue-light text-brand-blue' : 'text-[var(--text-secondary)] hover:bg-white/5'}
+        ${active ? 'bg-brand-blue/10 text-brand-blue' : 'text-[var(--text-secondary)] hover:bg-white/5'}
         ${collapsed ? 'justify-center' : 'gap-3'}`}
       onClick={onClick}
       title={collapsed ? label : ""}
     >
-      <div className={`${active ? 'text-brand-blue' : 'text-slate-400'}`}>{icon}</div>
+      <div className={`${active ? 'text-brand-blue' : 'text-[var(--text-tertiary)]'}`}>{icon}</div>
       {!collapsed && <span>{label}</span>}
     </div>
   );
@@ -2180,13 +2182,13 @@ function Select({ options, selected, onChange, placeholder }: { options: string[
   return (
     <div className="relative">
       <div
-        className="w-full bg-[var(--bg-card)] border border-[var(--border-light)] rounded-lg px-4 py-2.5 flex items-center justify-between cursor-pointer focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue min-h-[46px]"
+        className="w-full bg-[var(--bg-card)] border border-[var(--border-light)] rounded-lg px-4 py-2.5 flex items-center justify-between cursor-pointer focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue min-h-[46px] hover:bg-white/5 transition-all"
         onClick={() => setIsOpen(!isOpen)}
       >
-        <span className={selected ? "text-[var(--text-primary)] font-medium" : "text-[var(--text-secondary)] text-sm"}>
+        <span className={selected ? "text-[var(--text-primary)] font-medium" : "text-[var(--text-tertiary)] text-sm"}>
           {selected || placeholder}
         </span>
-        <ChevronDown size={16} className={`text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown size={16} className={`text-[var(--text-tertiary)] transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </div>
 
       {isOpen && (
@@ -2197,7 +2199,7 @@ function Select({ options, selected, onChange, placeholder }: { options: string[
               <div
                 key={option}
                 className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between
-                  ${selected === option ? 'bg-brand-blue-light text-brand-blue font-semibold' : 'text-[var(--text-secondary)] hover:bg-white/5'}`}
+                  ${selected === option ? 'bg-brand-blue/10 text-brand-blue font-semibold' : 'text-[var(--text-secondary)] hover:bg-white/5'}`}
                 onClick={() => { onChange(option); setIsOpen(false); }}
               >
                 <span>{option}</span>
@@ -2225,35 +2227,35 @@ function MultiSelect({ options, selected, onChange, placeholder }: { options: st
   return (
     <div className="relative">
       <div
-        className="w-full bg-white border border-[var(--border-light)] rounded-lg px-4 py-2.5 flex items-center justify-between cursor-pointer focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue min-h-[46px]"
+        className="w-full bg-[var(--bg-card)] border border-[var(--border-light)] rounded-lg px-4 py-2.5 flex items-center justify-between cursor-pointer focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue min-h-[46px] hover:bg-white/5 transition-all"
         onClick={() => setIsOpen(!isOpen)}
       >
         <div className="flex flex-wrap gap-1">
           {selected.length > 0 ? (
             selected.map(val => (
-              <span key={val} className="bg-brand-blue-light text-brand-blue text-[11px] font-bold px-2 py-0.5 rounded flex items-center gap-1 animate-in zoom-in-95">
+              <span key={val} className="bg-brand-blue/10 text-brand-blue text-[11px] font-bold px-2 py-0.5 rounded flex items-center gap-1 animate-in zoom-in-95 border border-brand-blue/20">
                 {val}
                 <X size={10} className="cursor-pointer" onClick={(e) => { e.stopPropagation(); toggleOption(val); }} />
               </span>
             ))
           ) : (
-            <span className="text-slate-400 text-sm">{placeholder}</span>
+            <span className="text-[var(--text-tertiary)] text-sm">{placeholder}</span>
           )}
         </div>
-        <ChevronDown size={16} className={`text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown size={16} className={`text-[var(--text-tertiary)] transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </div>
 
       {isOpen && (
         <>
           <div className="fixed inset-0 z-[60]" onClick={() => setIsOpen(false)} />
-          <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-[var(--border-light)] rounded-xl shadow-xl z-[70] py-1 max-h-60 overflow-y-auto custom-scrollbar animate-in slide-in-from-top-2 duration-200">
+          <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--bg-card)] border border-[var(--border-light)] rounded-xl shadow-xl z-[70] py-1 max-h-60 overflow-y-auto custom-scrollbar animate-in slide-in-from-top-2 duration-200">
             {options.map(option => {
               const isSelected = selected.includes(option);
               return (
                 <div
                   key={option}
                   className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between
-                    ${isSelected ? 'bg-brand-blue-light text-brand-blue font-semibold' : 'text-slate-600 hover:bg-slate-50'}`}
+                    ${isSelected ? 'bg-brand-blue/10 text-brand-blue font-semibold' : 'text-[var(--text-secondary)] hover:bg-white/5'}`}
                   onClick={() => toggleOption(option)}
                 >
                   <span>{option}</span>

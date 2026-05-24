@@ -127,6 +127,28 @@ CREATE TABLE IF NOT EXISTS email_productivity (
   date DATE UNIQUE DEFAULT CURRENT_DATE,
   updated_at TIMESTAMPTZ DEFAULT now()
 );
+-- Function to atomically increment SLA metrics
+CREATE OR REPLACE FUNCTION increment_sla_metrics(target_date DATE, is_pass BOOLEAN)
+RETURNS void AS $$
+BEGIN
+  INSERT INTO intercom_sla_daily (date, inbound_count, sla_passes, sla_fails)
+  VALUES (target_date, 1, CASE WHEN is_pass THEN 1 ELSE 0 END, CASE WHEN is_pass THEN 0 ELSE 1 END)
+  ON CONFLICT (date) DO UPDATE SET
+    inbound_count = intercom_sla_daily.inbound_count + 1,
+    sla_passes = intercom_sla_daily.sla_passes + (CASE WHEN is_pass THEN 1 ELSE 0 END),
+    sla_fails = intercom_sla_daily.sla_fails + (CASE WHEN is_pass THEN 0 ELSE 1 END),
+    updated_at = now();
+END;
+$$ LANGUAGE plpgsql;
 
-
+-- Seed data for testing (Optional)
+INSERT INTO ops_metrics (department, channel, inbound_count, frt_seconds, date)
+VALUES 
+  ('Support Operations', 'Chat', 120, 45, CURRENT_DATE),
+  ('Support Operations', 'Voice', 85, 12, CURRENT_DATE),
+  ('Sales Operations', 'Chat', 45, 30, CURRENT_DATE),
+  ('Sales Operations', 'Voice', 30, 8, CURRENT_DATE),
+  ('Service Recovery', 'Chat', 20, 60, CURRENT_DATE),
+  ('Service Recovery', 'Voice', 15, 15, CURRENT_DATE)
+ON CONFLICT DO NOTHING;
 
