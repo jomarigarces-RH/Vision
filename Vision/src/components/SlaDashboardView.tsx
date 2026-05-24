@@ -298,12 +298,11 @@ export default function SlaDashboardView() {
                       <tr key={key} className="hover:bg-[#4f7df3]/5 transition-colors border-b border-[#2a2a2a]">
                         <td className="p-3 text-[0.85rem] font-extrabold text-[#a0a0a0]">{d.title.split(' ')[0]}</td>
                         <td className="p-3 text-[0.85rem] font-bold">{d.voice.inbound}</td>
-                        <td className="p-3 text-[0.85rem] font-bold">{d.voice.inbound}</td>
                         <td className={`p-3 text-[0.85rem] font-black ${parsePct(d.voice.sla) < slaTargets.voice ? 'text-[#ef4444]' : 'text-[#10b981]'}`}>{d.voice.sla}</td>
                         <td className="p-3 text-[0.85rem] font-bold text-amber-500">{d.voice.abandonRate}</td>
                         <td className="p-3 text-[0.85rem] font-bold">{d.chat.inbound}</td>
                         <td className={`p-3 text-[0.85rem] font-black ${parsePct(d.chat.sla) < slaTargets.chat ? 'text-[#ef4444]' : 'text-[#6366f1]'}`}>{d.chat.sla}</td>
-                        <td className="p-3 text-[0.75rem] font-bold opacity-60 text-brand-blue">{d.chat.inQueue}</td>
+                        <td className="p-3 text-[0.75rem] font-bold opacity-60 text-brand-blue">{d.chat.frt}</td>
                       </tr>
                     ))}
                   </tbody>

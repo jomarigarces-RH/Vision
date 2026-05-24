@@ -20,52 +20,61 @@ export async function POST(req: Request) {
       return NextResponse.json({ status: 'ignored', reason: 'No conversation item found' });
     }
 
-    // 1. Map department and channel using Team Names AND Tags
+    // 1. Precise Team ID Mappings
+    const TEAM_MAPS = {
+      sales: { voice: ['10117691', '10126750'], chat: ['9540784'] },
+      support: { voice: ['10117732', '10117711', '10126764'], chat: ['9903546', '9903543'] },
+      recovery: { voice: ['10117736'], chat: ['9540789'] }
+    };
+
     let mappedDept = 'Support Operations';
     let mappedChannel = 'Chat';
     
-    // Extract metadata for better matching
-    const teamName = (conversation.team_assignee?.name || '').toLowerCase();
+    const teamId = String(conversation.team_assignee_id || '');
+    const sourceApp = conversation.source?.delivered_as || conversation.source?.type || '';
     const tags = (conversation.tags?.tags || []).map((t: any) => t.name.toLowerCase());
-    const sourceApp = (conversation.source?.author?.name || '').toLowerCase();
-    const allIdentifiers = [teamName, sourceApp, ...tags].join(' ');
+    const allIdentifiers = [
+      (conversation.team_assignee?.name || '').toLowerCase(),
+      sourceApp.toLowerCase(),
+      ...tags
+    ].join(' ');
 
-    // Department Mapping
-    if (allIdentifiers.includes('sales')) mappedDept = 'Sales Operations';
-    else if (allIdentifiers.includes('recovery')) mappedDept = 'Service Recovery';
+    // Precise ID Check First
+    if (TEAM_MAPS.sales.voice.includes(teamId)) { mappedDept = 'Sales Operations'; mappedChannel = 'Voice'; }
+    else if (TEAM_MAPS.sales.chat.includes(teamId)) { mappedDept = 'Sales Operations'; mappedChannel = 'Chat'; }
+    else if (TEAM_MAPS.support.voice.includes(teamId)) { mappedDept = 'Support Operations'; mappedChannel = 'Voice'; }
+    else if (TEAM_MAPS.support.chat.includes(teamId)) { mappedDept = 'Support Operations'; mappedChannel = 'Chat'; }
+    else if (TEAM_MAPS.recovery.voice.includes(teamId)) { mappedDept = 'Service Recovery'; mappedChannel = 'Voice'; }
+    else if (TEAM_MAPS.recovery.chat.includes(teamId)) { mappedDept = 'Service Recovery'; mappedChannel = 'Chat'; }
+    else {
+      // Robust Fallback Detection
+      if (allIdentifiers.includes('sales')) mappedDept = 'Sales Operations';
+      else if (allIdentifiers.includes('recovery')) mappedDept = 'Service Recovery';
 
-    // Channel Mapping (Broad Voice Detection)
-    const sourceType = (conversation.source?.type || '').toLowerCase();
-    const deliveryMethod = (conversation.source?.delivery_method || '').toLowerCase();
-    const compType = (conversation.source?.component_type || '').toLowerCase();
-    
-    const voiceSignatures = ['voice', 'phone', 'call', 'aircall', 'talk', 'dialpad', 'ringcentral'];
-    const isVoice = voiceSignatures.some(sig => allIdentifiers.includes(sig)) || 
-                    sourceType.includes('phone') || 
-                    sourceType.includes('call') || 
-                    deliveryMethod === 'phone' ||
-                    compType.includes('call');
-
-    if (isVoice) {
-      mappedChannel = 'Voice';
+      // Advanced Voice Detection (Dialpad, RingCentral, Aircall, etc)
+      const voiceSigs = ['voice', 'phone', 'call', 'aircall', 'talk', 'dialpad', 'ringcentral', 'automated'];
+      if (voiceSigs.some(sig => allIdentifiers.includes(sig))) {
+        mappedChannel = 'Voice';
+      }
     }
 
     const today = new Date().toISOString().split('T')[0];
     const stats = conversation.statistics;
 
-    // 2. Handle different event types for different metrics
-    let shouldUpdate = false;
+    // 2. Logic Flow: What are we tracking?
     let isSlaPass = false;
     let secondsToReply = 0;
     let queueTime = 0;
     let handleTime = 0;
     let isAbandon = false;
+    let isInbound = false;
 
+    // Handle Event Workflow
     if (eventType === 'conversation.user.created') {
-      // Direct Inbound increment
-      shouldUpdate = true;
-    } else if (eventType === 'conversation.admin.replied') {
-      // Calculate FRT and SLA
+      isInbound = true;
+    } 
+    else if (eventType === 'conversation.admin.replied') {
+      // Only count SLA and FRT on first reply or subsequent ones
       if (stats?.last_admin_reply_at && stats?.last_user_reply_at) {
         secondsToReply = stats.last_admin_reply_at - stats.last_user_reply_at;
         isSlaPass = secondsToReply <= 75;
@@ -74,33 +83,30 @@ export async function POST(req: Request) {
         if (stats.first_admin_reply_at && conversation.created_at) {
           queueTime = stats.first_admin_reply_at - conversation.created_at;
         }
-        shouldUpdate = true;
       }
-    } else if (eventType === 'conversation.admin.closed') {
-      // Abandoned check: Closed without any admin reply
+    } 
+    else if (eventType === 'conversation.admin.closed') {
+      // Abandoned: Closed without any admin ever replying
       if (!stats?.first_admin_reply_at) {
         isAbandon = true;
       } else if (stats.closed_at && stats.first_admin_reply_at) {
-        // AHT: First Reply -> Closed
+        // AHT: First Admin Reply until Closed
         handleTime = stats.closed_at - stats.first_admin_reply_at;
       }
-      shouldUpdate = true;
     }
 
-    if (!shouldUpdate) {
-      return NextResponse.json({ status: 'ignored', reason: 'Non-matching event workflow' });
-    }
+    console.log(`[Webhook] ${eventType} -> Dept: ${mappedDept}, Chan: ${mappedChannel}, TeamID: ${teamId || 'NONE'}, Inbound: ${isInbound}, Abandon: ${isAbandon}`);
 
-    console.log(`[Webhook] ${eventType} for ${mappedDept} [${mappedChannel}]. SLA: ${isSlaPass}, Abandon: ${isAbandon}, Queue: ${queueTime}s, AHT: ${handleTime}s`);
-
-    // 3. Database Update: Atomic Increments
-    if (eventType === 'conversation.admin.replied') {
+    // 3. Update Database
+    // Special case for legacy SLA table
+    if (isInbound) {
       await supabase.rpc('increment_sla_metrics', {
         target_date: today,
-        is_pass: isSlaPass
+        is_pass: false // Inbound just increments count
       });
     }
 
+    // Main Metrics Update
     const { error: rpcError } = await supabase.rpc('update_ops_metrics', {
       p_dept: mappedDept,
       p_chan: mappedChannel,
@@ -109,15 +115,29 @@ export async function POST(req: Request) {
       p_frt: secondsToReply,
       p_wait: queueTime,
       p_handle: handleTime,
-      p_is_abandon: isAbandon
+      p_is_abandon: isAbandon,
+      p_is_inbound: isInbound // REQUIRES RPC UPDATE TO WORK CORRECTLY
     });
 
     if (rpcError) {
       console.error('[Webhook] DB Error:', rpcError.message);
-      return NextResponse.json({ status: 'error', message: rpcError.message }, { status: 500 });
+      // Fallback for old RPC if new one isn't deployed yet: 
+      // If error is about parameter mismatch, try calling without p_is_inbound
+      if (rpcError.message.includes('p_is_inbound')) {
+        await supabase.rpc('update_ops_metrics', {
+          p_dept: mappedDept,
+          p_chan: mappedChannel,
+          p_date: today,
+          p_is_pass: isSlaPass,
+          p_frt: secondsToReply,
+          p_wait: queueTime,
+          p_handle: handleTime,
+          p_is_abandon: isAbandon
+        });
+      }
     }
 
-    return NextResponse.json({ status: 'success', dept: mappedDept, event: eventType });
+    return NextResponse.json({ status: 'success', dept: mappedDept, channel: mappedChannel });
 
   } catch (err: any) {
     console.error('[Webhook] Critical Error:', err.message);
