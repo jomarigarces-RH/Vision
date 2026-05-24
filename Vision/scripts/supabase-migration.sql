@@ -1,0 +1,90 @@
+-- Create staff table
+CREATE TABLE IF NOT EXISTS staff (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  agent_name TEXT UNIQUE NOT NULL,
+  nickname TEXT,
+  coach_name TEXT NOT NULL,
+  lob TEXT NOT NULL, -- Sales, Support, Specialty
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Indexes for staff
+CREATE INDEX IF NOT EXISTS idx_staff_coach ON staff(coach_name);
+CREATE INDEX IF NOT EXISTS idx_staff_lob ON staff(lob);
+CREATE INDEX IF NOT EXISTS idx_staff_agent ON staff(agent_name);
+
+-- Create observations table
+CREATE TABLE IF NOT EXISTS observations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  agent_name TEXT NOT NULL,
+  coach_name TEXT NOT NULL,
+  department TEXT[] NOT NULL,
+  other_department TEXT,
+  date DATE NOT NULL,
+  session_type TEXT[] NOT NULL,
+  categories TEXT[] NOT NULL,
+  other_category TEXT,
+  strengths TEXT,
+  areas_of_opportunity TEXT,
+  root_cause TEXT,
+  action_plan TEXT,
+  overall_rating TEXT[] NOT NULL,
+  other_feedback TEXT,
+  order_number TEXT,
+  team_lead_feedback TEXT,
+  rating INTEGER NOT NULL,
+  observed_by TEXT NOT NULL,
+  duration INTEGER, -- In seconds
+  sync_id TEXT UNIQUE, -- For deduplication
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Indexes for observations
+CREATE INDEX IF NOT EXISTS idx_obs_agent ON observations(agent_name);
+CREATE INDEX IF NOT EXISTS idx_obs_coach ON observations(coach_name);
+CREATE INDEX IF NOT EXISTS idx_obs_date ON observations(date);
+CREATE INDEX IF NOT EXISTS idx_obs_sync_id ON observations(sync_id);
+
+-- Create active_observations table
+CREATE TABLE IF NOT EXISTS active_observations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  agent_name TEXT NOT NULL,
+  coach_name TEXT NOT NULL,
+  start_time BIGINT NOT NULL, -- timestamp
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Indexes for active_observations
+CREATE INDEX IF NOT EXISTS idx_active_obs_agent ON active_observations(agent_name);
+CREATE INDEX IF NOT EXISTS idx_active_obs_coach ON active_observations(coach_name);
+
+-- Create users table
+CREATE TABLE IF NOT EXISTS users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT UNIQUE NOT NULL,
+  password TEXT, -- Hash
+  name TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'user', -- admin, user
+  timezone TEXT,
+  avatar TEXT,
+  default_view TEXT,
+  security_question TEXT,
+  security_answer TEXT,
+  is_first_login BOOLEAN DEFAULT true,
+  is_revoked BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+
+-- Create SLA Daily metrics table
+CREATE TABLE IF NOT EXISTS intercom_sla_daily (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  date DATE UNIQUE NOT NULL,
+  inbound_count INTEGER DEFAULT 0,
+  sla_passes INTEGER DEFAULT 0,
+  sla_fails INTEGER DEFAULT 0,
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_sla_date ON intercom_sla_daily(date);
+

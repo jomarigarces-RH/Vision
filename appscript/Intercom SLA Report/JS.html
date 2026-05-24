@@ -6,6 +6,16 @@ var calViewYear = 0;
 var calViewMonth = 0; // 0-indexed, right panel month
 var calSelecting = 'from'; // 'from' or 'to'
 
+var sdldData = null; // Same Day Last Week storage
+var slaTargets = { voice: 80, chat: 80 }; // Default thresholds
+var useIntercomAPI = false; // Toggle between CSV and API
+var intercomConfig = { hasToken: false, tokenPreview: '' };
+
+var isLivePulse = false;
+var pulseIntervalId = null;
+var pulseCountdown = 60;
+var pulseTimerId = null;
+
 // ===== INITIALIZATION =====
 var isInitialLoad = true;
 document.addEventListener('DOMContentLoaded', function () {
@@ -15,11 +25,15 @@ document.addEventListener('DOMContentLoaded', function () {
   initControlPanel();
   initHeaderRefresh();
 
+  // Load App State
   google.script.run
     .withSuccessHandler(function(saved) {
       if (saved) {
         if (saved.cpStartDate) cpStartDate = saved.cpStartDate;
         if (saved.cpEndDate) cpEndDate = saved.cpEndDate;
+        if (saved.slaTargets) slaTargets = saved.slaTargets;
+        if (saved.useIntercomAPI !== undefined) useIntercomAPI = saved.useIntercomAPI;
+        if (saved.isLivePulse !== undefined) isLivePulse = saved.isLivePulse;
         if (saved.globalAbsentPct) globalAbsentPct = saved.globalAbsentPct;
         if (saved.globalAbsentCount) globalAbsentCount = saved.globalAbsentCount;
         if (saved.opsLog) {
@@ -40,6 +54,12 @@ document.addEventListener('DOMContentLoaded', function () {
       }
       if (!cpStartDate) { cpStartDate = todayStr(); cpEndDate = todayStr(); }
       if (!cpEndDate) cpEndDate = cpStartDate;
+      
+      // Also fetch API config
+      fetchIntercomConfig();
+      
+      if (isLivePulse) startPulse();
+
       isInitialLoad = false;
       renderAllPanels();
       updateGlobalAbsent();
@@ -57,9 +77,111 @@ document.addEventListener('DOMContentLoaded', function () {
     .loadAppState();
 });
 
+function fetchIntercomConfig() {
+  google.script.run.withSuccessHandler(function(conf) {
+    intercomConfig = conf;
+    if (document.getElementById('controlPanel').classList.contains('open')) {
+      buildControlPanel();
+    }
+  }).getIntercomConfig();
+}
+
 function todayStr() {
   var d = new Date();
   return d.getFullYear() + '-' + ('0'+(d.getMonth()+1)).slice(-2) + '-' + ('0'+d.getDate()).slice(-2);
+}
+
+// ===== LIVE PULSE LOGIC =====
+function toggleLivePulse() {
+  isLivePulse = !isLivePulse;
+  if (isLivePulse) {
+    startPulse();
+    showToast('Live Pulse ON (Auto-refresh every 60s)', 'success');
+  } else {
+    stopPulse();
+    showToast('Live Pulse OFF', 'info');
+  }
+  saveStateToDrive();
+}
+
+function startPulse() {
+  var badge = document.getElementById('livePulseBadge');
+  if (badge) badge.classList.add('active');
+  
+  // Set today as dates to ensure live context
+  cpStartDate = cpEndDate = todayStr();
+  
+  if (pulseIntervalId) clearInterval(pulseIntervalId);
+  if (pulseTimerId) clearInterval(pulseTimerId);
+  
+  pulseCountdown = 60;
+  updatePulseUI();
+  
+  pulseTimerId = setInterval(function() {
+    pulseCountdown--;
+    if (pulseCountdown <= 0) {
+      pulseCountdown = 60;
+      fetchFromDrive(null, true); // silent=true, no skeleton flash
+    }
+    updatePulseUI();
+  }, 1000);
+}
+
+function stopPulse() {
+  var badge = document.getElementById('livePulseBadge');
+  if (badge) badge.classList.remove('active');
+  if (pulseTimerId) clearInterval(pulseTimerId);
+  pulseTimerId = null;
+  pulseCountdown = 60;
+  updatePulseUI();
+}
+
+function updatePulseUI() {
+  var timerEl = document.getElementById('pulseTimer');
+  if (timerEl) {
+    timerEl.innerText = pulseCountdown + 's';
+  }
+}
+
+// ===== SKELETON LOADING =====
+function makeSkeleton() {
+  function block(cls) {
+    return '<div class="skeleton-block ' + cls + '"></div>';
+  }
+  function metricRow() {
+    var cols = '';
+    for (var i = 0; i < 4; i++) {
+      cols += '<div class="skeleton-metric">' + block('sk-label') + block('sk-val') + '</div>';
+    }
+    return '<div class="skeleton-metrics-row">' + cols + '</div>';
+  }
+  return '<div class="skeleton-card">' +
+    '<div class="skeleton-card-head">' + block('sk-h') + block('sk-badge') + '</div>' +
+    '<div class="skeleton-card-body">' +
+      metricRow() +
+      block('sk-sla-row') +
+      '<div class="skeleton-divider"></div>' +
+      metricRow() +
+      block('sk-sla-row') +
+    '</div>' +
+  '</div>';
+}
+
+function showSkeletonLoading() {
+  var overviewEl = document.getElementById('panelOverview');
+  if (overviewEl && overviewEl.classList.contains('active')) {
+    var grids = '<div class="overview-grid">';
+    grids += makeSkeleton() + makeSkeleton() + makeSkeleton();
+    grids += '</div>';
+    grids += '<div class="bottom-grid">' + makeSkeleton() + makeSkeleton() + '</div>';
+    overviewEl.innerHTML = grids;
+  }
+  ['panelSupport','panelSales','panelServiceRecovery'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el && el.classList.contains('active')) {
+      el.innerHTML = makeSkeleton();
+    }
+  });
 }
 
 // ===== TABS =====
@@ -127,7 +249,10 @@ function openUploadModal() {
   var defaultDate = cpEndDate || todayStr();
   ['VoiceMetrics', 'ChatSLA', 'VoiceSLA', 'EmailProductivity'].forEach(function(type) {
     var el = document.getElementById('date-' + type);
-    if (el) el.value = defaultDate;
+    if (el) {
+      el.value = defaultDate;
+      el.onchange = function() { onUploadDateChange(type, this.value); };
+    }
   });
 
   if (!uploadFoldersLoaded) {
@@ -223,6 +348,21 @@ function populateUploadDropdown(id, list) {
   });
 }
 
+function onUploadDateChange(type, dateVal) {
+  if (!dateVal) return;
+  var d = new Date(dateVal + 'T12:00:00');
+  var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var target = months[d.getMonth()] + ' ' + d.getFullYear();
+  
+  var sel = document.getElementById('sel-' + type);
+  for (var i = 0; i < sel.options.length; i++) {
+    if (sel.options[i].text.indexOf(target) !== -1) {
+      sel.selectedIndex = i;
+      break;
+    }
+  }
+}
+
 function handleFileUpload(type, file) {
   var folderId = document.getElementById('sel-' + type).value;
   var statusEl = document.getElementById('drop-' + type).querySelector('.ub-status');
@@ -279,14 +419,14 @@ function handleFileUpload(type, file) {
 // ===== FETCH DATA FROM DRIVE =====
 var isFetching = false;
 
-function fetchFromDrive(callback) {
+function fetchFromDrive(callback, silent) {
   if (isFetching) return;
   isFetching = true;
   var s = cpStartDate || todayStr();
   var e = cpEndDate || s;
-  
-  if (!isInitialLoad) {
-    showToast('Fetching live data from Drive...', 'info');
+
+  if (!isInitialLoad && !silent) {
+    showSkeletonLoading();
   }
 
   google.script.run
@@ -299,13 +439,13 @@ function fetchFromDrive(callback) {
               var src = data.slaData[lob].chat;
               for (var k in src) { slaData[lob].chat[k] = src[k]; }
               slaData[lob].chat.abandonRate = calcAbandonRate(slaData[lob].chat.inbound, slaData[lob].chat.abandoned);
-              slaData[lob].chat.status = getSLAStatus(slaData[lob].chat.sla);
+              slaData[lob].chat.status = getSLAStatus(slaData[lob].chat.sla, 'chat');
             }
             if (data.slaData[lob].calls) {
               var src = data.slaData[lob].calls;
               for (var k in src) { slaData[lob].calls[k] = src[k]; }
               slaData[lob].calls.abandonRate = calcAbandonRate(slaData[lob].calls.inbound, slaData[lob].calls.abandoned);
-              slaData[lob].calls.status = getSLAStatus(slaData[lob].calls.sla);
+              slaData[lob].calls.status = getSLAStatus(slaData[lob].calls.sla, 'voice');
             }
           }
         });
@@ -321,25 +461,16 @@ function fetchFromDrive(callback) {
         globalAbsentPct = data.globalAbsenteeism.rate || '0%';
         globalAbsentCount = data.globalAbsenteeism.absent || 0;
       }
-      if (data && data.absenteeismData && data.absenteeismData.debugInfo) {
-        console.log("Absenteeism Debug:", data.absenteeismData.debugInfo);
-      }
+      
+      sdldData = data.sdldData || null; // WoW Trends
+      updateDataHealthStatus(data.errors);
       renderAllPanels();
       updateGlobalAbsent();
+      
       var days = data && data.daysProcessed ? data.daysProcessed : 1;
       var msg = 'Live data loaded' + (days > 1 ? ' (' + days + ' days)' : '') + ' for ' + (data.date || s);
-      if (data && data.errors && data.errors.length) {
-        console.error("Backend Extraction Errors:", data.errors);
-        showToast(msg + ' (with ' + data.errors.length + ' warnings)', 'info');
-      } else if (data && data.absenteeismData && data.absenteeismData.debugInfo && data.absenteeismData.debugInfo.statuses) {
-        var dbg = data.absenteeismData.debugInfo;
-        var stats = Object.keys(dbg.statuses).map(function(k){return k+':'+dbg.statuses[k]}).join(', ');
-        var skipped = dbg.skippedAbs && dbg.skippedAbs.length ? " | SKP: " + dbg.skippedAbs.join(', ') : "";
-        var colInd = dbg.dateColsIdxs && dbg.dateColsIdxs.length ? dbg.dateColsIdxs.join(',') : '?';
-        showToast(msg + ' | ColIdx: ' + colInd + ' | Active: ' + dbg.activeFound + ' | Codes: ' + stats + skipped, 'success');
-      } else {
-        showToast(msg, 'success');
-      }
+      showToast(msg, data.errors && data.errors.length ? 'info' : 'success');
+      
       saveStateToDrive();
       if (typeof callback === 'function') callback();
     })
@@ -349,6 +480,37 @@ function fetchFromDrive(callback) {
       if (typeof callback === 'function') callback();
     })
     .fetchSLAData(s, e);
+}
+
+function updateDataHealthStatus(errors) {
+  var badge = document.getElementById('healthBadge');
+  var span = badge.querySelector('span');
+  if (!errors || errors.length === 0) {
+    badge.className = 'health-badge good';
+    span.innerText = 'Data Healthy';
+  } else {
+    var isCrit = errors.some(function(e) { return e.indexOf('Failed') !== -1; });
+    badge.className = isCrit ? 'health-badge critical' : 'health-badge issue';
+    span.innerText = errors.length + ' Data Issues';
+    badge.title = errors.join('\n');
+  }
+}
+
+function copyDataToCSV() {
+  var s = cpStartDate || todayStr();
+  var rows = [['Report Date', s]];
+  rows.push(['LOB','Channel','Inbound','SLA','AHT','FRT/Abandoned','Absenteeism','Efficiency']);
+  ['support','sales','serviceRecovery'].forEach(function(l) {
+    var v = slaData[l].calls, c = slaData[l].chat;
+    rows.push([l, 'Voice', v.inbound, v.sla, v.aht, v.abandoned, v.absenteeism, calcEfficiency(l, 'calls')]);
+    rows.push([l, 'Chat', c.inbound, c.sla, c.aht, c.frt, c.absenteeism, calcEfficiency(l, 'chat')]);
+  });
+  
+  var csv = rows.map(function(r){ return r.join(','); }).join('\n');
+  var ta = document.createElement('textarea');
+  ta.value = csv; document.body.appendChild(ta); ta.select();
+  document.execCommand('copy'); document.body.removeChild(ta);
+  showToast('Data copied as CSV!', 'success');
 }
 
 // ===== SNAP =====
@@ -526,11 +688,30 @@ function buildControlPanel() {
   var body = document.getElementById('cpBody');
   var html = '';
 
-  // ── DATA SOURCE ──
+  // ── DATA SOURCE (API TOGGLE) ──
   html += '<div class="cp-section">';
-  html += '<div class="cp-section-title">Data Source</div>';
+  html += '<div class="cp-section-title">Data Integration</div>';
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">';
+  html += '<div class="cp-label" style="font-weight:700">Source: ' + (useIntercomAPI ? '📡 Intercom API' : '📂 Manual CSVs') + '</div>';
+  html += '<button class="cp-preset-btn" style="padding:5px 14px" onclick="useIntercomAPI=!useIntercomAPI;buildControlPanel();saveStateToDrive()">Switch to ' + (useIntercomAPI ? 'CSV' : 'API') + '</button>';
+  html += '</div>';
+  
+  if (useIntercomAPI) {
+    html += '<div style="background:var(--card2);padding:12px;border-radius:10px;border:1px solid var(--border);margin-bottom:12px">';
+    html += '<div class="cp-label" style="font-size:.7rem;margin-bottom:5px">API Token Status</div>';
+    if (intercomConfig.hasToken) {
+      html += '<div style="display:flex;align-items:center;gap:8px;color:var(--green);font-size:.75rem;font-weight:700">';
+      html += '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>';
+      html += 'Connected (' + intercomConfig.tokenPreview + ')</div>';
+    } else {
+      html += '<div style="color:var(--red);font-size:.75rem;font-weight:700">Not Connected</div>';
+    }
+    html += '<button class="cp-fetch-btn" style="width:100%;margin-top:10px;font-size:.65rem;padding:6px" onclick="promptIntercomToken()">Update API Token</button>';
+    html += '</div>';
+  }
 
-  // Presets
+  // ── DATE SELECTION ──
+  html += '<div class="cp-section-title">Date Range</div>';
   html += '<div class="cp-presets">';
   var presets = [
     { key:'today', label:'Today' },
@@ -544,10 +725,8 @@ function buildControlPanel() {
   });
   html += '</div>';
 
-  // Calendar
   html += buildCalendar();
 
-  // Apply date button
   html += '<button class="cp-fetch-btn" style="width:100%;margin-top:8px" onclick="calApply()">' +
     '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">' +
     '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>' +
@@ -576,8 +755,19 @@ function buildControlPanel() {
   html += '<button class="cp-fetch-btn" style="width:100%" onclick="doSnap()">' +
     '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">' +
     '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>' +
-    '<circle cx="12" cy="13" r="4"/></svg> Snap to Clipboard</button></div>';
+    '<circle cx="12" cy="13" r="4"/></svg> Snap to Clipboard</button>';
 
+  html += '<button class="cp-fetch-btn" style="width:100%;margin-top:6px;background:var(--card2);color:var(--text);border:1px solid var(--border)" onclick="copyDataToCSV()">' +
+    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">' +
+    '<path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>' +
+    ' Copy as CSV</button></div>';
+
+  // ── THRESHOLDS ──
+  html += '<div class="cp-section"><div class="cp-section-title">SLA High-Target Thresholds (%)</div>';
+  html += '<div class="cp-threshold-grid">';
+  html += '<div class="cp-field"><label class="cp-label">Voice Target</label><input type="number" class="cp-input" value="' + slaTargets.voice + '" oninput="slaTargets.voice=parseFloat(this.value)||0"></div>';
+  html += '<div class="cp-field"><label class="cp-label">Chat Target</label><input type="number" class="cp-input" value="' + slaTargets.chat + '" oninput="slaTargets.chat=parseFloat(this.value)||0"></div>';
+  html += '</div></div>';
 
   // ── OPS LOG ──
   html += '<div class="cp-section"><div class="cp-section-title">Shift Operations Log</div>';
@@ -607,13 +797,44 @@ function buildControlPanel() {
   });
   html += '</div>';
 
-  // ── APPLY ──
+  // ── HISTORICAL BULK IMPORT (NEW) ──
+  html += '<div class="cp-section">';
+  html += '<div class="cp-section-title">Bulk Historical Importer</div>';
+  html += '<div class="cp-label" style="font-size:.65rem;margin-bottom:8px">Fetch and cache historical data for the selected range.</div>';
+  html += '<button class="cp-fetch-btn" style="width:100%;background:var(--indigo)" id="bulkImportBtn" onclick="runBulkImport()">Start Bulk Import</button>';
+  html += '<div id="importProgress" style="display:none;margin-top:10px">';
+  html += '<div style="display:flex;justify-content:space-between;margin-bottom:4px"><span class="cp-label">Progress</span><span id="importPct" class="cp-label">0%</span></div>';
+  html += '<div style="height:6px;background:var(--border2);border-radius:3px;overflow:hidden"><div id="importBar" style="width:0%;height:100%;background:var(--indigo);transition:width .3s"></div></div>';
+  html += '</div></div>';
+
+  // ── WEBHOOK STATUS (NEW) ──
+  html += '<div class="cp-section">';
+  html += '<div class="cp-section-title">Webhook Integration</div>';
+  html += '<button class="cp-preset-btn" style="width:100%;margin-bottom:8px;text-align:left;display:flex;justify-content:space-between" onclick="toggleWebhookInfo()">';
+  html += '<span>Real-time Sync Status</span>';
+  html += '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>';
+  html += '</button>';
+  html += '<div id="webhookInfo" style="display:none;padding:12px;background:var(--card2);border:1px solid var(--border);border-radius:10px;font-size:0.7rem;line-height:1.5">';
+  html += '<div style="margin-bottom:8px"><strong>Target URL:</strong><br><code style="color:var(--brand);word-break:break-all" id="webhookUrl">Loading...</code></div>';
+  html += '<div><strong>Status:</strong> <span id="webhookStatus">Updating...</span></div>';
+  html += '</div></div>';
+
   html += '<button style="width:100%;padding:10px;border-radius:10px;border:none;background:var(--brand);color:#fff;font-size:.82rem;font-weight:700;cursor:pointer;font-family:inherit;margin-top:4px;margin-bottom:24px" onclick="applyControlPanel()">Apply &amp; Refresh Dashboard</button>';
 
   body.innerHTML = html;
 }
 
 // ===== CP HELPERS =====
+function promptIntercomToken() {
+  var token = prompt("Enter your Intercom Access Token:", "");
+  if (token) {
+    google.script.run.withSuccessHandler(function() {
+      showToast('API Token saved!', 'success');
+      fetchIntercomConfig();
+    }).saveIntercomToken(token);
+  }
+}
+
 function toggleOpsPreset(field, preset, btn) {
   var idx = opsLog[field].selected.indexOf(preset);
   if (idx === -1) { opsLog[field].selected.push(preset); btn.classList.add('selected'); }
@@ -644,6 +865,55 @@ function applyControlPanel() {
   showToast('Dashboard updated & saved!', 'success');
 }
 
+function toggleWebhookInfo() {
+  var el = document.getElementById('webhookInfo');
+  var isVisible = el.style.display === 'block';
+  el.style.display = isVisible ? 'none' : 'block';
+  if (!isVisible) {
+    google.script.run.withSuccessHandler(function(info) {
+      document.getElementById('webhookUrl').innerText = info.url;
+      document.getElementById('webhookStatus').innerHTML = info.hasToken ? '<span style="color:var(--green)">Ready</span>' : '<span style="color:var(--red)">Token Missing</span>';
+    }).getWebhookInfo();
+  }
+}
+
+var importPollingId = null;
+function runBulkImport() {
+  if (!confirm("This will fetch historical data day-by-day for the range " + cpStartDate + " to " + cpEndDate + ". Continue?")) return;
+  
+  document.getElementById('bulkImportBtn').disabled = true;
+  document.getElementById('bulkImportBtn').innerText = 'Importing...';
+  document.getElementById('importProgress').style.display = 'block';
+  
+  google.script.run
+    .withSuccessHandler(function(res) {
+      clearInterval(importPollingId);
+      document.getElementById('importPct').innerText = '100%';
+      document.getElementById('importBar').style.width = '100%';
+      showToast('Bulk import complete! Processed ' + res.processed + ' days.', 'success');
+      document.getElementById('bulkImportBtn').disabled = false;
+      document.getElementById('bulkImportBtn').innerText = 'Import Complete';
+      fetchFromDrive();
+    })
+    .withFailureHandler(function(err) {
+      clearInterval(importPollingId);
+      showToast('Import failed: ' + err.message, 'error');
+      document.getElementById('bulkImportBtn').disabled = false;
+    })
+    .runBulkImport(cpStartDate, cpEndDate);
+    
+  importPollingId = setInterval(pollImportProgress, 2000);
+}
+
+function pollImportProgress() {
+  google.script.run.withSuccessHandler(function(pct) {
+    if (pct) {
+      document.getElementById('importPct').innerText = pct + '%';
+      document.getElementById('importBar').style.width = pct + '%';
+    }
+  }).getImportProgress();
+}
+
 function saveStateToDrive() {
   var state = {
     activeTab: activeTab,
@@ -652,6 +922,9 @@ function saveStateToDrive() {
     globalAbsentPct: globalAbsentPct,
     globalAbsentCount: globalAbsentCount,
     opsLog: opsLog,
+    slaTargets: slaTargets,
+    useIntercomAPI: useIntercomAPI,
+    isLivePulse: isLivePulse,
     isDark: isDark
   };
   google.script.run

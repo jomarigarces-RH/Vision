@@ -3,6 +3,7 @@
 var AUTO_REFRESH_MS = 120000; // 2 minutes
 var refreshTimer = null;
 var isRefreshing = false;
+var isInitialLoad = true;
 
 document.addEventListener('DOMContentLoaded', function(){
   initSidebar();
@@ -11,6 +12,7 @@ document.addEventListener('DOMContentLoaded', function(){
   initFilter();
   initModalCloseButtons();
   initRefresh();
+  initMissingChartFilters();
   loadData();
   
   // Initialize AOS
@@ -66,13 +68,14 @@ function refreshData(){
       updateLobCounts();
       if(currentView==='dashboard') {
         renderDashboard();
-        animateDashboardEntrance();
+        if(isInitialLoad) animateDashboardEntrance();
       }
       else if(currentView==='agents') renderAgentsView(currentDept);
       else if(currentView==='coaches') renderCoachesView();
       else if(currentView==='history') renderHistoryView();
       
       isRefreshing = false;
+      isInitialLoad = false;
       
       // Also hide initial loading overlay if still visible
       var overlay = document.getElementById('loadingOverlay');
@@ -109,6 +112,20 @@ function initSidebar(){
   ov.addEventListener('click', function(){
     sb.classList.remove('mobile-open');
     ov.classList.remove('show');
+  });
+
+  animateSidebarEntrance();
+}
+
+function animateSidebarEntrance(){
+  gsap.from(".sidebar-logo", { x: -20, opacity: 0, duration: 0.6, ease: "power2.out" });
+  gsap.from(".nav-item, .nav-group", {
+    x: -30,
+    opacity: 0,
+    duration: 0.5,
+    stagger: 0.1,
+    ease: "power2.out",
+    delay: 0.2
   });
 }
 
@@ -180,7 +197,27 @@ function initNavigation(){
   // View All buttons
   document.getElementById('viewAllRecentBtn').addEventListener('click',showRecentObsModal);
   document.getElementById('viewAllNeglectedBtn').addEventListener('click',showNeglectedModal);
-  document.getElementById('viewRankingsBtn').addEventListener('click',showWowModal);
+  document.getElementById('viewRankingsBtn').addEventListener('click',showTopScoresModal);
+}
+
+function initMissingChartFilters(){
+  var tabs = document.querySelectorAll('#missingLobTabs .card-tab');
+  tabs.forEach(function(tab){
+    tab.addEventListener('click', function(){
+      tabs.forEach(function(t){t.classList.remove('active')});
+      this.classList.add('active');
+      missingChartLob = this.getAttribute('data-lob');
+      renderMissingChart(getFilterDates());
+    });
+  });
+}
+
+function filterTopScores(){
+  var q = document.getElementById('topScoresSearch').value.toLowerCase().trim();
+  var filtered = (window._fullTopStats || []).filter(function(s){
+    return s.name.toLowerCase().includes(q) || (s.coach && s.coach.toLowerCase().includes(q));
+  });
+  renderTopScoresList(filtered);
 }
 
 function switchView(view){
@@ -196,6 +233,7 @@ function switchView(view){
   var targetEl = document.getElementById(targetId);
   if(targetEl) {
     targetEl.classList.add('active');
+    gsap.killTweensOf(targetEl); // Stop any previous view animations
     gsap.fromTo(targetEl, { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" });
   }
 
@@ -281,36 +319,209 @@ function initSearch(){
   });
 }
 
-// ===== FILTER =====
+// ===== FILTER SYSTEM =====
 function initFilter(){
-  var periods=['Today','Yesterday','Past week','Month to date','Past 4 weeks','Past 12 weeks','Year to date','All Time'];
-  var menu=document.getElementById('filterMenu');
-  menu.innerHTML=periods.map(function(p){
-    var active=p===filterPeriod?' active':'';
-    return '<div class="fm-item'+active+'" data-period="'+p+'"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span>'+p+'</span><svg class="fm-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div>';
+  console.log('Initializing Filter System...');
+  var periods = [
+    'Today', 'Yesterday', 'This week', 'Past week', 
+    'Month to date', 'Past 4 weeks', 'Past 12 weeks', 
+    'Year to date', 'Past 6 months', 'Past 12 months', 'All Time'
+  ];
+  var menu = document.getElementById('filterMenu');
+  if(!menu) {
+    console.error('Filter menu element not found!');
+    return;
+  }
+  
+  var html = periods.map(function(p){
+    var active = (p === filterPeriod) ? ' active' : '';
+    return '<div class="fm-item' + active + '" data-period="' + p + '">' +
+           '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>' +
+           '<span>' + p + '</span>' +
+           '<svg class="fm-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>' +
+           '</div>';
   }).join('');
+  
+  // Explicitly add the Divider and Custom option
+  html += '<div class="fm-divider"></div>';
+  var customActive = (filterPeriod === 'Custom') ? ' active' : '';
+  html += '<div class="fm-item fm-custom' + customActive + '" data-period="Custom">' +
+          '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>' +
+          '<span>Custom Range</span>' +
+          '<svg class="fm-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>' +
+          '</div>';
+    
+  menu.innerHTML = html;
+  console.log('Filter menu populated with ' + (periods.length + 1) + ' items.');
 
-  document.getElementById('filterBtn').addEventListener('click',function(e){
-    e.stopPropagation();menu.classList.toggle('show');
+  document.getElementById('filterBtn').addEventListener('click', function(e){
+    e.stopPropagation();
+    menu.classList.toggle('show');
   });
+
   menu.querySelectorAll('.fm-item').forEach(function(item){
-    item.addEventListener('click',function(){
-      filterPeriod=this.getAttribute('data-period');
-      document.getElementById('filterLabel').textContent=filterPeriod;
-      menu.querySelectorAll('.fm-item').forEach(function(i){i.classList.remove('active')});
-      this.classList.add('active');
+    item.addEventListener('click', function(){
+      var p = this.getAttribute('data-period');
+      console.log('Filter selected:', p);
+      if(p === 'Custom') {
+        openCustomFilterModal();
+      } else {
+        applyFilter(p);
+      }
       menu.classList.remove('show');
-      historyPage = 1; // Reset pagination
-      // Re-render current view
-      if(currentView==='dashboard')renderDashboard();
-      else if(currentView==='agents')renderAgentsView(currentDept);
-      else if(currentView==='coaches')renderCoachesView();
-      else if(currentView==='history')renderHistoryView();
     });
   });
-  document.addEventListener('click',function(e){
-    if(!document.getElementById('filterDropdown').contains(e.target))menu.classList.remove('show');
+
+  document.addEventListener('click', function(e){
+    if(!document.getElementById('filterDropdown').contains(e.target)) {
+      menu.classList.remove('show');
+    }
   });
+
+  document.getElementById('applyCustomFilter').addEventListener('click', function(){
+    if(!tempStartDate || !tempEndDate) {
+      alert('Please select both start and end dates.');
+      return;
+    }
+    customStartDate = tempStartDate;
+    customEndDate = tempEndDate;
+    applyFilter('Custom');
+    hideModal('customFilterModal');
+  });
+}
+
+function applyFilter(p) {
+  filterPeriod = p;
+  var label = p;
+  if(p === 'Custom' && customStartDate && customEndDate) {
+    label = formatDateShort(new Date(customStartDate)) + ' — ' + formatDateShort(new Date(customEndDate));
+  }
+  document.getElementById('filterLabel').textContent = label;
+  
+  var menu = document.getElementById('filterMenu');
+  menu.querySelectorAll('.fm-item').forEach(function(i){
+    i.classList.toggle('active', i.getAttribute('data-period') === p);
+  });
+
+  historyPage = 1; 
+  if(currentView==='dashboard') renderDashboard();
+  else if(currentView==='agents') renderAgentsView(currentDept);
+  else if(currentView==='coaches') renderCoachesView();
+  else if(currentView==='history') renderHistoryView();
+}
+
+// ===== CUSTOM CALENDAR LOGIC =====
+var tempStartDate = null, tempEndDate = null;
+var calMonth1 = new Date();
+calMonth1.setDate(1);
+
+function openCustomFilterModal() {
+  tempStartDate = customStartDate;
+  tempEndDate = customEndDate;
+  updateRangeDisplay();
+  renderCalendars();
+  showModal('customFilterModal');
+}
+
+function renderCalendars() {
+  var m1 = new Date(calMonth1);
+  var m2 = new Date(calMonth1);
+  m2.setMonth(m2.getMonth() + 1);
+  
+  renderMonth(m1, 'dpMonth1', true);
+  renderMonth(m2, 'dpMonth2', false);
+}
+
+function renderMonth(date, containerId, isFirst) {
+  var year = date.getFullYear();
+  var month = date.getMonth();
+  var monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  
+  var firstDay = new Date(year, month, 1).getDay();
+  var daysInMonth = new Date(year, month + 1, 0).getDate();
+  
+  var html = '<div class="calendar-month-head">';
+  if(isFirst) html += '<button class="cal-nav-btn" onclick="navMonth(-1)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></button>';
+  else html += '<div></div>';
+  
+  html += '<div class="month-title">' + monthNames[month] + ' ' + year + '</div>';
+  
+  if(!isFirst) html += '<button class="cal-nav-btn" onclick="navMonth(1)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></button>';
+  else html += '<div></div>';
+  
+  html += '</div>';
+  html += '<div class="calendar-grid">';
+  
+  var days = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+  days.forEach(function(d){ html += '<div class="weekday">' + d + '</div>'; });
+  
+  for(var i=0; i<firstDay; i++) { html += '<div class="day empty"></div>'; }
+  
+  var nowStr = fmt(new Date());
+  for(var d=1; d<=daysInMonth; d++) {
+    var dStr = fmt(new Date(year, month, d));
+    var cls = 'day';
+    if(dStr === nowStr) cls += ' today';
+    if(dStr === tempStartDate || dStr === tempEndDate) cls += ' selected';
+    else if(tempStartDate && tempEndDate && dStr > tempStartDate && dStr < tempEndDate) cls += ' in-range';
+    
+    html += '<div class="'+cls+'" onclick="selectDate(\''+dStr+'\')">' + d + '</div>';
+  }
+  
+  html += '</div>';
+  document.getElementById(containerId).innerHTML = html;
+}
+
+function navMonth(delta) {
+  calMonth1.setMonth(calMonth1.getMonth() + delta);
+  renderCalendars();
+}
+
+function selectDate(dStr) {
+  if(!tempStartDate || (tempStartDate && tempEndDate)) {
+    tempStartDate = dStr;
+    tempEndDate = null;
+  } else {
+    if(dStr < tempStartDate) {
+      tempEndDate = tempStartDate;
+      tempStartDate = dStr;
+    } else {
+      tempEndDate = dStr;
+    }
+  }
+  updateRangeDisplay();
+  renderCalendars();
+}
+
+function updateRangeDisplay() {
+  var f = document.getElementById('dpFromDate');
+  var t = document.getElementById('dpToDate');
+  
+  if(tempStartDate) {
+    f.textContent = formatDateFull(new Date(tempStartDate));
+    f.classList.add('active');
+  } else {
+    f.textContent = 'Select Date';
+    f.classList.remove('active');
+  }
+  
+  if(tempEndDate) {
+    t.textContent = formatDateFull(new Date(tempEndDate));
+    t.classList.add('active');
+  } else {
+    t.textContent = 'Select Date';
+    t.classList.remove('active');
+  }
+}
+
+function formatDateFull(date) {
+  var options = { month: 'long', day: 'numeric', year: 'numeric' };
+  return date.toLocaleDateString('en-US', options);
+}
+
+function formatDateShort(date) {
+  var options = { month: 'short', day: 'numeric', year: 'numeric' };
+  return date.toLocaleDateString('en-US', options);
 }
 
 // ===== MODAL CLOSE BUTTONS =====

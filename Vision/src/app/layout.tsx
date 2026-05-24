@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import ConvexClientProvider from "./ConvexClientProvider";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -33,9 +32,9 @@ export default function RootLayout({
             __html: `
               try {
                 if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-                  document.documentElement.classList.add('dark');
+                   document.documentElement.classList.add('dark');
                 } else {
-                  document.documentElement.classList.remove('dark');
+                   document.documentElement.classList.remove('dark');
                 }
               } catch (_) {}
             `,
@@ -43,7 +42,7 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-full flex flex-col">
-        <ConvexClientProvider>{children}</ConvexClientProvider>
+        {children}
       </body>
     </html>
   );

@@ -61,9 +61,33 @@ function calcAbandonRate(inbound, abandoned) {
   return i > 0 ? (a/i*100).toFixed(1) + '%' : '0.0%';
 }
 
-function getSLAStatus(slaStr) {
+function getSLAStatus(slaStr, type) {
   var v = parsePct(slaStr);
-  return (v >= 80 && v <= 87) ? 'good' : 'alert';
+  var target = type === 'chat' ? slaTargets.chat : slaTargets.voice;
+  return (v >= target) ? 'good' : 'alert';
+}
+
+function calcEfficiency(lob, channel) {
+  var d = slaData[lob][channel];
+  var inb = parseFloat(String(d.inbound).replace(/,/g,'')) || 0;
+  var abd = parseFloat(String(d.abandoned || 0).replace(/,/g,'')) || 0;
+  var solved = inb - abd;
+  var present = (d.activeCount || 0) - (d.absentCount || 0);
+  if (present <= 0) return '0.0';
+  return (solved / present).toFixed(1);
+}
+
+function renderWow(val, lob, channel, field) {
+  if (!sdldData || !sdldData[lob] || !sdldData[lob][channel]) return '';
+  var prev = sdldData[lob][channel][field];
+  var v1 = parsePct(val);
+  var v2 = parsePct(prev);
+  if (v1 === v2) return '';
+  var isUp = v1 > v2;
+  var cls = isUp ? 'up' : 'down';
+  var arrow = isUp ? '▲' : '▼';
+  var diff = Math.abs(v1 - v2).toFixed(1);
+  return '<span class="wow-indicator ' + cls + '" title="WoW: ' + prev + '"><span class="wow-arrow">' + arrow + '</span>' + diff + '%</span>';
 }
 
 function updateLobMetric(lob, channel, field, value) {
@@ -73,7 +97,7 @@ function updateLobMetric(lob, channel, field, value) {
     ch.abandonRate = calcAbandonRate(ch.inbound, ch.abandoned);
   }
   if (field === 'sla') {
-    ch.status = getSLAStatus(value);
+    ch.status = getSLAStatus(value, channel === 'chat' ? 'chat' : 'voice');
   }
 }
 

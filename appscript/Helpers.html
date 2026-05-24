@@ -1,6 +1,6 @@
 <script>
 // ===== GLOBALS =====
-var allObs=[], AGENTS=[], COACHES=[], filterPeriod='Past week', currentHistoryAgent=null, historyPage=1, historyPageSize=50;
+var allObs=[], AGENTS=[], COACHES=[], filterPeriod='Past week', customStartDate=null, customEndDate=null, currentHistoryAgent=null, historyPage=1, historyPageSize=50, missingChartLob='Sales';
 function getInitials(n){return n.split(' ').map(function(w){return w[0]}).join('').toUpperCase().slice(0,2)}
 function getColor(n){var c=['#4F7DF3','#F59E0B','#10B981','#EF4444','#8B5CF6','#EC4899','#06B6D4','#F97316','#14B8A6','#6366F1'];var h=0;for(var i=0;i<n.length;i++)h=n.charCodeAt(i)+((h<<5)-h);return c[Math.abs(h)%c.length]}
 function fmt(d){return d.toISOString().split('T')[0]}
@@ -11,11 +11,15 @@ function getFilterDates(){
     case'Today':s=e=fmt(now);break;
     case'Yesterday':var y=new Date(now);y.setDate(y.getDate()-1);s=e=fmt(y);break;
     case'Past week':var w=new Date(now);w.setDate(w.getDate()-7);s=fmt(w);break;
+    case'This week':s=getMonday(now);break;
     case'Month to date':var m=new Date(now);m.setDate(1);s=fmt(m);break;
     case'Past 4 weeks':var p=new Date(now);p.setDate(p.getDate()-28);s=fmt(p);break;
     case'Past 12 weeks':var q=new Date(now);q.setDate(q.getDate()-84);s=fmt(q);break;
     case'Year to date':var r=new Date(now);r.setMonth(0,1);s=fmt(r);break;
+    case'Past 6 months':var r6=new Date(now);r6.setMonth(r6.getMonth()-6);s=fmt(r6);break;
+    case'Past 12 months':var r12=new Date(now);r12.setMonth(r12.getMonth()-12);s=fmt(r12);break;
     case'All Time':s='2000-01-01';break;
+    case'Custom':s=customStartDate;e=customEndDate;break;
     default:var dw=new Date(now);dw.setDate(dw.getDate()-7);s=fmt(dw);
   }
   return{start:s,end:e};
@@ -55,9 +59,12 @@ function hideModal(id){document.getElementById(id).classList.remove('show')}
 
 function gsapCount(el, target, suffix) {
   if (!el) return;
+  // Kill any existing count tween on this element to prevent overlap
+  if (el._gsapCount) el._gsapCount.kill();
+  
   suffix = suffix || "";
   var obj = { val: parseInt(el.textContent) || 0 };
-  gsap.to(obj, {
+  el._gsapCount = gsap.to(obj, {
     val: target,
     duration: 1.5,
     ease: "power2.out",

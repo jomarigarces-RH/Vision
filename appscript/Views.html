@@ -185,24 +185,45 @@ function showNeglectedModal(){
 }
 
 // ===== WOW MODAL =====
-function showWowModal(){
-  var fd=getFilterDates(),ws=getWeekStats();
-  var data=AGENTS.map(function(a){
-    var tw=countObs(a.name,fd.start,fd.end);
-    var prevEnd=new Date(fd.start);prevEnd.setDate(prevEnd.getDate()-1);
-    var diff=fd.end?new Date(fd.end)-new Date(fd.start):new Date()-new Date(fd.start);
-    var prevStart=new Date(prevEnd.getTime()-diff);
-    var lw=countObs(a.name,fmt(prevStart),fmt(prevEnd));
-    var at=countObs(a.name);
-    return{name:a.name,tw:tw,lw:lw,at:at,wow:tw-lw};
-  }).filter(function(a){return a.at>0}).sort(function(a,b){return b.at-a.at}).slice(0,20);
-  var html='<div style="display:grid;grid-template-columns:40px 1fr 50px 50px 50px 60px;gap:6px;padding:8px;font-size:.62rem;font-weight:800;color:#94a3b8;text-transform:uppercase;border-bottom:1px solid #f1f5f9"><div>Rank</div><div>Agent</div><div style="text-align:center">TW</div><div style="text-align:center">LW</div><div style="text-align:center">All</div><div style="text-align:right">WoW</div></div>';
-  html+=data.map(function(a,i){
-    var rc=i===0?'background:#fef3c7;color:#d97706':i===1?'background:#f1f5f9;color:#64748b':i===2?'background:#ffedd5;color:#ea580c':'background:#f8fafc;color:#94a3b8';
-    return '<div style="display:grid;grid-template-columns:40px 1fr 50px 50px 50px 60px;gap:6px;align-items:center;padding:8px;border-radius:8px;transition:all .15s" onmouseover="this.style.background=\'#f8fafc\'" onmouseout="this.style.background=\'\'"><div class="wow-rank" style="'+rc+'">'+(i+1)+'</div><div style="display:flex;align-items:center;gap:6px;min-width:0">'+avatarHTML(a.name,26)+'<span style="font-weight:700;font-size:.82rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+a.name+'</span></div><div style="text-align:center;font-weight:700;font-size:.82rem">'+a.tw+'</div><div style="text-align:center;font-weight:700;font-size:.82rem;color:#94a3b8">'+a.lw+'</div><div style="text-align:center;font-weight:700;font-size:.82rem;color:#4F7DF3">'+a.at+'</div><div style="text-align:right">'+wowBadge(a.wow)+'</div></div>';
-  }).join('');
-  document.getElementById('wowBody').innerHTML=html;
+// ===== TOP SCORES MODAL =====
+function showTopScoresModal(){
+  var fd=getFilterDates();
+  var stats=AGENTS.map(function(a){
+    var periodObs = allObs.filter(function(o){
+      if(o.agentName !== a.name) return false;
+      if(fd.start && o.date < fd.start) return false;
+      if(fd.end && o.date > fd.end) return false;
+      return true;
+    });
+    var count = periodObs.length;
+    var avg = count > 0 ? Math.round(periodObs.reduce(function(acc, o){ return acc + (o.rating || 0); }, 0) / count) : 0;
+    return { name: a.name, count: count, avg: avg, coach: a.coach, lob: a.lob };
+  }).filter(function(s){ return s.count > 0; })
+    .sort(function(a,b){ return b.avg - a.avg || b.count - a.count; });
+
+  window._fullTopStats = stats; // Store for search filtering
+  renderTopScoresList(stats);
+  document.getElementById('topScoresSearch').value = ''; // Reset search
   showModal('wowModal');
+}
+
+function renderTopScoresList(data){
+  var el = document.getElementById('wowBody');
+  if(!data.length){
+    el.innerHTML='<div style="padding:40px;text-align:center;color:#94a3b8">No matching agents found.</div>';
+    return;
+  }
+  var html='<div style="display:grid;grid-template-columns:40px 1fr 100px 80px;gap:8px;padding:12px 8px;font-size:.65rem;font-weight:800;color:#94a3b8;text-transform:uppercase;border-bottom:1px solid #f1f5f9;margin-bottom:8px"><div>Rank</div><div>Agent</div><div style="text-align:center">Observations</div><div style="text-align:right">Avg Score</div></div>';
+  html += data.map(function(s, i){
+    var rc=i===0?'background:#ecfdf5;color:#059669':i===1?'background:#eff6ff;color:#4F7DF3':i===2?'background:#fffbeb;color:#d97706':'background:#f8fafc;color:#94a3b8';
+    var scoreColor=s.avg>=90?'#10B981':s.avg>=80?'#4F7DF3':'#64748B';
+    return '<div class="wow-row" style="display:grid;grid-template-columns:40px 1fr 100px 80px;gap:8px;align-items:center;padding:10px 8px;border-radius:10px;cursor:pointer" onclick="hideModal(\'wowModal\');showAgentHistory(\''+s.name.replace(/'/g,"\\'")+'\')">' +
+      '<div class="wow-rank" style="'+rc+'">'+(i+1)+'</div>' +
+      '<div style="display:flex;align-items:center;gap:10px;min-width:0">'+avatarHTML(s.name,30)+'<div><div style="font-weight:700;font-size:.85rem">'+s.name+'</div><div style="font-size:.7rem;color:#94a3b8">'+s.coach+'</div></div></div>' +
+      '<div style="text-align:center;font-weight:700;font-size:.85rem;color:#64748B">'+s.count+'</div>' +
+      '<div style="text-align:right;font-weight:800;color:'+scoreColor+';font-size:.9rem">'+s.avg+'%</div></div>';
+  }).join('');
+  el.innerHTML = html;
 }
 
 // ===== LOB COUNTS =====

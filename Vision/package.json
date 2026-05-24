@@ -9,8 +9,9 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "convex": "^1.37.0",
+    "@supabase/supabase-js": "^2.106.1",
     "dotenv": "^17.4.2",
+
     "lucide-react": "^1.14.0",
     "next": "16.2.4",
     "react": "19.2.4",

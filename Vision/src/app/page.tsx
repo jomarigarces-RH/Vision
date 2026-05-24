@@ -1,19 +1,19 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useQuery, useMutation, useAction } from "convex/react";
-import { api } from "../../convex/_generated/api";
 import {
   Menu, LayoutDashboard, Users, UserCog, HandHeart, HelpCircle,
-  Settings as SettingsIcon, ChevronDown, Check, X, Bell, Edit3, Search, Calendar, Filter, History, BarChart as BarChartIcon, BookOpen, TrendingUp, Briefcase, Eye, LogOut
+  Settings as SettingsIcon, ChevronDown, Check, X, Bell, Edit3, Search, Calendar, Filter, History, BarChart as BarChartIcon, BookOpen, TrendingUp, Briefcase, Eye, LogOut, Activity
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, PieChart, Pie, Cell
 } from "recharts";
-import { getESTDate, getMonday, normalizeName } from "../../convex/utils";
+import { getESTDate, getMonday, normalizeName } from "@/lib/vision-utils";
 import AuthView from "@/components/AuthView";
 import SettingsView from "@/components/SettingsView";
+import SlaDashboardView from "@/components/SlaDashboardView";
+
 
 // --- Data is fetched from Convex backend (staff table) ---
 // Type aliases for staff data
@@ -102,21 +102,24 @@ export default function Dashboard() {
   const [notObsDept, setNotObsDept] = useState('Sales');
 
   const allObservations = useCachedQuery<any[]>("observations.list") ?? [];
-  const deleteManyObservations = useMutation(api.observations.deleteMany);
+  const deleteObservations = async (ids: string[]) => {
+    await fetch('/api/observations', {
+      method: 'DELETE',
+      body: JSON.stringify({ ids })
+    });
+    // Trigger refresh by updating some state if needed, or window reload
+    window.location.reload();
+  };
 
-  // --- Staff data from Convex backend ---
+  // --- Staff data from backend ---
   const rawStaff = useCachedQuery<any[]>("staff.list") ?? [];
   const rawCoaches = useCachedQuery<any[]>("staff.listCoaches") ?? [];
-  const seedStaff = useMutation(api.staff.seed);
+  
+  // No auto-seed here, typically handled by one-off script
+  const seedStaff = async () => {
+    alert("Please run the seeding script via terminal to populate staff data.");
+  };
 
-  // Auto-seed staff table on first load if empty
-  const [seeded, setSeeded] = useState(false);
-  useEffect(() => {
-    if (rawStaff.length === 0 && !seeded) {
-      setSeeded(true);
-      seedStaff().catch(() => {});
-    }
-  }, [rawStaff, seeded, seedStaff]);
 
   // Derive AGENTS and COACHES from backend data
   const AGENTS = useMemo(() =>
@@ -140,17 +143,17 @@ export default function Dashboard() {
   const recentObservations = useMemo(() => allObservations.slice(0, 20), [allObservations]);
 
   const weekStats = useMemo(() => {
-    const thisWeekStart = getESTDate(getMonday(new Date()) || undefined);
+    const today = new Date();
+    const thisWeekStart = getESTDate(getMonday(today) || undefined);
     
-    const lastMon = new Date();
-    lastMon.setDate(lastMon.getDate() - 7);
-    const lastWeekStart = getESTDate(getMonday(lastMon) || undefined);
+    const lastMonDate = new Date();
+    lastMonDate.setDate(lastMonDate.getDate() - 7);
+    const lastWeekStart = getESTDate(getMonday(lastMonDate) || undefined);
     
-    const lastSun = new Date();
-    const d = lastSun.getDay();
-    lastSun.setDate(lastSun.getDate() - (d === 0 ? 7 : d));
-    const lastWeekEnd = getESTDate(lastSun);
-
+    const lastSunDate = new Date();
+    lastSunDate.setDate(lastSunDate.getDate() - 1);
+    const lastWeekEnd = getESTDate(lastSunDate);
+    
     const now = new Date();
     const monthStart = getESTDate(new Date(now.getFullYear(), now.getMonth(), 1));
 
@@ -740,14 +743,19 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Business Volume Tab */}
           <NavItem
             icon={<Briefcase size={20} />}
-            label="Volume Accuracy
-            "
+            label="Volume Accuracy"
             collapsed={sidebarCollapsed}
             active={activeView === "business-volume"}
             onClick={() => setActiveView("business-volume")}
+          />
+          <NavItem
+            icon={<Activity size={20} />}
+            label="Intercom SLA"
+            collapsed={sidebarCollapsed}
+            active={activeView === "intercom-sla"}
+            onClick={() => setActiveView("intercom-sla")}
           />
         </nav>
 
@@ -927,6 +935,7 @@ export default function Dashboard() {
               }} 
             />
           )}
+          {activeView === 'intercom-sla' && <SlaDashboardView />}
 
           {/* VIEW: OBSERVATION - DASHBOARD */}
           {activeView === "observation" && observationSubTab === "dashboard" && (
@@ -1445,7 +1454,7 @@ export default function Dashboard() {
                     <button
                       onClick={() => {
                         if (confirm(`Are you sure you want to delete ${selectedForDeletion.size} observations?`)) {
-                          deleteManyObservations({ ids: Array.from(selectedForDeletion) as any });
+                          deleteObservations(Array.from(selectedForDeletion));
                           setSelectedForDeletion(new Set());
                           setDeleteMode(false);
                         }

@@ -1,8 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { useMutation, useQuery } from 'convex/react';
-import { api } from '../../convex/_generated/api';
+
 import { 
   User, 
   Settings as SettingsIcon, 
@@ -34,10 +33,34 @@ export default function SettingsView({ user, onUpdateUser }: SettingsViewProps) 
   const [avatar, setAvatar] = useState(user.preferences?.avatar || '');
   const [status, setStatus] = useState<{ type: 'success' | 'error', msg: string } | null>(null);
 
-  // Admin state
-  const allUsers = useQuery(api.auth.listUsers, user.role === 'admin' ? {} : "skip");
-  const updateSettings = useMutation(api.auth.updateSettings);
-  const manageUser = useMutation(api.auth.manageUser);
+  // Backend logic replacements
+  const [allUsers, setAllUsers] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (user.role === 'admin' && activeTab === 'admin') {
+      fetch('/api/auth?type=listUsers&email=' + encodeURIComponent(user.email))
+        .then(res => res.json())
+        .then(data => setAllUsers(data || []))
+        .catch(err => console.error(err));
+    }
+  }, [user.role, activeTab, user.email]);
+
+  const callUpdateSettings = async (updates: any) => {
+    const res = await fetch('/api/auth', {
+      method: 'POST',
+      body: JSON.stringify({ type: 'updateSettings', email: user.email, ...updates })
+    });
+    return await res.json();
+  };
+
+  const callManageUser = async (userId: string, action: string) => {
+    const res = await fetch('/api/auth', {
+      method: 'POST',
+      body: JSON.stringify({ type: 'manageUser', email: user.email, userId, action })
+    });
+    return await res.json();
+  };
+
 
   useEffect(() => {
     const isDark = document.documentElement.classList.contains('dark');
@@ -58,8 +81,7 @@ export default function SettingsView({ user, onUpdateUser }: SettingsViewProps) 
 
   const handleSaveProfile = async () => {
     try {
-      await updateSettings({ 
-        email: user.email, 
+      await callUpdateSettings({ 
         name, 
         timezone, 
         avatar, 
@@ -72,11 +94,15 @@ export default function SettingsView({ user, onUpdateUser }: SettingsViewProps) 
     }
   };
 
-  const handleAdminAction = async (userId: any, action: string) => {
+  const handleAdminAction = async (userId: string, action: string) => {
     if (!window.confirm(`Are you sure you want to ${action} this user?`)) return;
     try {
-      await manageUser({ userId, action });
+      const res = await callManageUser(userId, action);
+      if (res.error) throw new Error(res.error);
       setStatus({ type: 'success', msg: `User ${action}ed successfully!` });
+      // Refresh user list
+      const updatedList = await fetch('/api/auth?type=listUsers&email=' + encodeURIComponent(user.email)).then(r => r.json());
+      setAllUsers(updatedList || []);
     } catch (err: any) {
       setStatus({ type: 'error', msg: err.message });
     }

@@ -31,11 +31,42 @@ export default function AuthView({ onLogin }: AuthViewProps) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   
-  // Backend Hooks
-  const checkEmail = useQuery(api.auth.checkEmail, { email });
-  const register = useMutation(api.auth.registerUser);
-  const login = useMutation(api.auth.loginUser);
-  const reset = useMutation(api.auth.resetWithSecurity);
+  // Backend Logic replacements
+  const checkEmailStatus = async (email: string) => {
+    const res = await fetch(`/api/auth?type=checkEmail&email=${encodeURIComponent(email)}`);
+    return await res.json();
+  };
+
+  const registerUser = async (data: any) => {
+    const res = await fetch('/api/auth', {
+      method: 'POST',
+      body: JSON.stringify({ type: 'register', ...data })
+    });
+    return await res.json();
+  };
+
+  const loginUser = async (data: any) => {
+    const res = await fetch('/api/auth', {
+      method: 'POST',
+      body: JSON.stringify({ type: 'login', ...data })
+    });
+    const result = await res.json();
+    if (result.error) throw new Error(result.error);
+    return result;
+  };
+
+  const resetWithSecurity = async (data: any) => {
+    const res = await fetch('/api/auth', {
+      method: 'POST',
+      body: JSON.stringify({ type: 'reset', ...data })
+    });
+    const result = await res.json();
+    if (result.error) throw new Error(result.error);
+    return result;
+  };
+
+  const [dbUser, setDbUser] = useState<any>(null);
+
 
   const handleNext = async () => {
     if (!email.includes('@')) {
@@ -43,16 +74,24 @@ export default function AuthView({ onLogin }: AuthViewProps) {
       return;
     }
     setError('');
+    setLoading(true);
     
-    // Check email status
-    if (checkEmail?.exists) {
-      if (checkEmail.isFirstLogin) {
-        setStep('setup');
+    try {
+      const result = await checkEmailStatus(email);
+      if (result.exists) {
+        setDbUser(result);
+        if (result.isFirstLogin) {
+          setStep('setup');
+        } else {
+          setStep('login');
+        }
       } else {
-        setStep('login');
+        setError(result.error || "This email is not authorized to access the Vision Dashboard.");
       }
-    } else if (checkEmail !== undefined) {
-      setError("This email is not authorized to access the Vision Dashboard.");
+    } catch (err: any) {
+      setError("Connection error. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -69,8 +108,8 @@ export default function AuthView({ onLogin }: AuthViewProps) {
     
     setLoading(true);
     try {
-      await register({ email, password, securityQuestion: securityQ, securityAnswer: securityA });
-      onLogin({ name: checkEmail?.name || 'User', email });
+      await registerUser({ email, password, securityQuestion: securityQ, securityAnswer: securityA });
+      onLogin({ name: dbUser?.name || 'User', email });
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -83,10 +122,10 @@ export default function AuthView({ onLogin }: AuthViewProps) {
     setLoading(true);
     setError('');
     try {
-      const res = await login({ email, password });
+      const res = await loginUser({ email, password });
       onLogin(res.user);
     } catch (err: any) {
-      setError("Incorrect password. Please try again.");
+      setError(err.message || "Incorrect password. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -96,11 +135,11 @@ export default function AuthView({ onLogin }: AuthViewProps) {
     e.preventDefault();
     setLoading(true);
     try {
-      await reset({ email, securityAnswer: securityA, newPassword: password });
+      await resetWithSecurity({ email, securityAnswer: securityA, newPassword: password });
       setStep('login');
       setError('');
     } catch (err: any) {
-      setError("Incorrect security answer.");
+      setError(err.message || "Incorrect security answer.");
     } finally {
       setLoading(false);
     }
@@ -178,7 +217,7 @@ export default function AuthView({ onLogin }: AuthViewProps) {
             <form onSubmit={handleSetup} className="animate-in slide-in-from-right-4 duration-300">
               <div className="mb-6">
                 <h2 className="text-xl font-bold text-slate-800">Account Setup</h2>
-                <p className="text-sm text-slate-500 mt-1">Hello, <span className="text-brand-blue font-bold">{checkEmail?.name}</span>! Set up your secure password and security question.</p>
+                <p className="text-sm text-slate-500 mt-1">Hello, <span className="text-brand-blue font-bold">{dbUser?.name}</span>! Set up your secure password and security question.</p>
               </div>
 
               <div className="space-y-4">
@@ -297,7 +336,7 @@ export default function AuthView({ onLogin }: AuthViewProps) {
             <form onSubmit={handleReset} className="animate-in slide-in-from-right-4 duration-300">
               <div className="mb-6">
                 <h2 className="text-xl font-bold text-slate-800">Account Recovery</h2>
-                <p className="text-sm text-slate-500 mt-1">{checkEmail?.securityQuestion}</p>
+                <p className="text-sm text-slate-500 mt-1">{dbUser?.securityQuestion}</p>
               </div>
 
               <div className="space-y-4">

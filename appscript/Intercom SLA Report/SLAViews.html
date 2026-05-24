@@ -1,6 +1,47 @@
 <script>
 // ===== VIEW BUILDERS =====
 
+// ---- Consolidated Summary Card ----
+function buildConsolidatedSummaryCard() {
+  var lobs = [
+    { label: 'Support', key: 'support' },
+    { label: 'Sales', key: 'sales' },
+    { label: 'Service Recovery', key: 'serviceRecovery' }
+  ];
+
+  var rows = lobs.map(function(lob) {
+    var d = slaData[lob.key];
+    var vSla = parsePct(d.calls.sla);
+    var cSla = parsePct(d.chat.sla);
+    
+    return '<tr>' +
+      '<td class="summary-label">' + lob.label + '</td>' +
+      '<td>' + d.calls.inbound + '</td>' +
+      '<td class="' + (vSla < 80 ? 'alert' : 'ok') + '">' + d.calls.sla + '</td>' +
+      '<td>' + d.calls.abandoned + '</td>' +
+      '<td>' + d.chat.inbound + '</td>' +
+      '<td class="' + (cSla < 80 ? 'alert' : 'ok') + '">' + d.chat.sla + '</td>' +
+      '<td>' + d.chat.frt + '</td>' +
+    '</tr>';
+  }).join('');
+
+  return '<div class="sla-card consolidated-card">' +
+    '<div class="card-head"><h2>Operations Summary (Consolidated)</h2></div>' +
+    '<div class="summary-table-container">' +
+      '<table class="summary-table">' +
+        '<thead>' +
+          '<tr>' +
+            '<th>LOB</th>' +
+            '<th>Voice In</th><th>Voice SLA</th><th>Aband.</th>' +
+            '<th>Chat In</th><th>Chat SLA</th><th>FRT</th>' +
+          '</tr>' +
+        '</thead>' +
+        '<tbody>' + rows + '</tbody>' +
+      '</table>' +
+    '</div>' +
+  '</div>';
+}
+
 // ---- LOB Group Card (for Overview) ----
 function buildLOBGroupCard(title, lob, lobKey) {
   var d = slaData[lobKey];
@@ -10,12 +51,14 @@ function buildLOBGroupCard(title, lob, lobKey) {
     var isAlert = val < 80;
     var cls = isAlert ? ' alert-row' : '';
     var valCls = isAlert ? 'alert' : 'ok';
+    var passedTotal = (ch.slaPassed !== undefined) ? '<span class="sla-count">(' + ch.slaPassed + '/' + ch.slaTotal + ')</span>' : '';
+    
     return '<div class="sla-row' + cls + '">' +
       '<div class="sla-row-label">' +
         '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>' +
-        'Service Level (SLA)' +
+        'SLA ' + renderWow(ch.sla, lobKey, ch.inQueue ? 'calls' : 'chat', 'sla') +
       '</div>' +
-      '<span class="sla-value ' + valCls + '">' + ch.sla + '</span>' +
+      '<span class="sla-value ' + valCls + '">' + ch.sla + ' ' + passedTotal + '</span>' +
     '</div>';
   }
 
@@ -47,7 +90,7 @@ function buildLOBGroupCard(title, lob, lobKey) {
         '<div class="metric-item"><div class="metric-label">Inbound</div><div class="metric-value">' + d.chat.inbound + '</div></div>' +
         '<div class="metric-item"><div class="metric-label">FRT</div><div class="metric-value">' + d.chat.frt + '</div></div>' +
         '<div class="metric-item"><div class="metric-label">AHT</div><div class="metric-value">' + d.chat.aht + '</div></div>' +
-        '<div class="metric-item"><div class="metric-label">Absenteeism</div><div class="metric-value' + metricVal(d.chat.absenteeism,'absent') + '" style="display:flex;align-items:center;gap:6px">' + d.chat.absenteeism + ' <span class="ga-badge" style="font-size:0.55rem;padding:2px 6px">' + (d.chat.absentCount||0) + ' Absent</span></div></div>' +
+        '<div class="metric-item"><div class="metric-label">Absenteeism</div><div class="metric-value' + metricVal(d.chat.absenteeism,'absent') + '" style="display:flex;align-items:center;gap:6px">' + d.chat.absenteeism + ' <span class="ga-badge" style="font-size:0.55rem;padding:2px 6px">' + (d.chat.absentCount||0) + '</span></div></div>' +
         slaRowHTML(d.chat) +
       '</div>' +
     '</div>' +
@@ -69,9 +112,9 @@ function buildLOBGroupCard(title, lob, lobKey) {
     '<div class="lob-section">' +
       '<div class="metrics-grid">' +
         '<div class="metric-item"><div class="metric-label">Inbound</div><div class="metric-value">' + d.calls.inbound + '</div></div>' +
+        '<div class="metric-item"><div class="metric-label">Outbound</div><div class="metric-value">' + d.calls.outbound + '</div></div>' +
         '<div class="metric-item"><div class="metric-label">Abandoned</div><div class="metric-value">' + d.calls.abandoned + '</div></div>' +
-        '<div class="metric-item"><div class="metric-label">Abandon Rate</div><div class="metric-value' + metricVal(d.calls.abandonRate,'aband') + '">' + d.calls.abandonRate + '</div></div>' +
-        '<div class="metric-item"><div class="metric-label">Absenteeism</div><div class="metric-value' + metricVal(d.calls.absenteeism,'absent') + '" style="display:flex;align-items:center;gap:6px">' + d.calls.absenteeism + ' <span class="ga-badge" style="font-size:0.55rem;padding:2px 6px">' + (d.calls.absentCount||0) + ' Absent</span></div></div>' +
+        '<div class="metric-item"><div class="metric-label">Absenteeism</div><div class="metric-value' + metricVal(d.calls.absenteeism,'absent') + '" style="display:flex;align-items:center;gap:6px">' + d.calls.absenteeism + ' <span class="ga-badge" style="font-size:0.55rem;padding:2px 6px">' + (d.calls.absentCount||0) + '</span></div></div>' +
         slaRowHTML(d.calls) +
       '</div>' +
     '</div>' +
@@ -81,25 +124,27 @@ function buildLOBGroupCard(title, lob, lobKey) {
 // ---- Email Productivity Card ----
 function buildEmailCard() {
   var agentsHTML = '';
-  if (emailData.topAgents.length === 0) {
-    agentsHTML = '<div class="ops-empty">No data yet — fetch from Drive.</div>';
+  if (!emailData.topAgents || emailData.topAgents.length === 0) {
+    agentsHTML = '<div class="ops-empty">No data yet.</div>';
   } else {
     agentsHTML = emailData.topAgents.map(function(a, i) {
       return '<div class="agent-row">' +
         '<span class="agent-rank">' + (i+1) + '.</span>' +
         '<span class="agent-name">' + a.name + '</span>' +
-        '<span class="agent-score">' + a.score + '</span>' +
+        '<span class="agent-score">' + a.count + '</span>' +
       '</div>';
     }).join('');
   }
 
-  var colors = ['blue','indigo','green','purple'];
-  var labels = ['Total Closed','Total Assigned','Total Replied','Replies Sent'];
-  var fields = ['closed','assigned','replied','sent'];
-  var statsHTML = fields.map(function(f, i) {
-    return '<div class="email-stat ' + colors[i] + '">' +
-      '<div class="email-stat-label">' + labels[i] + '</div>' +
-      '<div class="email-stat-val">' + emailData[f] + '</div>' +
+  var statsHTML = [
+    { label: 'Closed', val: emailData.closed, cls: 'blue' },
+    { label: 'Assigned', val: emailData.assigned, cls: 'indigo' },
+    { label: 'Replied', val: emailData.replied, cls: 'green' },
+    { label: 'Sent', val: emailData.sent, cls: 'purple' }
+  ].map(function(s) {
+    return '<div class="email-stat ' + s.cls + '">' +
+      '<div class="email-stat-label">' + s.label + '</div>' +
+      '<div class="email-stat-val">' + s.val + '</div>' +
     '</div>';
   }).join('');
 
@@ -107,16 +152,13 @@ function buildEmailCard() {
     '<div class="card-head">' +
       '<h2>' +
         '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:5px"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>' +
-        'Resident Home – Email Productivity' +
+        'Email Productivity' +
       '</h2>' +
     '</div>' +
     '<div class="email-card-body">' +
       '<div class="email-stats">' + statsHTML + '</div>' +
       '<div class="top-agents">' +
-        '<div class="top-agents-title">' +
-          '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>' +
-          'Top 5 Agents' +
-        '</div>' +
+        '<div class="top-agents-title">Top 5 Agents</div>' +
         agentsHTML +
       '</div>' +
     '</div>' +
@@ -137,43 +179,26 @@ function buildOpsLogCard() {
         '</svg>' +
       '</div>' +
       '<div class="casual-business-title">Casual Business</div>' +
-      '<div class="casual-business-subtitle">All systems normal. No critical mitigations or blockers reported.</div>' +
+      '<div class="casual-business-subtitle">All systems normal.</div>' +
     '</div>';
   } else {
     function section(field, dotCls, label) {
       var d = opsLog[field];
       if (!d || !d.applicable) return '';
+      var items = (d.selected || []).slice();
+      if (d.showCustom && d.custom && d.custom.trim()) items.push(d.custom.trim());
       
-      var items = [];
-      if (d.selected) {
-        items = d.selected.slice();
-      }
-      if (d.showCustom && d.custom && d.custom.trim()) {
-        items.push(d.custom.trim());
-      }
-      
-      var listHTML = items.length
-        ? '<ul class="ops-list">' + items.map(function(t){ return '<li>' + t + '</li>'; }).join('') + '</ul>'
-        : '<div class="ops-empty">No notes logged.</div>';
-        
       return '<div class="ops-section-block">' +
         '<div class="ops-section-label"><div class="ops-dot ' + dotCls + '"></div>' + label + '</div>' +
-        listHTML +
+        (items.length ? '<ul class="ops-list">' + items.map(function(t){ return '<li>' + t + '</li>'; }).join('') + '</ul>' : '<div class="ops-empty">No notes.</div>') +
       '</div>';
     }
-    bodyHTML = section('mitigations','amber','Mitigations made:') +
-               section('causes','red','Causes of High Abandonment:') +
-               section('keynotes','green','Keynotes:');
+    bodyHTML = section('mitigations','amber','Mitigations:') + section('causes','red','Causes:') + section('keynotes','green','Keynotes:');
   }
 
   return '<div class="sla-card">' +
-    '<div class="card-head">' +
-      '<h2>Shift Operations Log</h2>' +
-      '<span style="font-size:.62rem;font-weight:800;padding:2px 7px;border-radius:4px;background:var(--border2);color:var(--text2);border:1px solid var(--border)">WFM NOTES</span>' +
-    '</div>' +
-    '<div class="ops-body">' +
-      bodyHTML +
-    '</div>' +
+    '<div class="card-head"><h2>Shift Log</h2></div>' +
+    '<div class="ops-body">' + bodyHTML + '</div>' +
   '</div>';
 }
 
@@ -181,6 +206,7 @@ function buildOpsLogCard() {
 function renderOverview() {
   var el = document.getElementById('panelOverview');
   el.innerHTML =
+    buildConsolidatedSummaryCard() +
     '<div class="overview-grid">' +
       buildLOBGroupCard('Support Operations','support','support') +
       buildLOBGroupCard('Sales Operations','sales','sales') +
@@ -196,17 +222,22 @@ function renderOverview() {
 function renderDetailView(title, lobKey) {
   var d = slaData[lobKey];
 
-  function dcCard(label, val, highlight, isSLA) {
+  function dcCard(label, val, highlight, isSLA, subtext) {
     var cls = 'detail-card';
     var vcls = '';
     if (isSLA) { cls += ' sla-card-highlight'; vcls = ' sla-ok'; }
     else if (highlight === 'alert') { cls += ' alert-card'; vcls = ' alert'; }
     else if (highlight === 'warning') { cls += ' warning-card'; vcls = ' warning'; }
-    return '<div class="' + cls + '"><div class="dc-label">' + label + '</div><div class="dc-value' + vcls + '">' + val + '</div></div>';
+    var sub = subtext ? '<div class="projected-tag">' + subtext + '</div>' : '';
+    return '<div class="' + cls + '"><div class="dc-label">' + label + '</div><div class="dc-value' + vcls + '">' + val + '</div>' + sub + '</div>';
   }
 
   var voiceHighlight = d.calls.status === 'alert' ? 'alert' : (d.calls.status === 'warning' ? 'warning' : '');
   var chatHighlight  = d.chat.status === 'alert' ? 'alert' : '';
+
+  // Get SDLD projections
+  var voiceProj = (sdldData && sdldData[lobKey]) ? 'Proj: ' + sdldData[lobKey].calls.inbound : '';
+  var chatProj = (sdldData && sdldData[lobKey]) ? 'Proj: ' + sdldData[lobKey].chat.inbound : '';
 
   var html = '<div class="detail-view">' +
     '<div class="detail-header">' +
@@ -220,10 +251,10 @@ function renderDetailView(title, lobKey) {
         '<h3>Voice Operations</h3>' +
       '</div>' +
       '<div class="detail-metrics-grid">' +
-        dcCard('Service Level (SLA)', d.calls.sla, voiceHighlight, true) +
-        dcCard('Inbound Calls',       d.calls.inbound, '') +
+        dcCard('Service Level (SLA)', d.calls.sla, voiceHighlight, true, renderWow(d.calls.sla, lobKey, 'calls', 'sla')) +
+        dcCard('Inbound Calls',       d.calls.inbound, '', false, voiceProj) +
         dcCard('Abandoned Calls',     d.calls.abandoned, '') +
-        dcCard('Abandon Rate',        d.calls.abandonRate, parsePct(d.calls.abandonRate)>5?'alert':'') +
+        dcCard('Staff Efficiency',    calcEfficiency(lobKey, 'calls'), '', false, '/hr per active head') +
         dcCard('Absenteeism Rate',    d.calls.absenteeism, parsePct(d.calls.absenteeism)>8?'alert':'') +
         dcCard('Avg AHT',             d.calls.aht, '') +
         dcCard('Avg Call in Queue',   d.calls.inQueue, '') +
@@ -240,10 +271,10 @@ function renderDetailView(title, lobKey) {
         '<h3>Chat Operations</h3>' +
       '</div>' +
       '<div class="detail-metrics-grid">' +
-        dcCard('Service Level (SLA)', d.chat.sla, chatHighlight, true) +
-        dcCard('Chat Inbound',        d.chat.inbound, '') +
+        dcCard('Service Level (SLA)', d.chat.sla, chatHighlight, true, renderWow(d.chat.sla, lobKey, 'chat', 'sla')) +
+        dcCard('Chat Inbound',        d.chat.inbound, '', false, chatProj) +
         dcCard('FRT (First Response)', d.chat.frt, '') +
-        dcCard('Avg AHT',             d.chat.aht, '') +
+        dcCard('Staff Efficiency',    calcEfficiency(lobKey, 'chat'), '', false, '/hr per active head') +
         dcCard('Absenteeism Rate',    d.chat.absenteeism, parsePct(d.chat.absenteeism)>8?'alert':'') +
       '</div>' +
     '</div>' +

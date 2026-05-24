@@ -120,7 +120,7 @@
             <!-- Col 1 -->
             <div class="dash-col">
               <!-- Observation Data -->
-              <div class="card" id="cardObsData" data-aos="fade-up" data-aos-delay="100">
+              <div class="card" id="cardObsData">
                 <div class="card-head"><h2>Observation Data</h2><p class="card-sub">Observation count breakdown by LOB.</p></div>
                 <div class="card-body">
                   <table class="obs-table" id="obsDataTable">
@@ -131,16 +131,21 @@
                 </div>
               </div>
               <!-- Missing Observation -->
-              <div class="card" id="cardMissing" data-aos="fade-up" data-aos-delay="200">
+              <div class="card" id="cardMissing">
                 <div class="card-head">
                   <div><h2>Missing Observation</h2><p class="card-sub">Coaches with the most unobserved agents.</p></div>
+                  <div class="card-tabs" id="missingLobTabs">
+                    <button class="card-tab active" data-lob="Sales">Sales</button>
+                    <button class="card-tab" data-lob="Support">Support</button>
+                    <button class="card-tab" data-lob="Specialty">Specialty</button>
+                  </div>
                 </div>
                 <div class="card-body">
                   <div class="bar-chart-container" id="missingChart"></div>
                 </div>
               </div>
               <!-- Recent Observations -->
-              <div class="card" id="cardRecent" data-aos="fade-up" data-aos-delay="300">
+              <div class="card" id="cardRecent">
                 <div class="card-head">
                   <div><h2>Recent Observations</h2><p class="card-sub">Latest observation sessions recorded.</p></div>
                   <button class="pill-btn" id="viewAllRecentBtn">View All</button>
@@ -153,12 +158,12 @@
             <!-- Col 2 -->
             <div class="dash-col">
               <!-- Observation Index (Line Chart) -->
-              <div class="card" id="cardIndex" data-aos="fade-up" data-aos-delay="150">
+              <div class="card" id="cardIndex">
                 <div class="card-head"><h2>Observation Index</h2><p class="card-sub">Daily observation trend lines per LOB.</p></div>
                 <div class="card-body"><canvas id="trendChart" height="200"></canvas></div>
               </div>
               <!-- LOB Completion (Donut) -->
-              <div class="card" id="cardCompletion" data-aos="fade-up" data-aos-delay="250">
+              <div class="card" id="cardCompletion">
                 <div class="card-head"><h2>LOB Completion</h2><p class="card-sub">Percentage of agents observed per department.</p></div>
                 <div class="card-body">
                   <div class="donut-area">
@@ -169,7 +174,7 @@
                 </div>
               </div>
               <!-- Neglected Agents -->
-              <div class="card" id="cardNeglected" data-aos="fade-up" data-aos-delay="350">
+              <div class="card" id="cardNeglected">
                 <div class="card-head">
                   <div><h2>Neglected Agents</h2><p class="card-sub">Agents with the most missed sessions.</p></div>
                   <button class="pill-btn" id="viewAllNeglectedBtn">VIEW ALL</button>
@@ -180,22 +185,21 @@
             <!-- Col 3 -->
             <div class="dash-col">
               <!-- Completion Bars -->
-              <div class="card" id="cardCompBars" data-aos="fade-up" data-aos-delay="200">
+              <div class="card" id="cardCompBars">
                 <div class="card-head"><h2>Observation Completion (Agent)</h2><p class="card-sub">Progress bars per LOB.</p></div>
                 <div class="card-body"><div id="completionBars"></div></div>
               </div>
               <!-- WOW Charts -->
-              <div class="card" id="cardWow" data-aos="fade-up" data-aos-delay="300">
+              <div class="card" id="cardWow">
                 <div class="card-head">
-                  <div><h2>WOW Charts</h2><p class="card-sub">Week-over-Week top observed agents.</p></div>
-                  <button class="pill-btn" id="viewRankingsBtn">VIEW RANKINGS</button>
+                  <div><h2>Top Performers</h2><p class="card-sub">Top 10 agents by average observation score.</p></div>
+                  <button class="pill-btn" id="viewRankingsBtn">VIEW ALL</button>
                 </div>
                 <div class="card-body">
                   <div class="wow-header">
-                    <div class="wow-col-agent">Agent</div>
-                    <div class="wow-col">TW</div>
-                    <div class="wow-col">LW</div>
-                    <div class="wow-col text-right">WoW</div>
+                    <div class="wow-col-agent">Rank / Agent</div>
+                    <div class="wow-col">Obs.</div>
+                    <div class="wow-col text-right">Avg Score</div>
                   </div>
                   <div id="wowList"></div>
                 </div>
@@ -330,14 +334,48 @@
     </div>
   </div>
 
-  <!-- ===== WOW RANKINGS MODAL ===== -->
+  <!-- ===== TOP PERFORMERS MODAL ===== -->
   <div class="modal-overlay" id="wowModal">
     <div class="modal-box">
       <div class="modal-head">
-        <h2>WOW Charts</h2>
+        <div><h2>Top Performers</h2><p class="modal-sub">Search and view all agent average scores.</p></div>
         <button class="close-btn" onclick="hideModal('wowModal')">&times;</button>
       </div>
-      <div class="modal-body" id="wowBody"></div>
+      <div class="modal-body">
+        <div class="search-box" style="margin-bottom:16px">
+          <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <input type="text" id="topScoresSearch" placeholder="Search agent name..." oninput="filterTopScores()">
+        </div>
+        <div id="wowBody"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== CUSTOM DATE RANGE MODAL ===== -->
+  <div class="modal-overlay" id="customFilterModal">
+    <div class="modal-box date-picker-box">
+      <div class="dp-header">
+        <div class="dp-range-display">
+          <div class="dp-field">
+            <label>From</label>
+            <div id="dpFromDate" class="dp-date-val">Select Date</div>
+          </div>
+          <div class="dp-field">
+            <label>To</label>
+            <div id="dpToDate" class="dp-date-val">Select Date</div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="dp-calendars-container">
+        <div class="dp-month-col" id="dpMonth1"></div>
+        <div class="dp-month-col" id="dpMonth2"></div>
+      </div>
+
+      <div class="modal-foot">
+        <button class="btn-secondary" onclick="hideModal('customFilterModal')">Cancel</button>
+        <button class="btn-dark" id="applyCustomFilter">Apply</button>
+      </div>
     </div>
   </div>
 
