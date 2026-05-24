@@ -8,15 +8,23 @@ import { NextResponse } from 'next/server';
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const eventType = body.topic || body.type;
+    
+    // Handle Intercom's test/ping requests specially
+    if (body.type === 'notification_test' || !body.topic) {
+      return NextResponse.json({ status: 'success', message: 'Test notification received' });
+    }
+
+    const eventType = body.topic;
 
     // 1. Filter: We only care about admin replies for SLA calculation
-    if (eventType !== 'conversation.admin.replied') {
-      return NextResponse.json({ status: 'ignored', reason: 'Not an admin reply' });
+    if (eventType !== 'conversation.admin.replied' && eventType !== 'conversation.admin.closed') {
+      return NextResponse.json({ status: 'ignored', reason: 'Not an SLA-impacting event' });
     }
 
     const conversation = body.data?.item;
-    if (!conversation) throw new Error('No conversation data found');
+    if (!conversation) {
+      return NextResponse.json({ status: 'ignored', reason: 'No conversation item found in payload' });
+    }
 
     // 2. SLA Logic: Calculate time between user's last message and admin's reply
     // Intercom provides timestamps in seconds
