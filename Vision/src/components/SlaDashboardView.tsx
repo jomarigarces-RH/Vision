@@ -49,14 +49,11 @@ export default function SlaDashboardView() {
   const [cpOpen, setCpOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isDark] = useState(true);
-  const [isLive, setIsLive] = useState(false);
-  const [pulseCount, setPulseCount] = useState(60);
-  const pulseRef = useRef<NodeJS.Timeout | null>(null);
   const [toast, setToast] = useState<{ msg: string; show: boolean }>({ msg: '', show: false });
 
   // Date state
-  const [startDate, setStartDate] = useState(() => todayStr());
-  const [endDate, setEndDate] = useState(() => todayStr());
+  const [startDate, setStartDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [calSelecting, setCalSelecting] = useState<'from' | 'to'>('from');
   const [calMonth, setCalMonth] = useState(() => new Date().getMonth());
   const [calYear, setCalYear] = useState(() => new Date().getFullYear());
@@ -65,95 +62,36 @@ export default function SlaDashboardView() {
   const [slaTargets, setSlaTargets] = useState({ voice: 80, chat: 80 });
 
   // Data
-  const [globalAbsent, setGlobalAbsent] = useState({ pct: '8%', count: 7 });
+  const [globalAbsent, setGlobalAbsent] = useState({ pct: '0%', count: 0 });
   const [ops, setOps] = useState<Record<string, LOBData>>({
-    support: { title: 'Support Operations', chat: { ...DEFAULT_CHANNEL, inbound: '56', absenteeism: '10%', absentCount: 5 }, voice: { ...DEFAULT_CHANNEL, absenteeism: '10%', absentCount: 5 } },
-    sales: { title: 'Sales Operations', chat: { ...DEFAULT_CHANNEL, inbound: '44', absenteeism: '8%', absentCount: 2 }, voice: { ...DEFAULT_CHANNEL, absenteeism: '8%', absentCount: 2 } },
+    support: { title: 'Support Operations', chat: { ...DEFAULT_CHANNEL }, voice: { ...DEFAULT_CHANNEL } },
+    sales: { title: 'Sales Operations', chat: { ...DEFAULT_CHANNEL }, voice: { ...DEFAULT_CHANNEL } },
     serviceRecovery: { title: 'Service Recovery', chat: { ...DEFAULT_CHANNEL }, voice: { ...DEFAULT_CHANNEL } },
   });
   const [emailData, setEmailData] = useState({ closed: 0, assigned: 0, replied: 0, sent: 0, topAgents: [] as { name: string; count: number }[] });
   const [opsLog, setOpsLog] = useState<Record<string, OpsLogSection>>({
-    mitigations: { applicable: true, selected: ['Movements has been posted to WFM_callout channel'], custom: '', showCustom: false },
-    causes: { applicable: true, selected: ['Unexpected high call volume during overnight'], custom: '', showCustom: false },
+    mitigations: { applicable: false, selected: [], custom: '', showCustom: false },
+    causes: { applicable: false, selected: [], custom: '', showCustom: false },
     keynotes: { applicable: false, selected: [], custom: '', showCustom: false },
   });
   const [dataHealth, setDataHealth] = useState<'good' | 'issue' | 'critical'>('good');
 
   // Helpers
-  function todayStr() {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  }
-  function fmtDate(s: string) {
+  const fmtDate = (s: string) => {
     if (!s) return '—';
     const [y, m, d] = s.split('-').map(Number);
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     return `${months[m - 1]} ${d}, ${y}`;
-  }
-  function parsePct(v: string) { return parseFloat(String(v).replace('%', '')) || 0; }
-  function showToastMsg(msg: string) { setToast({ msg, show: true }); setTimeout(() => setToast({ msg: '', show: false }), 3500); }
-  function getTimeStr() {
+  };
+  const parsePct = (v: string) => parseFloat(String(v).replace('%', '')) || 0;
+  const showToastMsg = (msg: string) => { setToast({ msg, show: true }); setTimeout(() => setToast({ msg: '', show: false }), 3500); };
+  const getTimeStr = () => {
     const now = new Date();
     const h = now.toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', hour12: true });
     return `Time of Report: ${h.split(':')[0]}:00 ${h.includes('PM') ? 'PM' : 'AM'} PST`;
-  }
+  };
 
-  // Live Pulse
-  const toggleLive = useCallback(() => {
-    if (isLive) {
-      if (pulseRef.current) clearInterval(pulseRef.current);
-      pulseRef.current = null;
-      setIsLive(false);
-      setPulseCount(60);
-      showToastMsg('Live Pulse OFF');
-    } else {
-      setIsLive(true);
-      setPulseCount(60);
-      showToastMsg('Live Pulse ON — Auto-refresh every 60s');
-    }
-  }, [isLive]);
-
-  useEffect(() => {
-    if (isLive) {
-      pulseRef.current = setInterval(() => {
-        setPulseCount(prev => {
-          if (prev <= 1) { return 60; }
-          return prev - 1;
-        });
-      }, 1000);
-      return () => { if (pulseRef.current) clearInterval(pulseRef.current); };
-    }
-  }, [isLive]);
-
-  // Date presets
-  function setPreset(type: string) {
-    const t = new Date();
-    const y = t.getFullYear(), m = t.getMonth(), d = t.getDate();
-    const ds = (dt: Date) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
-    switch (type) {
-      case 'today': setStartDate(ds(t)); setEndDate(ds(t)); break;
-      case 'yesterday': { const yd = new Date(y, m, d - 1); setStartDate(ds(yd)); setEndDate(ds(yd)); break; }
-      case 'thisWeek': { const ws = new Date(y, m, d - t.getDay()); setStartDate(ds(ws)); setEndDate(ds(t)); break; }
-      case 'lastWeek': { const lws = new Date(y, m, d - t.getDay() - 7); const lwe = new Date(y, m, d - t.getDay() - 1); setStartDate(ds(lws)); setEndDate(ds(lwe)); break; }
-      case 'thisMonth': { setStartDate(ds(new Date(y, m, 1))); setEndDate(ds(t)); break; }
-    }
-    showToastMsg(`Date: ${type}`);
-  }
-
-  // Calendar pick
-  function calPick(ds: string) {
-    if (calSelecting === 'from') {
-      setStartDate(ds);
-      if (endDate < ds) setEndDate(ds);
-      setCalSelecting('to');
-    } else {
-      if (ds < startDate) setStartDate(ds);
-      else setEndDate(ds);
-      setCalSelecting('from');
-    }
-  }
-
-  // Data Fetching
+  // Real Data Fetching
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
@@ -164,14 +102,11 @@ export default function SlaDashboardView() {
 
       if (metricsErr) throw metricsErr;
 
-      // Map metrics to state
       const newOps = { ...ops };
       metrics?.forEach(m => {
         const lobKey = m.department.toLowerCase().includes('sales') ? 'sales' : 
                        m.department.toLowerCase().includes('recovery') ? 'serviceRecovery' : 'support';
         const channelKey = m.channel === 'Chat' ? 'chat' : 'voice';
-        
-        // Calculate SLA status
         const slaVal = m.sla_percent || (m.inbound_count > 0 ? (m.passed_count / m.inbound_count * 100) : 100);
         const target = channelKey === 'chat' ? slaTargets.chat : slaTargets.voice;
         
@@ -187,77 +122,44 @@ export default function SlaDashboardView() {
       });
       setOps(newOps);
 
-      // Fetch Absenteeism
-      const { data: absData } = await supabase
-        .from('absenteeism')
-        .select('*')
-        .eq('date', endDate)
-        .maybeSingle();
-      
-      if (absData) {
-        setGlobalAbsent({ pct: absData.rate + '%', count: absData.absent_count });
-      }
+      const { data: absData } = await supabase.from('absenteeism').select('*').eq('date', endDate).maybeSingle();
+      if (absData) setGlobalAbsent({ pct: absData.rate + '%', count: absData.absent_count });
 
-      // Fetch Email
-      const { data: eData } = await supabase
-        .from('email_productivity')
-        .select('*')
-        .eq('date', endDate)
-        .maybeSingle();
-      
-      if (eData) {
-        setEmailData({
-          closed: eData.closed_count,
-          assigned: eData.assigned_count,
-          replied: eData.replied_count,
-          sent: eData.sent_count,
-          topAgents: (eData.top_agents as any) || []
-        });
-      }
+      const { data: eData } = await supabase.from('email_productivity').select('*').eq('date', endDate).maybeSingle();
+      if (eData) setEmailData({ closed: eData.closed_count, assigned: eData.assigned_count, replied: eData.replied_count, sent: eData.sent_count, topAgents: (eData.top_agents as any) || [] });
 
-      // Fetch Ops Log
-      const { data: logs } = await supabase
-        .from('ops_log')
-        .select('*')
-        .eq('date', endDate);
-      
+      const { data: logs } = await supabase.from('ops_log').select('*').eq('date', endDate);
       if (logs) {
         const newLogs = { ...opsLog };
         logs.forEach(l => {
           const key = l.type.toLowerCase();
-          if (newLogs[key]) {
-            newLogs[key] = {
-              applicable: true,
-              selected: l.selected_items || [],
-              custom: l.custom_notes || '',
-              showCustom: !!l.custom_notes
-            };
-          }
+          if (newLogs[key]) newLogs[key] = { applicable: true, selected: l.selected_items || [], custom: l.custom_notes || '', showCustom: !!l.custom_notes };
         });
         setOpsLog(newLogs);
       }
-
+      setDataHealth('good');
     } catch (err: any) {
       console.error('Fetch Error:', err.message);
       setDataHealth('issue');
     } finally {
       setLoading(false);
     }
-  }, [endDate, slaTargets]);
+  }, [endDate, slaTargets, ops, opsLog]);
 
+  // Initial Fetch & Realtime
   useEffect(() => {
     fetchData();
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ops_metrics' }, () => fetchData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'absenteeism' }, () => fetchData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ops_log' }, () => fetchData())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, [fetchData]);
 
-  // Handle Pulse Refresh
-  useEffect(() => {
-    if (isLive && pulseCount === 60) {
-      fetchData();
-    }
-  }, [isLive, pulseCount, fetchData]);
-
-  // Ops log toggle
-  function togglePreset(field: string, preset: string) {
+  // UI Handlers
+  const togglePreset = (field: string, preset: string) => {
     setOpsLog(prev => {
       const section = { ...prev[field] };
       const idx = section.selected.indexOf(preset);
@@ -265,7 +167,32 @@ export default function SlaDashboardView() {
       else section.selected = section.selected.filter(s => s !== preset);
       return { ...prev, [field]: section };
     });
-  }
+  };
+
+  const setPreset = (type: string) => {
+    const t = new Date();
+    const ds = (dt: Date) => dt.toISOString().split('T')[0];
+    switch (type) {
+      case 'today': setStartDate(ds(t)); setEndDate(ds(t)); break;
+      case 'yesterday': { const yd = new Date(); yd.setDate(yd.getDate() - 1); setStartDate(ds(yd)); setEndDate(ds(yd)); break; }
+      case 'thisWeek': { const ws = new Date(); ws.setDate(ws.getDate() - ws.getDay()); setStartDate(ds(ws)); setEndDate(ds(t)); break; }
+      case 'lastWeek': { const lws = new Date(); lws.setDate(lws.getDate() - lws.getDay() - 7); const lwe = new Date(); lwe.setDate(lwe.getDate() - lwe.getDay() - 1); setStartDate(ds(lws)); setEndDate(ds(lwe)); break; }
+      case 'thisMonth': { const ms = new Date(); ms.setDate(1); setStartDate(ds(ms)); setEndDate(ds(t)); break; }
+    }
+  };
+
+  // Calendar pick
+  const calPick = (ds: string) => {
+    if (calSelecting === 'from') {
+      setStartDate(ds);
+      if (endDate < ds) setEndDate(ds);
+      setCalSelecting('to');
+    } else {
+      if (ds < startDate) setStartDate(ds);
+      else setEndDate(ds);
+      setCalSelecting('from');
+    }
+  };
 
   return (
     <div className="flex-1 bg-[#0a0a0a] text-[#f0f0f0] font-[Inter,sans-serif] overflow-y-auto hide-scrollbar text-[14px] relative">
@@ -281,7 +208,7 @@ export default function SlaDashboardView() {
           <div className="flex flex-col gap-1.5">
             <h1 className="text-[1.6rem] font-extrabold tracking-[-0.03em] flex items-center gap-2 cursor-pointer group">
               Intercom SLA Report
-              <RefreshCw size={18} className="text-[#4f7df3] opacity-0 group-hover:opacity-100 transition-all duration-300 group-hover:rotate-180" />
+              <RefreshCw size={18} onClick={() => fetchData()} className={`text-[#4f7df3] transition-all duration-500 ${loading ? 'rotate-180 opacity-50' : 'opacity-100'}`} />
             </h1>
             <div className="flex flex-wrap items-center gap-2.5">
               <span className="text-[0.78rem] text-[#a0a0a0] font-medium">Real-time Operations & Workforce Metrics</span>
@@ -292,18 +219,14 @@ export default function SlaDashboardView() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {/* Live Pulse */}
-            <button onClick={toggleLive} className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full border transition-all cursor-pointer select-none ${isLive ? 'border-[#10b981] bg-[#10b981]/10' : 'border-[#222] bg-[#1a1a1a]'}`}>
-              <div className={`w-2 h-2 rounded-full transition-all ${isLive ? 'bg-[#10b981] shadow-[0_0_10px_#10b981] animate-pulse' : 'bg-[#555]'}`} />
-              <span className={`text-[0.72rem] font-extrabold ${isLive ? 'text-[#10b981]' : 'text-[#a0a0a0]'}`}>LIVE</span>
-              <small className="text-[0.65rem] text-[#a0a0a0] font-mono min-w-[25px] text-right">{pulseCount}s</small>
-            </button>
-            {/* Data Health */}
+            <div className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full border transition-all select-none border-[#10b981] bg-[#10b981]/10`}>
+              <div className={`w-2 h-2 rounded-full bg-[#10b981] shadow-[0_0_10px_#10b981] animate-pulse`} />
+              <span className={`text-[0.65rem] font-extrabold text-[#10b981] tracking-widest`}>REALTIME CONNECTED</span>
+            </div>
             <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border text-[0.7rem] font-extrabold cursor-pointer transition-transform hover:scale-105 ${dataHealth === 'good' ? 'bg-[#10b981]/10 border-[#10b981]/30 text-[#10b981]' : dataHealth === 'issue' ? 'bg-[#f59e0b]/10 border-[#f59e0b]/30 text-[#f59e0b]' : 'bg-[#ef4444]/10 border-[#ef4444]/30 text-[#ef4444]'}`}>
               <CheckCircle2 size={14} />
               <span>{dataHealth === 'good' ? 'Data Healthy' : dataHealth === 'issue' ? 'Data Issues' : 'Critical'}</span>
             </div>
-            {/* Control Panel */}
             <button onClick={() => setCpOpen(true)} className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#ccc] text-[0.75rem] font-bold hover:border-[#4f7df3] hover:text-[#4f7df3] transition-all cursor-pointer">
               <Settings size={14} />
               <span>Control Panel</span>
@@ -413,7 +336,7 @@ export default function SlaDashboardView() {
                         ))}
                       </div>
                     ) : (
-                      <div className="text-[0.68rem] italic text-[#555]">No data yet — fetch from Drive.</div>
+                      <div className="text-[0.68rem] italic text-[#555]">No data yet.</div>
                     )}
                   </div>
                 </div>
@@ -458,17 +381,17 @@ export default function SlaDashboardView() {
         ))}
 
         {activeTab === 'weekly' && (
-          <div className="bg-[#141414] border border-[#222] rounded-2xl p-8 text-center">
-            <div className="text-[0.78rem] text-[#555] italic">Weekly timeline will populate once historical data is imported.</div>
+          <div className="bg-[#141414] border border-[#222] rounded-2xl p-8 text-center text-[0.78rem] text-[#555] italic">
+            Weekly timeline data visualization coming soon.
           </div>
         )}
       </div>
 
       {/* ===== CONTROL PANEL SIDEBAR ===== */}
       <div className={`fixed inset-0 bg-black/50 backdrop-blur-sm z-[99] transition-opacity ${cpOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={() => setCpOpen(false)} />
-      <aside className={`fixed top-0 bottom-0 w-[450px] bg-[#141414] border-l border-[#222] z-[100] flex flex-col transition-all duration-[350ms] ease-[cubic-bezier(0.4,0,0.2,1)] overflow-hidden ${cpOpen ? 'right-0' : '-right-[460px]'}`}>
+      <aside className={`fixed top-0 bottom-0 w-[450px] bg-[#141414] border-l border-[#222] z-[100] flex flex-col transition-all duration-[300ms] ${cpOpen ? 'right-0' : '-right-[460px]'}`}>
         <div className="flex justify-between items-center px-5 py-4 border-b border-[#222] sticky top-0 bg-[#141414] z-10">
-          <div className="flex items-center gap-2 text-[0.88rem] font-bold">
+          <div className="flex items-center gap-2 text-[0.88rem] font-bold text-[#f0f0f0]">
             <Settings size={16} /> Control Panel
           </div>
           <button onClick={() => setCpOpen(false)} className="w-8 h-8 rounded-full flex items-center justify-center text-[#a0a0a0] hover:bg-[#2a2a2a] hover:text-white transition-all cursor-pointer">
@@ -480,22 +403,22 @@ export default function SlaDashboardView() {
           <CPSection title="Date Range">
             <div className="flex flex-wrap gap-1 mb-3">
               {[['today', 'Today'], ['yesterday', 'Yesterday'], ['thisWeek', 'This Week'], ['lastWeek', 'Last Week'], ['thisMonth', 'This Month']].map(([k, l]) => (
-                <button key={k} onClick={() => setPreset(k)} className="px-3 py-1.5 rounded-lg border border-[#2a2a2a] text-[0.68rem] font-bold text-[#a0a0a0] hover:border-[#4f7df3] hover:text-[#4f7df3] hover:bg-[#4f7df3]/5 transition-all cursor-pointer">{l}</button>
+                <button key={k} onClick={() => setPreset(k)} className="px-3 py-1.5 rounded-lg border border-[#2a2a2a] text-[0.68rem] font-bold text-[#a0a0a0] hover:border-[#4f7df3] hover:text-[#4f7df3] transition-all cursor-pointer">{l}</button>
               ))}
             </div>
             <div className="flex gap-2 mb-3">
-              <div onClick={() => setCalSelecting('from')} className={`flex-1 p-2 px-2.5 rounded-lg border cursor-pointer transition-all ${calSelecting === 'from' ? 'border-[#4f7df3] bg-[#4f7df3]/5' : 'border-[#2a2a2a] hover:border-[#555]'}`}>
+              <div onClick={() => setCalSelecting('from')} className={`flex-1 p-2 px-2.5 rounded-lg border cursor-pointer transition-all ${calSelecting === 'from' ? 'border-[#4f7df3] bg-[#4f7df3]/5' : 'border-[#2a2a2a]'}`}>
                 <div className="text-[0.6rem] font-extrabold uppercase tracking-widest text-[#4f7df3] mb-0.5">From</div>
                 <div className="text-[0.78rem] font-bold">{fmtDate(startDate)}</div>
               </div>
-              <div onClick={() => setCalSelecting('to')} className={`flex-1 p-2 px-2.5 rounded-lg border cursor-pointer transition-all ${calSelecting === 'to' ? 'border-[#4f7df3] bg-[#4f7df3]/5' : 'border-[#2a2a2a] hover:border-[#555]'}`}>
+              <div onClick={() => setCalSelecting('to')} className={`flex-1 p-2 px-2.5 rounded-lg border cursor-pointer transition-all ${calSelecting === 'to' ? 'border-[#4f7df3] bg-[#4f7df3]/5' : 'border-[#2a2a2a]'}`}>
                 <div className="text-[0.6rem] font-extrabold uppercase tracking-widest text-[#4f7df3] mb-0.5">To</div>
                 <div className="text-[0.78rem] font-bold">{fmtDate(endDate)}</div>
               </div>
             </div>
             <MiniCalendar year={calYear} month={calMonth} startDate={startDate} endDate={endDate} onPick={calPick} onPrev={() => { setCalMonth(p => p === 0 ? 11 : p - 1); if (calMonth === 0) setCalYear(p => p - 1); }} onNext={() => { setCalMonth(p => p === 11 ? 0 : p + 1); if (calMonth === 11) setCalYear(p => p + 1); }} />
-            <button onClick={() => showToastMsg('Fetching data...')} className="w-full mt-2 py-2.5 rounded-lg bg-[#4f7df3] text-white text-[0.75rem] font-bold flex items-center justify-center gap-2 hover:opacity-85 transition-opacity cursor-pointer">
-              <Download size={13} /> Fetch Data
+            <button onClick={() => fetchData()} className="w-full mt-3 py-2.5 rounded-lg bg-[#4f7df3] text-white text-[0.75rem] font-bold flex items-center justify-center gap-2 hover:opacity-85 cursor-pointer">
+              <Download size={13} /> Update Dashboard
             </button>
           </CPSection>
 
@@ -503,7 +426,7 @@ export default function SlaDashboardView() {
           <CPSection title="Dashboard View">
             <div className="flex flex-wrap gap-1">
               {[['overview', 'Overview'], ['support', 'Support'], ['sales', 'Sales'], ['serviceRecovery', 'Service Recovery'], ['weekly', '📊 Weekly']].map(([k, l]) => (
-                <button key={k} onClick={() => { setActiveTab(k); setCpOpen(false); }} className={`px-3 py-1.5 rounded-lg border text-[0.7rem] font-bold transition-all cursor-pointer ${activeTab === k ? 'bg-[#4f7df3]/10 text-[#4f7df3] border-[#4f7df3]/40' : 'text-[#a0a0a0] border-[#2a2a2a] hover:border-[#4f7df3] hover:text-[#4f7df3]'}`}>{l}</button>
+                <button key={k} onClick={() => { setActiveTab(k); setCpOpen(false); }} className={`px-4 py-2 rounded-lg border text-[0.7rem] font-bold transition-all cursor-pointer ${activeTab === k ? 'bg-[#4f7df3]/10 text-[#4f7df3] border-[#4f7df3]' : 'text-[#a0a0a0] border-[#2a2a2a]'}`}>{l}</button>
               ))}
             </div>
           </CPSection>
@@ -511,8 +434,8 @@ export default function SlaDashboardView() {
           {/* SLA THRESHOLDS */}
           <CPSection title="SLA High-Target Thresholds (%)">
             <div className="grid grid-cols-2 gap-2">
-              <div><label className="text-[0.65rem] font-semibold text-[#555]">Voice Target</label><input type="number" value={slaTargets.voice} onChange={e => setSlaTargets(p => ({ ...p, voice: Number(e.target.value) || 0 }))} className="w-full mt-1 px-2 py-1.5 rounded-md border border-[#2a2a2a] bg-[#0f0f0f] text-[0.78rem] font-semibold outline-none focus:border-[#4f7df3] transition-colors" /></div>
-              <div><label className="text-[0.65rem] font-semibold text-[#555]">Chat Target</label><input type="number" value={slaTargets.chat} onChange={e => setSlaTargets(p => ({ ...p, chat: Number(e.target.value) || 0 }))} className="w-full mt-1 px-2 py-1.5 rounded-md border border-[#2a2a2a] bg-[#0f0f0f] text-[0.78rem] font-semibold outline-none focus:border-[#4f7df3] transition-colors" /></div>
+              <div><label className="text-[0.65rem] font-semibold text-[#555]">Voice Target</label><input type="number" value={slaTargets.voice} onChange={e => setSlaTargets(p => ({ ...p, voice: Number(e.target.value) || 0 }))} className="w-full mt-1 px-2 py-1.5 rounded-md border border-[#2a2a2a] bg-[#0f0f0f] text-[0.78rem] outline-none" /></div>
+              <div><label className="text-[0.65rem] font-semibold text-[#555]">Chat Target</label><input type="number" value={slaTargets.chat} onChange={e => setSlaTargets(p => ({ ...p, chat: Number(e.target.value) || 0 }))} className="w-full mt-1 px-2 py-1.5 rounded-md border border-[#2a2a2a] bg-[#0f0f0f] text-[0.78rem] outline-none" /></div>
             </div>
           </CPSection>
 
@@ -525,48 +448,37 @@ export default function SlaDashboardView() {
             ].map(f => (
               <div key={f.key} className="mb-4 pb-3 border-b border-dashed border-[#2a2a2a] last:border-0">
                 <div className="flex justify-between items-center mb-2">
-                  <div className="flex items-center gap-1.5 text-[0.72rem] font-bold">
+                  <div className="flex items-center gap-1.5 text-[0.72rem] font-bold text-[#f0f0f0]">
                     <div className={`w-2 h-2 rounded-full ${f.dot}`} /> {f.title}
                   </div>
                   <label className="flex items-center gap-1.5 text-[0.68rem] font-bold text-[#a0a0a0] cursor-pointer">
-                    <input type="checkbox" checked={opsLog[f.key].applicable} onChange={e => setOpsLog(prev => ({ ...prev, [f.key]: { ...prev[f.key], applicable: e.target.checked } }))} className="accent-[#4f7df3] cursor-pointer" /> Applicable
+                    <input type="checkbox" checked={opsLog[f.key].applicable} onChange={e => setOpsLog(prev => ({ ...prev, [f.key]: { ...prev[f.key], applicable: e.target.checked } }))} className="accent-[#4f7df3]" /> Applicable
                   </label>
                 </div>
                 {opsLog[f.key].applicable && f.key !== 'keynotes' && (
                   <div className="flex flex-wrap gap-1.5">
                     {(OPS_LOG_PRESETS as any)[f.key]?.map((p: string) => (
-                      <button key={p} onClick={() => togglePreset(f.key, p)} className={`px-2.5 py-1 rounded-full border text-[0.68rem] font-semibold transition-all cursor-pointer ${opsLog[f.key].selected.includes(p) ? 'bg-[#4f7df3]/10 text-[#4f7df3] border-[#4f7df3]/40' : 'text-[#a0a0a0] border-[#2a2a2a] hover:border-[#4f7df3] hover:text-[#4f7df3]'}`}>{p}</button>
+                      <button key={p} onClick={() => togglePreset(f.key, p)} className={`px-2.5 py-1 rounded-full border text-[0.68rem] font-semibold transition-all cursor-pointer ${opsLog[f.key].selected.includes(p) ? 'bg-[#4f7df3]/10 text-[#4f7df3] border-[#4f7df3]' : 'text-[#a0a0a0] border-[#2a2a2a]'}`}>{p}</button>
                     ))}
                   </div>
                 )}
                 {opsLog[f.key].applicable && f.key === 'keynotes' && (
-                  <textarea value={opsLog[f.key].custom} onChange={e => setOpsLog(prev => ({ ...prev, [f.key]: { ...prev[f.key], custom: e.target.value } }))} placeholder="Type keynotes..." className="w-full mt-2 px-2 py-2 rounded-md border border-[#2a2a2a] bg-[#0f0f0f] text-[0.75rem] min-h-[54px] outline-none resize-y focus:border-[#4f7df3] transition-colors" />
+                  <textarea value={opsLog[f.key].custom} onChange={e => setOpsLog(prev => ({ ...prev, [f.key]: { ...prev[f.key], custom: e.target.value } }))} placeholder="Type keynotes..." className="w-full mt-2 px-2 py-2 rounded-md border border-[#2a2a2a] bg-[#0f0f0f] text-[0.75rem] min-h-[60px] outline-none" />
                 )}
               </div>
             ))}
           </CPSection>
 
-          {/* EXPORT */}
-          <CPSection title="Export">
-            <button className="w-full py-2.5 rounded-lg bg-[#4f7df3] text-white text-[0.75rem] font-bold flex items-center justify-center gap-2 hover:opacity-85 transition-opacity cursor-pointer mb-2">
-              <Camera size={13} /> Snap to Clipboard
-            </button>
-            <button className="w-full py-2.5 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a] text-[#ccc] text-[0.75rem] font-bold flex items-center justify-center gap-2 hover:border-[#4f7df3] hover:text-[#4f7df3] transition-all cursor-pointer">
-              <Copy size={13} /> Copy as CSV
-            </button>
-          </CPSection>
-
           {/* WEBHOOK */}
           <CPSection title="Webhook Integration">
             <div className="p-3 bg-[#1a1a1a] border border-[#222] rounded-xl text-[0.7rem] leading-relaxed">
-              <div className="mb-2"><strong>Target URL:</strong><br /><code className="text-[#4f7df3] break-all">https://vision-residenthome.com/api/webhooks/intercom</code></div>
-              <div><strong>Status:</strong> <span className="text-[#10b981] font-bold">Ready</span></div>
+              <div className="mb-2 text-[#a0a0a0]"><strong>Target Endpoint:</strong><br /><code className="text-[#4f7df3] break-all">.../api/webhooks/intercom</code></div>
+              <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse" /> <span className="text-[#10b981] font-bold uppercase tracking-widest text-[0.6rem]">Realtime Listening</span></div>
             </div>
           </CPSection>
 
-          {/* APPLY */}
-          <button onClick={() => { setCpOpen(false); showToastMsg('Dashboard updated & saved!'); }} className="w-full py-3 rounded-xl bg-[#4f7df3] text-white text-[0.82rem] font-bold hover:opacity-90 transition-opacity cursor-pointer mb-6">
-            Apply & Refresh Dashboard
+          <button onClick={() => { setCpOpen(false); showToastMsg('Dashboard preferences updated.'); }} className="w-full py-3 rounded-xl bg-[#4f7df3] text-white text-[0.82rem] font-black hover:opacity-90 transition-opacity cursor-pointer mb-6 uppercase tracking-widest">
+            Apply Changes
           </button>
         </div>
       </aside>
@@ -578,25 +490,25 @@ export default function SlaDashboardView() {
 function CPSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="text-[0.68rem] font-extrabold uppercase tracking-[0.07em] text-[#a0a0a0] pb-2 border-b border-[#2a2a2a] mb-3">{title}</div>
+      <div className="text-[0.65rem] font-extrabold uppercase tracking-[0.1em] text-[#555] pb-2 border-b border-[#222] mb-3">{title}</div>
       {children}
     </div>
   );
 }
 
 function LOBGroupCard({ data, slaTargets }: { data: LOBData; slaTargets: { voice: number; chat: number } }) {
+  const parsePct = (v: string) => parseFloat(String(v).replace('%', '')) || 0;
   const chatOk = parsePct(data.chat.sla) >= slaTargets.chat;
   const voiceOk = parsePct(data.voice.sla) >= slaTargets.voice;
-  function parsePct(v: string) { return parseFloat(String(v).replace('%', '')) || 0; }
 
   return (
     <div className="bg-[#141414] border border-[#222] rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.5)] overflow-hidden">
-      <div className="px-4 py-3 border-b border-[#2a2a2a] flex justify-between items-center">
+      <div className="px-4 py-3 border-b border-[#2a2a2a] flex justify-between items-center bg-white/[0.01]">
         <h2 className="text-[0.75rem] font-extrabold uppercase tracking-[0.06em] text-[#a0a0a0]">{data.title}</h2>
       </div>
       {/* Chat */}
       <div className="p-4 pt-6 relative">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 px-3.5 py-1 rounded-full bg-[#1a1a1a] border border-[#2a2a2a] flex items-center gap-1.5 text-[0.68rem] font-black uppercase tracking-widest z-10 whitespace-nowrap">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 px-3.5 py-1 rounded-full bg-[#1a1a1a] border border-[#2a2a2a] flex items-center gap-1.5 text-[0.65rem] font-black uppercase tracking-widest z-10 whitespace-nowrap">
           <MessageSquare size={12} className="text-[#3b82f6]" /> Chat
           <span className={`text-[0.55rem] font-extrabold px-1.5 py-px rounded-full ml-1.5 ${chatOk ? 'bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/20' : 'bg-[#ef4444]/10 text-[#ef4444] border border-[#ef4444]/20'}`}>{chatOk ? 'Passed' : 'Failed'}</span>
         </div>
@@ -611,12 +523,12 @@ function LOBGroupCard({ data, slaTargets }: { data: LOBData; slaTargets: { voice
       {/* Divider */}
       <div className="relative h-7 mx-0">
         <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 border-t-[1.5px] border-dashed border-[#2a2a2a]" />
-        <div className="w-[18px] h-[18px] rounded-full bg-[#0a0a0a] border border-[#2a2a2a] absolute left-[-9px] top-1/2 -translate-y-1/2 z-10" />
+        <div className="w-[18px] h-[18px] rounded-full bg-[#0a0a0a] border border-[#222] absolute left-[-9px] top-1/2 -translate-y-1/2 z-10" />
         <div className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 px-3 py-1 rounded-full bg-[#1a1a1a] border border-[#2a2a2a] flex items-center gap-1.5 text-[0.65rem] font-black uppercase tracking-widest z-10 whitespace-nowrap">
           <Phone size={11} className="text-[#6366f1]" /> Voice
           <span className={`text-[0.55rem] font-extrabold px-1.5 py-px rounded-full ml-1.5 ${voiceOk ? 'bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/20' : 'bg-[#ef4444]/10 text-[#ef4444] border border-[#ef4444]/20'}`}>{voiceOk ? 'Passed' : 'Failed'}</span>
         </div>
-        <div className="w-[18px] h-[18px] rounded-full bg-[#0a0a0a] border border-[#2a2a2a] absolute right-[-9px] top-1/2 -translate-y-1/2 z-10" />
+        <div className="w-[18px] h-[18px] rounded-full bg-[#0a0a0a] border border-[#222] absolute right-[-9px] top-1/2 -translate-y-1/2 z-10" />
       </div>
       {/* Voice */}
       <div className="p-4 pt-5 pb-5">
@@ -633,15 +545,12 @@ function LOBGroupCard({ data, slaTargets }: { data: LOBData; slaTargets: { voice
 }
 
 function DetailView({ title, data, slaTargets }: { title: string; data: LOBData; slaTargets: { voice: number; chat: number } }) {
-  function parsePct(v: string) { return parseFloat(String(v).replace('%', '')) || 0; }
-  const voiceOk = parsePct(data.voice.sla) >= slaTargets.voice;
-  const chatOk = parsePct(data.chat.sla) >= slaTargets.chat;
-
+  const parsePct = (v: string) => parseFloat(String(v).replace('%', '')) || 0;
   function DetailCard({ label, value, highlight, isSLA }: any) {
-    let cls = 'p-4 rounded-xl border border-[#2a2a2a] bg-white/[0.03] cursor-default hover:scale-[1.02] transition-transform';
+    let cls = 'p-4 rounded-xl border border-[#2a2a2a] bg-white/[0.03]';
     let vcls = 'text-[1.6rem] font-black';
-    if (isSLA) { cls = 'p-4 rounded-xl border border-[#6366f1]/30 bg-[#6366f1]/5 cursor-default'; vcls += ' text-[#6366f1]'; }
-    else if (highlight === 'alert') { cls = 'p-4 rounded-xl border border-[#ef4444]/30 bg-[#ef4444]/5 cursor-default'; vcls += ' text-[#ef4444]'; }
+    if (isSLA) { cls = 'p-4 rounded-xl border border-[#6366f1]/30 bg-[#6366f1]/5'; vcls += ' text-[#6366f1]'; }
+    else if (highlight === 'alert') { cls = 'p-4 rounded-xl border border-[#ef4444]/30 bg-[#ef4444]/5'; vcls += ' text-[#ef4444]'; }
     return (
       <div className={cls}>
         <div className="text-[0.65rem] font-bold uppercase tracking-widest text-[#a0a0a0] mb-2">{label}</div>
@@ -655,7 +564,6 @@ function DetailView({ title, data, slaTargets }: { title: string; data: LOBData;
       <div className="flex items-center justify-between pb-3 border-b border-[#222]">
         <h2 className="text-[1.2rem] font-extrabold">{title} — Detailed Performance</h2>
       </div>
-      {/* Voice Panel */}
       <div className="bg-[#141414] border border-[#222] rounded-2xl overflow-hidden">
         <div className="flex items-center gap-2.5 px-4 py-3 border-b border-[#2a2a2a] bg-white/[0.03]">
           <div className="w-[30px] h-[30px] rounded-lg bg-[#6366f1]/10 flex items-center justify-center"><Phone size={16} className="text-[#6366f1]" /></div>
@@ -669,7 +577,6 @@ function DetailView({ title, data, slaTargets }: { title: string; data: LOBData;
           <DetailCard label="Absenteeism Rate" value={data.voice.absenteeism} highlight={parsePct(data.voice.absenteeism) > 8 ? 'alert' : ''} />
         </div>
       </div>
-      {/* Chat Panel */}
       <div className="bg-[#141414] border border-[#222] rounded-2xl overflow-hidden">
         <div className="flex items-center gap-2.5 px-4 py-3 border-b border-[#2a2a2a] bg-white/[0.03]">
           <div className="w-[30px] h-[30px] rounded-lg bg-[#4f7df3]/10 flex items-center justify-center"><MessageSquare size={16} className="text-[#3b82f6]" /></div>
@@ -713,9 +620,7 @@ function SLARow({ value, ok }: { value: string; ok: boolean }) {
 }
 
 function EmailStat({ label, value, cls }: { label: string; value: number; cls: string }) {
-  const colors: Record<string, string> = {
-    blue: 'text-[#3b82f6]', indigo: 'text-[#6366f1]', green: 'text-[#10b981]', purple: 'text-[#a855f7]'
-  };
+  const colors: Record<string, string> = { blue: 'text-[#3b82f6]', indigo: 'text-[#6366f1]', green: 'text-[#10b981]', purple: 'text-[#a855f7]' };
   return (
     <div className="p-3 rounded-xl border border-[#2a2a2a] bg-white/[0.03]">
       <div className={`text-[0.65rem] font-bold uppercase tracking-widest mb-1 ${colors[cls]}`}>{label}</div>
@@ -725,7 +630,7 @@ function EmailStat({ label, value, cls }: { label: string; value: number; cls: s
 }
 
 function LogSection({ label, dotColor, items, custom }: { label: string; dotColor: string; items: string[]; custom: string }) {
-  const all = [...items, ...(custom ? [custom] : [])];
+  const all = [...(items || []), ...(custom ? [custom] : [])];
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-1.5 text-[0.82rem] font-bold">
@@ -750,8 +655,7 @@ function MiniCalendar({ year, month, startDate, endDate, onPick, onPrev, onNext 
   const DAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
   const leftM = month === 0 ? 11 : month - 1;
   const leftY = month === 0 ? year - 1 : year;
-  const today = new Date();
-  const todayDs = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const today = new Date().toISOString().split('T')[0];
 
   function renderMonth(my: number, mm: number) {
     const firstDay = new Date(my, mm, 1).getDay();
@@ -763,18 +667,18 @@ function MiniCalendar({ year, month, startDate, endDate, onPick, onPrev, onNext 
       const isStart = ds === startDate;
       const isEnd = ds === endDate;
       const inRange = startDate && endDate && ds > startDate && ds < endDate;
-      const isToday = ds === todayDs;
+      const isToday = ds === today;
       let cls = 'text-center text-[0.68rem] font-semibold text-[#a0a0a0] py-1.5 rounded-md cursor-pointer transition-colors hover:bg-[#4f7df3]/10 hover:text-[#4f7df3]';
       if (isStart || isEnd) cls = 'text-center text-[0.68rem] font-extrabold bg-[#4f7df3] text-white py-1.5 rounded-md cursor-pointer';
       else if (inRange) cls = 'text-center text-[0.68rem] font-semibold bg-[#4f7df3]/10 text-[#4f7df3] py-1.5 rounded-none cursor-pointer';
-      if (isToday && !isStart && !isEnd) cls += ' !text-[#4f7df3] !font-extrabold';
+      if (isToday && !isStart && !isEnd) cls += ' !text-[#4f7df3] !font-extrabold border-b border-[#4f7df3]';
       cells.push(<div key={d} className={cls} onClick={() => onPick(ds)}>{d}</div>);
     }
     return cells;
   }
 
   return (
-    <div className="flex gap-2">
+    <div className="flex gap-2 p-2 bg-white/[0.02] border border-[#222] rounded-xl">
       <div className="flex-1">
         <div className="flex justify-between items-center mb-1.5 px-0.5">
           <button onClick={onPrev} className="text-[0.7rem] text-[#a0a0a0] hover:text-[#4f7df3] p-1 rounded transition-colors cursor-pointer"><ChevronLeft size={14} /></button>
@@ -786,7 +690,7 @@ function MiniCalendar({ year, month, startDate, endDate, onPick, onPrev, onNext 
           {renderMonth(leftY, leftM)}
         </div>
       </div>
-      <div className="flex-1">
+      <div className="flex-1 border-l border-[#222] pl-2">
         <div className="flex justify-between items-center mb-1.5 px-0.5">
           <span />
           <span className="text-[0.72rem] font-extrabold">{MONTHS[month]} {year}</span>
@@ -800,5 +704,3 @@ function MiniCalendar({ year, month, startDate, endDate, onPick, onPrev, onNext 
     </div>
   );
 }
-
-function parsePct(v: string) { return parseFloat(String(v).replace('%', '')) || 0; }

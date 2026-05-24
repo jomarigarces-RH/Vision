@@ -33,6 +33,20 @@
   --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+.dark {
+  --bg-body: #0a0a0a;
+  --bg-card: #141414;
+  --bg-sidebar: #0a0a0a;
+  
+  --text-primary: #f0f0f0;
+  --text-secondary: #a0a0a0;
+  --text-tertiary: #555555;
+  
+  --border-light: #222222;
+  
+  --shadow-md: 0 4px 24px rgba(0,0,0,0.5);
+}
+
 @theme inline {
   --color-body: var(--bg-body);
   --color-card: var(--bg-card);
@@ -58,6 +72,13 @@
 body {
   background-color: var(--bg-body);
   color: var(--text-primary);
+  transition: background-color 0.3s, color 0.3s;
+}
+
+/* Command Center Patterns */
+.bg-grid {
+  background-image: radial-gradient(var(--border-light) 1px, transparent 1px);
+  background-size: 20px 20px;
 }
 
 /* Custom Scrollbar */
@@ -72,11 +93,13 @@ body {
   background: #CBD5E1;
   border-radius: 10px;
 }
+.dark ::-webkit-scrollbar-thumb {
+  background: #333;
+}
 ::-webkit-scrollbar-thumb:hover {
   background: #94A3B8;
 }
 
-/* Hide scrollbar for clean horizontal scrolling */
 .hide-scrollbar::-webkit-scrollbar {
   display: none;
 }
@@ -84,3 +107,22 @@ body {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Aesthetic Utilities */
+.notched-divider {
+  position: relative;
+}
+.notched-divider::before, .notched-divider::after {
+  content: '';
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: var(--bg-body);
+  border: 1.5px solid var(--border-light);
+  border-radius: 50%;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+}
+.notched-divider::before { left: -6px; }
+.notched-divider::after { right: -6px; }
