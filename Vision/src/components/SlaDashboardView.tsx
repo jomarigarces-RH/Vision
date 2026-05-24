@@ -153,6 +153,109 @@ export default function SlaDashboardView() {
     }
   }
 
+  // Data Fetching
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data: metrics, error: metricsErr } = await supabase
+        .from('ops_metrics')
+        .select('*')
+        .eq('date', endDate);
+
+      if (metricsErr) throw metricsErr;
+
+      // Map metrics to state
+      const newOps = { ...ops };
+      metrics?.forEach(m => {
+        const lobKey = m.department.toLowerCase().includes('sales') ? 'sales' : 
+                       m.department.toLowerCase().includes('recovery') ? 'serviceRecovery' : 'support';
+        const channelKey = m.channel === 'Chat' ? 'chat' : 'voice';
+        
+        // Calculate SLA status
+        const slaVal = m.sla_percent || (m.inbound_count > 0 ? (m.passed_count / m.inbound_count * 100) : 100);
+        const target = channelKey === 'chat' ? slaTargets.chat : slaTargets.voice;
+        
+        newOps[lobKey][channelKey] = {
+          ...newOps[lobKey][channelKey],
+          inbound: String(m.inbound_count || 0),
+          abandoned: String(m.abandoned_count || 0),
+          sla: slaVal.toFixed(2) + '%',
+          status: slaVal >= target ? 'passed' : 'failed',
+          frt: (m.frt_seconds || 0) + 's',
+          aht: (m.aht_seconds || 0) + 's'
+        };
+      });
+      setOps(newOps);
+
+      // Fetch Absenteeism
+      const { data: absData } = await supabase
+        .from('absenteeism')
+        .select('*')
+        .eq('date', endDate)
+        .maybeSingle();
+      
+      if (absData) {
+        setGlobalAbsent({ pct: absData.rate + '%', count: absData.absent_count });
+      }
+
+      // Fetch Email
+      const { data: eData } = await supabase
+        .from('email_productivity')
+        .select('*')
+        .eq('date', endDate)
+        .maybeSingle();
+      
+      if (eData) {
+        setEmailData({
+          closed: eData.closed_count,
+          assigned: eData.assigned_count,
+          replied: eData.replied_count,
+          sent: eData.sent_count,
+          topAgents: (eData.top_agents as any) || []
+        });
+      }
+
+      // Fetch Ops Log
+      const { data: logs } = await supabase
+        .from('ops_log')
+        .select('*')
+        .eq('date', endDate);
+      
+      if (logs) {
+        const newLogs = { ...opsLog };
+        logs.forEach(l => {
+          const key = l.type.toLowerCase();
+          if (newLogs[key]) {
+            newLogs[key] = {
+              applicable: true,
+              selected: l.selected_items || [],
+              custom: l.custom_notes || '',
+              showCustom: !!l.custom_notes
+            };
+          }
+        });
+        setOpsLog(newLogs);
+      }
+
+    } catch (err: any) {
+      console.error('Fetch Error:', err.message);
+      setDataHealth('issue');
+    } finally {
+      setLoading(false);
+    }
+  }, [endDate, slaTargets]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Handle Pulse Refresh
+  useEffect(() => {
+    if (isLive && pulseCount === 60) {
+      fetchData();
+    }
+  }, [isLive, pulseCount, fetchData]);
+
   // Ops log toggle
   function togglePreset(field: string, preset: string) {
     setOpsLog(prev => {
