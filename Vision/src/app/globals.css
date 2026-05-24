@@ -3,27 +3,27 @@
 @plugin "tailwindcss-animate";
 
 :root {
-  --bg-body: #F8FAFC;
-  --bg-card: #ffffff;
-  --bg-sidebar: #ffffff;
+  --bg-body: #0a0a0a;
+  --bg-card: #141414;
+  --bg-sidebar: #0a0a0a;
   
-  --text-primary: #1E293B;
-  --text-secondary: #64748B;
-  --text-tertiary: #94A3B8;
+  --text-primary: #f0f0f0;
+  --text-secondary: #a0a0a0;
+  --text-tertiary: #555555;
   
   --brand-blue: #4F7DF3;
   --brand-blue-hover: #3b66d6;
-  --brand-blue-light: #EFF4FF;
+  --brand-blue-light: rgba(79, 125, 243, 0.1);
   
   --accent-red: #EF4444;
   --accent-green: #10B981;
   --accent-orange: #F59E0B;
   
-  --border-light: #E2E8F0;
+  --border-light: #222222;
   
-  --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
-  --shadow-md: 0 4px 12px rgba(0,0,0,0.05);
-  --shadow-lg: 0 8px 24px rgba(0,0,0,0.08);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.2);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.3);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,0.5);
   
   --radius-sm: 6px;
   --radius-md: 10px;
@@ -33,18 +33,18 @@
   --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.dark {
-  --bg-body: #0a0a0a;
-  --bg-card: #141414;
-  --bg-sidebar: #0a0a0a;
+.light {
+  --bg-body: #F8FAFC;
+  --bg-card: #ffffff;
+  --bg-sidebar: #ffffff;
   
-  --text-primary: #f0f0f0;
-  --text-secondary: #a0a0a0;
-  --text-tertiary: #555555;
+  --text-primary: #1E293B;
+  --text-secondary: #64748B;
+  --text-tertiary: #94A3B8;
   
-  --border-light: #222222;
+  --border-light: #E2E8F0;
   
-  --shadow-md: 0 4px 24px rgba(0,0,0,0.5);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.05);
 }
 
 @theme inline {

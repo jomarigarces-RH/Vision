@@ -87,7 +87,7 @@ export default function Dashboard() {
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [agentsOpen, setAgentsOpen] = useState(false);
-  const [activeView, setActiveView] = useState<string>("observation");
+  const [activeView, setActiveView] = useState<string>("intercom-sla");
   const [observationSubTab, setObservationSubTab] = useState<'dashboard' | 'agents' | 'coaches'>('dashboard');
   const [selectedDept, setSelectedDept] = useState<string>('Sales');
 
@@ -644,15 +644,15 @@ export default function Dashboard() {
 
       {/* --- SIDEBAR --- */}
       <aside
-        className={`bg-white border-r border-[var(--border-light)] flex flex-col transition-all duration-300 z-30 shadow-[var(--shadow-sm)] h-full
+        className={`bg-[var(--bg-card)] border-r border-[var(--border-light)] flex flex-col transition-all duration-300 z-30 shadow-[var(--shadow-sm)] h-full
           absolute md:relative
           ${sidebarCollapsed ? '-translate-x-full md:translate-x-0 md:w-[72px]' : 'translate-x-0 w-[260px]'}`}
       >
         <div className="p-5 flex justify-center items-center">
-          <div className={`bg-white rounded-xl flex items-center justify-center shadow-sm overflow-hidden transition-all duration-300 ${sidebarCollapsed ? 'w-10 h-10 p-1' : 'w-[60px] h-[66px] p-1.5'}`}>
+          <div className={`bg-[var(--bg-card)] rounded-xl flex items-center justify-center shadow-sm overflow-hidden transition-all duration-300 ${sidebarCollapsed ? 'w-10 h-10 p-1' : 'w-[60px] h-[66px] p-1.5'}`}>
             <svg width={sidebarCollapsed ? "24" : "36"} height={sidebarCollapsed ? "28" : "44"} viewBox="0 0 120 148" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 8 L12 100 L30 100 L30 68 L58 68 L78 100 L98 100 L74 64 C88 58 96 46 96 32 C96 14 82 8 62 8 Z M30 24 L58 24 C72 24 78 28 78 38 C78 48 72 54 58 54 L30 54 Z" fill="#1E293B" />
-              {(!sidebarCollapsed || isMobile) && <text x="60" y="132" textAnchor="middle" fontFamily="Inter, sans-serif" fontWeight="800" fontSize="22" letterSpacing="3" fill="#1E293B">RESIDENT</text>}
+              <path d="M12 8 L12 100 L30 100 L30 68 L58 68 L78 100 L98 100 L74 64 C88 58 96 46 96 32 C96 14 82 8 62 8 Z M30 24 L58 24 C72 24 78 28 78 38 C78 48 72 54 58 54 L30 54 Z" fill="#ffffff" />
+              {(!sidebarCollapsed || isMobile) && <text x="60" y="132" textAnchor="middle" fontFamily="Inter, sans-serif" fontWeight="800" fontSize="22" letterSpacing="3" fill="#ffffff">RESIDENT</text>}
             </svg>
           </div>
         </div>
@@ -662,7 +662,7 @@ export default function Dashboard() {
           <div className="my-1">
             <div
               className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer font-medium transition-colors
-                ${activeView === 'observation' ? 'bg-brand-blue-light text-brand-blue' : 'text-[var(--text-secondary)] hover:bg-slate-50'}
+                ${activeView === 'observation' ? 'bg-brand-blue-light text-brand-blue' : 'text-[var(--text-secondary)] hover:bg-white/5'}
                 ${sidebarCollapsed ? 'justify-center' : ''}`}
               onClick={() => {
                 if (sidebarCollapsed) {
@@ -690,7 +690,7 @@ export default function Dashboard() {
                 {/* Dashboard Sub-tab */}
                 <div
                   className={`px-3 py-2 text-[13px] font-medium cursor-pointer rounded-md transition-colors flex items-center gap-2
-                    ${activeView === 'observation' && observationSubTab === 'dashboard' ? 'bg-brand-blue-light text-brand-blue font-semibold' : 'text-[var(--text-secondary)] hover:bg-slate-50 hover:text-[var(--brand-blue)]'}`}
+                    ${activeView === 'observation' && observationSubTab === 'dashboard' ? 'bg-brand-blue-light text-brand-blue font-semibold' : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--brand-blue)]'}`}
                   onClick={() => { setActiveView('observation'); setObservationSubTab('dashboard'); }}
                 >
                   <LayoutDashboard size={14} />
@@ -700,7 +700,7 @@ export default function Dashboard() {
                 {/* Agents Sub-tab with LOB children */}
                 <div
                   className={`px-3 py-2 text-[13px] font-medium cursor-pointer rounded-md transition-colors flex items-center gap-2
-                    ${activeView === 'observation' && observationSubTab === 'agents' ? 'bg-brand-blue-light text-brand-blue font-semibold' : 'text-[var(--text-secondary)] hover:bg-slate-50 hover:text-[var(--brand-blue)]'}`}
+                    ${activeView === 'observation' && observationSubTab === 'agents' ? 'bg-brand-blue-light text-brand-blue font-semibold' : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--brand-blue)]'}`}
                   onClick={() => { setActiveView('observation'); setObservationSubTab('agents'); }}
                 >
                   <Users size={14} />
@@ -716,7 +716,7 @@ export default function Dashboard() {
                         <div
                           key={dept}
                           className={`px-3 py-1.5 text-[12px] font-medium cursor-pointer rounded-md transition-colors flex items-center justify-between
-                            ${isActive ? 'bg-blue-50 text-brand-blue font-semibold' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'}`}
+                            ${isActive ? 'bg-blue-500/10 text-brand-blue font-semibold' : 'text-slate-400 hover:bg-white/5 hover:text-slate-300'}`}
                           onClick={() => setSelectedDept(dept)}
                         >
                           <span className="flex items-center gap-2">
@@ -733,7 +733,7 @@ export default function Dashboard() {
                 {/* Coaches Sub-tab */}
                 <div
                   className={`px-3 py-2 text-[13px] font-medium cursor-pointer rounded-md transition-colors flex items-center gap-2
-                    ${activeView === 'observation' && observationSubTab === 'coaches' ? 'bg-brand-blue-light text-brand-blue font-semibold' : 'text-[var(--text-secondary)] hover:bg-slate-50 hover:text-[var(--brand-blue)]'}`}
+                    ${activeView === 'observation' && observationSubTab === 'coaches' ? 'bg-brand-blue-light text-brand-blue font-semibold' : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--brand-blue)]'}`}
                   onClick={() => { setActiveView('observation'); setObservationSubTab('coaches'); }}
                 >
                   <UserCog size={14} />
@@ -781,7 +781,7 @@ export default function Dashboard() {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
 
         {/* HEADER */}
-        <header className="h-[72px] bg-white border-b border-[var(--border-light)] flex items-center justify-between px-3 sm:px-6 shrink-0 z-40 shadow-sm">
+        <header className="h-[72px] bg-[var(--bg-card)] border-b border-[var(--border-light)] flex items-center justify-between px-3 sm:px-6 shrink-0 z-40 shadow-sm">
           <div className="flex items-center gap-2 sm:gap-4 min-w-0">
             <button
               onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
@@ -805,7 +805,7 @@ export default function Dashboard() {
               <input
                 type="text"
                 placeholder="Search agents, coaches, or departments..."
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue focus:bg-white transition-all"
+                className="w-full bg-[var(--bg-body)] border border-[var(--border-light)] rounded-xl pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue focus:bg-white/5 transition-all text-[var(--text-primary)]"
                 value={searchQuery}
                 onChange={(e) => { setSearchQuery(e.target.value); setShowSearchDropdown(true); }}
                 onFocus={() => setShowSearchDropdown(true)}
@@ -815,7 +815,7 @@ export default function Dashboard() {
               {showSearchDropdown && searchResults.length > 0 && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setShowSearchDropdown(false)} />
-                  <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="absolute top-full left-0 right-0 mt-2 bg-[var(--bg-card)] border border-[var(--border-light)] rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
                     <div className="max-h-[400px] overflow-y-auto p-2">
                       {searchResults.map((result, i) => (
                         <div
@@ -844,7 +844,7 @@ export default function Dashboard() {
                 <div className="relative">
                   <button
                     onClick={() => setDateFilterModalOpen(!dateFilterModalOpen)}
-                    className="flex items-center gap-2 px-3 py-2 text-sm font-semibold rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-all shadow-sm active:scale-95"
+                    className="flex items-center gap-2 px-3 py-2 text-sm font-semibold rounded-lg bg-[var(--bg-card)] border border-[var(--border-light)] text-[var(--text-primary)] hover:bg-white/5 transition-all shadow-sm active:scale-95"
                   >
                     <Calendar size={18} className="text-brand-blue" />
                     <span className="hidden sm:inline">
@@ -945,30 +945,30 @@ export default function Dashboard() {
                 {/* Column 1 */}
                 <div className="flex flex-col gap-6">
                   {/* Card: Observation Data */}
-                  <div className="bg-white rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)] overflow-hidden">
+                  <div className="bg-[var(--bg-card)] rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)] overflow-hidden">
                     <div className="flex justify-between items-center mb-1">
-                      <h2 className="font-bold text-lg">Observation Data</h2>
+                      <h2 className="font-bold text-lg text-[var(--text-primary)]">Observation Data</h2>
                     </div>
-                    <p className="text-[11px] text-slate-400 font-medium mb-4">Observation count breakdown by LOB for the selected period.</p>
+                    <p className="text-[11px] text-[var(--text-secondary)] font-medium mb-4">Observation count breakdown by LOB for the selected period.</p>
                     <div className="flex justify-between items-center mb-4">
                     </div>
 
                     <div className="w-full">
                       <table className="w-full text-left border-collapse">
                         <thead>
-                          <tr className="border-b border-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                          <tr className="border-b border-[var(--border-light)] text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-widest">
                             <th className="py-3 px-2">Line of Business</th>
                             <th className="py-3 px-2 text-right text-brand-blue">Observations</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-50">
+                        <tbody className="divide-y divide-[var(--border-light)]">
                           {observationDataStats.map((row, i) => (
-                            <tr key={i} className="hover:bg-slate-50/50 transition-colors group">
+                            <tr key={i} className="hover:bg-white/5 transition-colors group">
                               <td className="py-3 px-2">
                                 <div className="flex items-center gap-2">
                                   <div className={`w-1.5 h-1.5 rounded-full ${row.name === 'Sales' ? 'bg-brand-blue' : row.name === 'Support' ? 'bg-emerald-500' : 'bg-amber-500'
                                     }`} />
-                                  <span className="text-sm font-bold text-slate-700">{row.name}</span>
+                                  <span className="text-sm font-bold text-[var(--text-primary)] opacity-80">{row.name}</span>
                                 </div>
                               </td>
                               <td className="py-3 px-2 text-right text-sm font-black text-brand-blue">
@@ -978,9 +978,9 @@ export default function Dashboard() {
                           ))}
                         </tbody>
                         <tfoot>
-                          <tr className="bg-slate-50/50">
-                            <td className="py-2 px-2 text-[10px] font-black text-slate-500 uppercase">Total</td>
-                            <td className="py-2 px-2 text-right text-xs font-black text-slate-700">
+                          <tr className="bg-white/5">
+                            <td className="py-2 px-2 text-[10px] font-black text-[var(--text-secondary)] uppercase">Total</td>
+                            <td className="py-2 px-2 text-right text-xs font-black text-[var(--text-primary)]">
                               {observationDataStats.reduce((acc, curr) => acc + curr.count, 0)}
                             </td>
                           </tr>
@@ -990,10 +990,10 @@ export default function Dashboard() {
                   </div>
 
                   {/* Card: Missing Observation */}
-                  <div className="bg-white rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
+                  <div className="bg-[var(--bg-card)] rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
                     <div className="mb-1">
-                      <h2 className="font-bold text-lg">Missing Observation</h2>
-                      <p className="text-[11px] text-slate-400 font-medium">Coaches with the most unobserved agents during the selected period.</p>
+                      <h2 className="font-bold text-lg text-[var(--text-primary)]">Missing Observation</h2>
+                      <p className="text-[11px] text-[var(--text-secondary)] font-medium">Coaches with the most unobserved agents during the selected period.</p>
                     </div>
                     <div className="flex justify-between items-center mb-4">
                       <div className="w-32">
@@ -1028,10 +1028,10 @@ export default function Dashboard() {
                   </div>
 
                   {/* Card: Recent Observations */}
-                  <div className="bg-white rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
+                  <div className="bg-[var(--bg-card)] rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
                     <div className="mb-1">
-                      <h2 className="font-bold text-lg">Recent Observations</h2>
-                      <p className="text-[11px] text-slate-400 font-medium">Latest Observation sessions recorded in the system.</p>
+                      <h2 className="font-bold text-lg text-[var(--text-primary)]">Recent Observations</h2>
+                      <p className="text-[11px] text-[var(--text-secondary)] font-medium">Latest Observation sessions recorded in the system.</p>
                     </div>
                     <div className="flex justify-between items-center mb-4">
                       <button
@@ -1071,10 +1071,10 @@ export default function Dashboard() {
                 {/* Column 2 */}
                 <div className="flex flex-col gap-6">
                   {/* Card: Observation Index */}
-                  <div className="bg-white rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
+                  <div className="bg-[var(--bg-card)] rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
                     <div className="mb-1">
-                      <h2 className="font-bold text-lg">Observation Index</h2>
-                      <p className="text-[11px] text-slate-400 font-medium">Daily observation trend lines per LOB over the selected period.</p>
+                      <h2 className="font-bold text-lg text-[var(--text-primary)]">Observation Index</h2>
+                      <p className="text-[11px] text-[var(--text-secondary)] font-medium">Daily observation trend lines per LOB over the selected period.</p>
                     </div>
                     <div className="h-[200px] w-full">
                       <ResponsiveContainer width="100%" height="100%">
@@ -1092,10 +1092,10 @@ export default function Dashboard() {
                   </div>
 
                   {/* Card: LOB Completion Status */}
-                  <div className="bg-white rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
+                  <div className="bg-[var(--bg-card)] rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
                     <div className="mb-2">
-                      <h2 className="font-bold text-lg">LOB Completion</h2>
-                      <p className="text-[11px] text-slate-400 font-medium">Percentage of agents observed per department during the selected period.</p>
+                      <h2 className="font-bold text-lg text-[var(--text-primary)]">LOB Completion</h2>
+                      <p className="text-[11px] text-[var(--text-secondary)] font-medium">Percentage of agents observed per department during the selected period.</p>
                     </div>
                     <div className="h-[200px] w-full flex items-center justify-center relative">
                       <ResponsiveContainer width="100%" height="100%">
@@ -1131,11 +1131,11 @@ export default function Dashboard() {
                   </div>
 
                   {/* Card: Neglected Agents (Missed Observations) */}
-                  <div className="bg-white rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
+                  <div className="bg-[var(--bg-card)] rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
                     <div className="mb-1 flex justify-between items-start">
                       <div>
-                        <h2 className="font-bold text-lg">Neglected Agents</h2>
-                        <p className="text-[11px] text-slate-400 font-medium">Agents with the most missed Observation Sessions over all tracked weeks.</p>
+                        <h2 className="font-bold text-lg text-[var(--text-primary)]">Neglected Agents</h2>
+                        <p className="text-[11px] text-[var(--text-secondary)] font-medium">Agents with the most missed Observation Sessions over all tracked weeks.</p>
                       </div>
                       <button
                         onClick={() => setMissedObsModalOpen(true)}
@@ -1147,7 +1147,7 @@ export default function Dashboard() {
                     
                     <div className="mt-4 flex flex-col gap-3">
                       {missedObservationsStats.slice(0, 3).map((agent, i) => (
-                        <div key={i} className="flex items-center gap-3 p-2.5 rounded-xl border border-slate-50 hover:border-slate-200 transition-all group">
+                        <div key={i} className="flex items-center gap-3 p-2.5 rounded-xl border border-[var(--border-light)] hover:bg-white/5 transition-all group">
                           <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${
                             i === 0 ? 'bg-rose-100 text-rose-600' : 
                             i === 1 ? 'bg-orange-100 text-orange-600' : 
@@ -1176,9 +1176,9 @@ export default function Dashboard() {
                 <div className="flex flex-col gap-6">
 
                   {/* Card: Completion Scores */}
-                  <div className="bg-white rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
-                    <h2 className="font-bold text-lg mb-0.5">Observation Completion (Agent)</h2>
-                    <p className="text-[11px] text-slate-400 font-medium mb-2">Progress bars showing how many agents per LOB have been observed vs. total headcount.</p>
+                  <div className="bg-[var(--bg-card)] rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
+                    <h2 className="font-bold text-lg mb-0.5 text-[var(--text-primary)]">Observation Completion (Agent)</h2>
+                    <p className="text-[11px] text-[var(--text-secondary)] font-medium mb-2">Progress bars showing how many agents per LOB have been observed vs. total headcount.</p>
                     <div className="flex flex-col gap-4 mt-4">
                       {lobsStats.map((stat, i) => (
                         <div key={i} className="space-y-1.5">
@@ -1186,7 +1186,7 @@ export default function Dashboard() {
                             <span className="font-bold text-slate-700">{stat.name}</span>
                             <span className="text-slate-500 font-medium">{stat.observed} / {stat.total}</span>
                           </div>
-                          <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden shadow-inner">
+                          <div className="h-2.5 w-full bg-white/5 rounded-full overflow-hidden shadow-inner">
                             <div
                               className="h-full rounded-full transition-all duration-1000 ease-out"
                               style={{ width: `${stat.value}%`, backgroundColor: stat.color }}
@@ -1203,10 +1203,10 @@ export default function Dashboard() {
                   </div>
 
                   {/* Card: WOW Charts (Activity Comparison) - moved from Column 2 */}
-                  <div className="bg-white rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
+                  <div className="bg-[var(--bg-card)] rounded-2xl p-5 shadow-[var(--shadow-sm)] border border-[var(--border-light)]">
                     <div className="mb-1">
-                      <h2 className="font-bold text-lg">WOW Charts</h2>
-                      <p className="text-[11px] text-slate-400 font-medium">Week-over-Week comparison of top observed agents ranked by monthly total.</p>
+                      <h2 className="font-bold text-lg text-[var(--text-primary)]">WOW Charts</h2>
+                      <p className="text-[11px] text-[var(--text-secondary)] font-medium">Week-over-Week comparison of top observed agents ranked by monthly total.</p>
                     </div>
                     <div className="flex justify-between items-center mb-4">
                       <button
@@ -1230,15 +1230,15 @@ export default function Dashboard() {
                         {wowChartsData.slice(0, 10).map((agent, i) => {
                           const wowColor = agent.wow > 0 ? 'text-emerald-500' : agent.wow < 0 ? 'text-rose-500' : 'text-slate-300';
                           return (
-                            <div key={i} className="grid grid-cols-5 gap-1 items-center p-2 hover:bg-slate-50 rounded-lg transition-colors border border-transparent hover:border-slate-100 group">
+                            <div key={i} className="grid grid-cols-5 gap-1 items-center p-2 hover:bg-white/5 rounded-lg transition-colors border border-transparent hover:border-[var(--border-light)] group">
                               <div className="col-span-2 flex items-center gap-2 min-w-0">
                                 <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${i < 3 ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-600'}`}>
                                   {i + 1}
                                 </div>
-                                <span className="text-[11px] font-bold text-slate-700 truncate group-hover:text-brand-blue transition-colors">{agent.name}</span>
+                                <span className="text-[11px] font-bold text-[var(--text-primary)] opacity-80 truncate group-hover:text-brand-blue transition-colors">{agent.name}</span>
                               </div>
-                              <div className="text-center text-xs font-bold text-slate-700">{agent.thisWeek}</div>
-                              <div className="text-center text-xs font-bold text-slate-400">{agent.lastWeek}</div>
+                              <div className="text-center text-xs font-bold text-[var(--text-primary)] opacity-80">{agent.thisWeek}</div>
+                              <div className="text-center text-xs font-bold text-[var(--text-secondary)]">{agent.lastWeek}</div>
                               <div className={`text-right text-[10px] font-black ${wowColor}`}>
                                 {agent.wow > 0 ? '▲' : agent.wow < 0 ? '▼' : '—'}
                                 {agent.wow !== 0 && Math.abs(agent.wow)}
@@ -1271,9 +1271,9 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <div className="bg-white rounded-2xl shadow-[var(--shadow-sm)] border border-[var(--border-light)] overflow-hidden">
+              <div className="bg-[var(--bg-card)] rounded-2xl shadow-[var(--shadow-sm)] border border-[var(--border-light)] overflow-hidden">
                 {/* Table Header */}
-                <div className="bg-slate-50/80 border-b border-slate-100 flex items-center px-4 py-3 gap-4">
+                <div className="bg-white/5 border-b border-[var(--border-light)] flex items-center px-4 py-3 gap-4">
                   <div className="w-10 shrink-0"></div>
                   <div className="flex-1 font-bold text-xs text-slate-500 uppercase tracking-wider">Coach Details</div>
                   <div className="hidden sm:grid grid-cols-4 gap-4 flex-1 max-w-[450px] font-bold text-[10px] text-slate-400 uppercase tracking-widest text-center">
@@ -1295,13 +1295,13 @@ export default function Dashboard() {
                     const allTime = getCoachPeriodCount(coach.name);
 
                     const wow = thisWeek - lastWeek;
-                    const wowColor = wow > 0 ? 'text-emerald-600 bg-emerald-50' : wow < 0 ? 'text-rose-600 bg-rose-50' : 'text-slate-400 bg-slate-50';
+                    const wowColor = wow > 0 ? 'text-emerald-500 bg-emerald-500/10' : wow < 0 ? 'text-rose-500 bg-rose-500/10' : 'text-slate-400 bg-slate-500/10';
 
                     return (
                       <div
                         key={i}
                         onClick={() => { setSelectedCoach(coach.name); setCoachModalOpen(true); }}
-                        className="flex items-center gap-4 p-4 border-b border-slate-50 last:border-b-0 hover:bg-blue-50/30 cursor-pointer transition-all group"
+                        className="flex items-center gap-4 p-4 border-b border-[var(--border-light)] last:border-b-0 hover:bg-white/5 cursor-pointer transition-all group"
                       >
                         <div
                           className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-sm group-hover:scale-110 transition-transform"
@@ -1318,9 +1318,9 @@ export default function Dashboard() {
                         </div>
 
                         <div className="hidden sm:grid grid-cols-4 gap-4 flex-1 max-w-[450px] items-center text-center">
-                          <div className="text-sm font-bold text-slate-700">{thisWeek}</div>
-                          <div className="text-sm font-bold text-slate-400">{lastWeek}</div>
-                          <div className="text-sm font-bold text-slate-700">{allTime}</div>
+                          <div className="text-sm font-bold text-[var(--text-primary)] opacity-80">{thisWeek}</div>
+                          <div className="text-sm font-bold text-[var(--text-secondary)]">{lastWeek}</div>
+                          <div className="text-sm font-bold text-[var(--text-primary)] opacity-80">{allTime}</div>
                           <div className="flex justify-end">
                             <div className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-black ${wowColor} min-w-[50px] justify-center`}>
                               {wow > 0 ? '▲' : wow < 0 ? '▼' : '—'}
@@ -1364,8 +1364,8 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <div className="bg-white rounded-2xl shadow-[var(--shadow-sm)] border border-[var(--border-light)] overflow-hidden">
-                <div className="p-4 border-b border-slate-50 bg-slate-50/50 flex items-center text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">
+              <div className="bg-[var(--bg-card)] rounded-2xl shadow-[var(--shadow-sm)] border border-[var(--border-light)] overflow-hidden">
+                <div className="p-4 border-b border-[var(--border-light)] bg-white/5 flex items-center text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-widest text-center">
                   <div className="flex-1 text-left pl-14">Agent / Coach</div>
                   <div className="hidden sm:grid grid-cols-4 gap-4 flex-1 max-w-[450px]">
                     <div>This Week</div>
@@ -1386,12 +1386,12 @@ export default function Dashboard() {
                     const allTime = getAgentPeriodCount(agent.name);
 
                     const wow = thisWeek - lastWeek;
-                    const wowColor = wow > 0 ? 'text-emerald-600 bg-emerald-50' : wow < 0 ? 'text-rose-600 bg-rose-50' : 'text-slate-400 bg-slate-50';
+                    const wowColor = wow > 0 ? 'text-emerald-500 bg-emerald-500/10' : wow < 0 ? 'text-rose-500 bg-rose-500/10' : 'text-slate-400 bg-white/5';
 
                     return (
                       <div
                         key={i}
-                        className="flex items-center gap-4 p-4 border-b border-[var(--border-light)] last:border-b-0 hover:bg-blue-50/30 transition-all group"
+                        className="flex items-center gap-4 p-4 border-b border-[var(--border-light)] last:border-b-0 hover:bg-white/5 transition-all group"
                       >
                         <div
                           className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-sm"
@@ -1405,9 +1405,9 @@ export default function Dashboard() {
                         </div>
 
                         <div className="hidden sm:grid grid-cols-4 gap-4 flex-1 max-w-[450px] items-center text-center">
-                          <div className="text-sm font-bold text-slate-700">{thisWeek}</div>
-                          <div className="text-sm font-bold text-slate-400">{lastWeek}</div>
-                          <div className="text-sm font-bold text-slate-700">{allTime}</div>
+                          <div className="text-sm font-bold text-[var(--text-primary)] opacity-80">{thisWeek}</div>
+                          <div className="text-sm font-bold text-[var(--text-secondary)]">{lastWeek}</div>
+                          <div className="text-sm font-bold text-[var(--text-primary)] opacity-80">{allTime}</div>
                           <div className="flex justify-end">
                             <div className={`px-2 py-1 rounded-md text-[10px] font-black ${wowColor} min-w-[40px] text-center`}>
                               {wow > 0 ? '▲ ' : wow < 0 ? '▼ ' : '—'}
@@ -1476,8 +1476,8 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <div className="bg-white rounded-2xl shadow-[var(--shadow-sm)] border border-[var(--border-light)] overflow-hidden">
-                <div className="p-4 border-b border-slate-50 bg-slate-50/50 grid grid-cols-5 gap-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center sticky top-0 z-10">
+              <div className="bg-[var(--bg-card)] rounded-2xl shadow-[var(--shadow-sm)] border border-[var(--border-light)] overflow-hidden">
+                <div className="p-4 border-b border-[var(--border-light)] bg-white/5 grid grid-cols-5 gap-4 text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-widest text-center sticky top-0 z-10">
                   <div className="text-left pl-4">ID</div>
                   <div className="text-left">Agent</div>
                   <div className="text-left">Coach</div>
@@ -2118,9 +2118,9 @@ export default function Dashboard() {
       {/* Focused Note Viewer Modal */}
       {expandedNote && (
         <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setExpandedNote(null)}></div>
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-[600px] flex flex-col relative z-10 animate-in zoom-in-95 duration-200 overflow-hidden max-h-[85vh]">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={() => setExpandedNote(null)}></div>
+          <div className="bg-[var(--bg-card)] rounded-3xl shadow-2xl w-full max-w-[600px] flex flex-col relative z-10 animate-in zoom-in-95 duration-200 overflow-hidden max-h-[85vh] border border-[var(--border-light)]">
+            <div className="p-6 border-b border-[var(--border-light)] flex justify-between items-center bg-white/5">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-brand-blue/10 rounded-xl flex items-center justify-center text-brand-blue">
                   <BookOpen size={20} />
@@ -2163,7 +2163,7 @@ function NavItem({ icon, label, collapsed, active, onClick }: { icon: React.Reac
   return (
     <div
       className={`flex items-center px-3 py-2.5 rounded-lg cursor-pointer font-medium transition-colors
-        ${active ? 'bg-brand-blue-light text-brand-blue' : 'text-[var(--text-secondary)] hover:bg-slate-50'}
+        ${active ? 'bg-brand-blue-light text-brand-blue' : 'text-[var(--text-secondary)] hover:bg-white/5'}
         ${collapsed ? 'justify-center' : 'gap-3'}`}
       onClick={onClick}
       title={collapsed ? label : ""}
@@ -2180,10 +2180,10 @@ function Select({ options, selected, onChange, placeholder }: { options: string[
   return (
     <div className="relative">
       <div
-        className="w-full bg-white border border-[var(--border-light)] rounded-lg px-4 py-2.5 flex items-center justify-between cursor-pointer focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue min-h-[46px]"
+        className="w-full bg-[var(--bg-card)] border border-[var(--border-light)] rounded-lg px-4 py-2.5 flex items-center justify-between cursor-pointer focus:ring-2 focus:ring-brand-blue/20 focus:border-brand-blue min-h-[46px]"
         onClick={() => setIsOpen(!isOpen)}
       >
-        <span className={selected ? "text-slate-800 font-medium" : "text-slate-400 text-sm"}>
+        <span className={selected ? "text-[var(--text-primary)] font-medium" : "text-[var(--text-secondary)] text-sm"}>
           {selected || placeholder}
         </span>
         <ChevronDown size={16} className={`text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
@@ -2192,12 +2192,12 @@ function Select({ options, selected, onChange, placeholder }: { options: string[
       {isOpen && (
         <>
           <div className="fixed inset-0 z-[60]" onClick={() => setIsOpen(false)} />
-          <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-[var(--border-light)] rounded-xl shadow-xl z-[70] py-1 max-h-60 overflow-y-auto custom-scrollbar animate-in slide-in-from-top-2 duration-200">
+          <div className="absolute top-full left-0 right-0 mt-1 bg-[var(--bg-card)] border border-[var(--border-light)] rounded-xl shadow-xl z-[70] py-1 max-h-60 overflow-y-auto custom-scrollbar animate-in slide-in-from-top-2 duration-200">
             {options.map(option => (
               <div
                 key={option}
                 className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between
-                  ${selected === option ? 'bg-brand-blue-light text-brand-blue font-semibold' : 'text-slate-600 hover:bg-slate-50'}`}
+                  ${selected === option ? 'bg-brand-blue-light text-brand-blue font-semibold' : 'text-[var(--text-secondary)] hover:bg-white/5'}`}
                 onClick={() => { onChange(option); setIsOpen(false); }}
               >
                 <span>{option}</span>
