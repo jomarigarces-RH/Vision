@@ -15,83 +15,88 @@ export async function POST(req: Request) {
     }
 
     const eventType = body.topic;
-
-    // 1. Filter: We only care about admin replies for SLA calculation
-    if (eventType !== 'conversation.admin.replied' && eventType !== 'conversation.admin.closed') {
-      return NextResponse.json({ status: 'ignored', reason: 'Not an SLA-impacting event' });
-    }
-
     const conversation = body.data?.item;
     if (!conversation) {
-      return NextResponse.json({ status: 'ignored', reason: 'No conversation item found in payload' });
+      return NextResponse.json({ status: 'ignored', reason: 'No conversation item found' });
     }
 
-    // 2. SLA Logic: Calculate time between user's last message and admin's reply
-    // Intercom provides timestamps in seconds
-    const adminReplyTime = conversation.statistics?.last_admin_reply_at;
-    const userMessageTime = conversation.statistics?.last_user_reply_at;
-
-    if (!adminReplyTime || !userMessageTime) {
-      return NextResponse.json({ status: 'ignored', reason: 'Missing timestamps' });
-    }
-
-    const secondsToReply = adminReplyTime - userMessageTime;
-    const isSlaPass = secondsToReply <= 75; // 75-second SLA threshold
-
-    // 3. Database Update: Upsert today's metrics
-    const today = new Date().toISOString().split('T')[0];
-
-    // Map department (Intercom team) to our dashboard departments
+    // 1. Map department (Intercom team) to our dashboard departments
     let mappedDept = 'Support Operations';
     const teamName = conversation.team_assignee?.name || 'Support';
     if (teamName.toLowerCase().includes('sales')) mappedDept = 'Sales Operations';
     if (teamName.toLowerCase().includes('recovery')) mappedDept = 'Service Recovery';
 
-    // Update the high-level daily stats
-    await supabase.rpc('increment_sla_metrics', {
-      target_date: today,
-      is_pass: isSlaPass
-    });
+    const today = new Date().toISOString().split('T')[0];
+    const stats = conversation.statistics;
 
-    // Update the detailed Ops Metrics
-    const { data: currentMetric } = await supabase
-      .from('ops_metrics')
-      .select('*')
-      .eq('department', mappedDept)
-      .eq('channel', 'Chat')
-      .eq('date', today)
-      .maybeSingle();
+    // 2. Handle different event types for different metrics
+    let shouldUpdate = false;
+    let isSlaPass = false;
+    let secondsToReply = 0;
+    let queueTime = 0;
+    let handleTime = 0;
+    let isAbandon = false;
 
-    if (currentMetric) {
-      await supabase
-        .from('ops_metrics')
-        .update({
-          inbound_count: (currentMetric.inbound_count || 0) + 1,
-          frt_seconds: Math.round(((currentMetric.frt_seconds || 0) + secondsToReply) / 2), // Average
-          updated_at: new Date().toISOString()
-        })
-        .match({ department: mappedDept, channel: 'Chat', date: today });
-    } else {
-      await supabase
-        .from('ops_metrics')
-        .insert({
-          department: mappedDept,
-          channel: 'Chat',
-          date: today,
-          inbound_count: 1,
-          frt_seconds: secondsToReply
-        });
+    if (eventType === 'conversation.user.created') {
+      // Direct Inbound increment
+      shouldUpdate = true;
+    } else if (eventType === 'conversation.admin.replied') {
+      // Calculate FRT and SLA
+      if (stats?.last_admin_reply_at && stats?.last_user_reply_at) {
+        secondsToReply = stats.last_admin_reply_at - stats.last_user_reply_at;
+        isSlaPass = secondsToReply <= 75;
+        
+        // Queue Time: Created -> First Admin Reply
+        if (stats.first_admin_reply_at && conversation.created_at) {
+          queueTime = stats.first_admin_reply_at - conversation.created_at;
+        }
+        shouldUpdate = true;
+      }
+    } else if (eventType === 'conversation.admin.closed') {
+      // Abandoned check: Closed without any admin reply
+      if (!stats?.first_admin_reply_at) {
+        isAbandon = true;
+      } else if (stats.closed_at && stats.first_admin_reply_at) {
+        // AHT: First Reply -> Closed
+        handleTime = stats.closed_at - stats.first_admin_reply_at;
+      }
+      shouldUpdate = true;
     }
 
-    return NextResponse.json({ 
-      status: 'success', 
-      sla: isSlaPass ? 'PASS' : 'FAIL',
-      seconds: secondsToReply 
+    if (!shouldUpdate) {
+      return NextResponse.json({ status: 'ignored', reason: 'Non-matching event workflow' });
+    }
+
+    console.log(`[Webhook] ${eventType} for ${mappedDept}. SLA: ${isSlaPass}, Abandon: ${isAbandon}, Queue: ${queueTime}s, AHT: ${handleTime}s`);
+
+    // 3. Database Update: Atomic Increments
+    if (eventType === 'conversation.admin.replied') {
+      await supabase.rpc('increment_sla_metrics', {
+        target_date: today,
+        is_pass: isSlaPass
+      });
+    }
+
+    const { error: rpcError } = await supabase.rpc('update_ops_metrics', {
+      p_dept: mappedDept,
+      p_chan: 'Chat',
+      p_date: today,
+      p_is_pass: isSlaPass,
+      p_frt: secondsToReply,
+      p_wait: queueTime,
+      p_handle: handleTime,
+      p_is_abandon: isAbandon
     });
 
+    if (rpcError) {
+      console.error('[Webhook] DB Error:', rpcError.message);
+      return NextResponse.json({ status: 'error', message: rpcError.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ status: 'success', dept: mappedDept, event: eventType });
 
   } catch (err: any) {
-    console.error('Webhook Error:', err.message);
+    console.error('[Webhook] Critical Error:', err.message);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

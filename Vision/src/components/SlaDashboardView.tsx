@@ -13,7 +13,8 @@ import {
 type ChannelData = {
   inbound: string; abandoned: string; absenteeism: string; absentCount: number;
   sla: string; status: 'passed' | 'failed' | 'warning'; frt: string; aht: string;
-  outbound?: string; missed?: string; inQueue?: string; aat?: string; holdTime?: string;
+  outbound: string; missed: string; inQueue: string; aat?: string; holdTime?: string;
+  abandonRate: string;
 };
 type LOBData = { title: string; chat: ChannelData; voice: ChannelData };
 type OpsLogSection = { applicable: boolean; selected: string[]; custom: string; showCustom: boolean };
@@ -40,7 +41,8 @@ const OPS_LOG_PRESETS = {
 const DEFAULT_CHANNEL: ChannelData = {
   inbound: '0', abandoned: '0', absenteeism: '0%', absentCount: 0,
   sla: '100.00%', status: 'passed', frt: '0s', aht: '0s',
-  outbound: '0', missed: '0', inQueue: '0s', aat: '0s', holdTime: '0s'
+  outbound: '0', missed: '0', inQueue: '0s', aat: '0s', holdTime: '0s',
+  abandonRate: '0.0%'
 };
 
 // ===== MAIN COMPONENT =====
@@ -108,17 +110,22 @@ export default function SlaDashboardView() {
           const lobKey = m.department.toLowerCase().includes('sales') ? 'sales' : 
                          m.department.toLowerCase().includes('recovery') ? 'serviceRecovery' : 'support';
           const channelKey = m.channel === 'Chat' ? 'chat' : 'voice';
-          const slaVal = m.sla_percent || (m.inbound_count > 0 ? (m.passed_count / m.inbound_count * 100) : 100);
+          const inbound = m.inbound_count || 0;
+          const abandoned = m.abandoned_count || 0;
+          const abandonRate = inbound > 0 ? ((abandoned / inbound) * 100).toFixed(1) + '%' : '0.0%';
+          const slaVal = m.sla_percent || (inbound > 0 ? (m.passed_count / inbound * 100) : 100);
           const target = channelKey === 'chat' ? slaTargets.chat : slaTargets.voice;
           
           next[lobKey][channelKey] = {
             ...next[lobKey][channelKey],
-            inbound: String(m.inbound_count || 0),
-            abandoned: String(m.abandoned_count || 0),
+            inbound: String(inbound),
+            abandoned: String(abandoned),
+            abandonRate: abandonRate,
             sla: slaVal.toFixed(2) + '%',
             status: slaVal >= target ? 'passed' : 'failed',
             frt: (m.frt_seconds || 0) + 's',
-            aht: (m.aht_seconds || 0) + 's'
+            aht: (m.handle_seconds || 0) + 's',
+            inQueue: (m.wait_seconds || 0) + 's'
           };
         });
         return next;
@@ -148,7 +155,7 @@ export default function SlaDashboardView() {
     } finally {
       setLoading(false);
     }
-  }, [endDate, slaTargets]); // Removed ops and opsLog to prevent infinite loop
+  }, [endDate, slaTargets]);
 
   // Initial Fetch & Realtime
   useEffect(() => {
@@ -180,7 +187,7 @@ export default function SlaDashboardView() {
       case 'today': setStartDate(ds(t)); setEndDate(ds(t)); break;
       case 'yesterday': { const yd = new Date(); yd.setDate(yd.getDate() - 1); setStartDate(ds(yd)); setEndDate(ds(yd)); break; }
       case 'thisWeek': { const ws = new Date(); ws.setDate(ws.getDate() - ws.getDay()); setStartDate(ds(ws)); setEndDate(ds(t)); break; }
-      case 'lastWeek': { const lws = new Date(); lws.setDate(lws.getDate() - lws.getDay() - 7); const lwe = new Date(); lwe.setDate(lwe.getDate() - lwe.getDay() - 1); setStartDate(ds(lws)); setEndDate(ds(lwe)); break; }
+      case 'lastWeek': { const lws = new Date(); lws.setDate(lws.getDate() - lws.getDay() - 7); const lwe = new Date(); lwe.setDate(lwe.getDate() - lws.getDay() - 1); setStartDate(ds(lws)); setEndDate(ds(lwe)); break; }
       case 'thisMonth': { const ms = new Date(); ms.setDate(1); setStartDate(ds(ms)); setEndDate(ds(t)); break; }
     }
   };
@@ -291,11 +298,12 @@ export default function SlaDashboardView() {
                       <tr key={key} className="hover:bg-[#4f7df3]/5 transition-colors border-b border-[#2a2a2a]">
                         <td className="p-3 text-[0.85rem] font-extrabold text-[#a0a0a0]">{d.title.split(' ')[0]}</td>
                         <td className="p-3 text-[0.85rem] font-bold">{d.voice.inbound}</td>
+                        <td className="p-3 text-[0.85rem] font-bold">{d.voice.inbound}</td>
                         <td className={`p-3 text-[0.85rem] font-black ${parsePct(d.voice.sla) < slaTargets.voice ? 'text-[#ef4444]' : 'text-[#10b981]'}`}>{d.voice.sla}</td>
-                        <td className="p-3 text-[0.85rem] font-bold">{d.voice.abandoned}</td>
+                        <td className="p-3 text-[0.85rem] font-bold text-amber-500">{d.voice.abandonRate}</td>
                         <td className="p-3 text-[0.85rem] font-bold">{d.chat.inbound}</td>
                         <td className={`p-3 text-[0.85rem] font-black ${parsePct(d.chat.sla) < slaTargets.chat ? 'text-[#ef4444]' : 'text-[#6366f1]'}`}>{d.chat.sla}</td>
-                        <td className="p-3 text-[0.75rem] font-bold opacity-60">{d.chat.frt}</td>
+                        <td className="p-3 text-[0.75rem] font-bold opacity-60 text-brand-blue">{d.chat.inQueue}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -517,10 +525,10 @@ function LOBGroupCard({ data, slaTargets }: { data: LOBData; slaTargets: { voice
           <span className={`text-[0.55rem] font-extrabold px-1.5 py-px rounded-full ml-1.5 ${chatOk ? 'bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/20' : 'bg-[#ef4444]/10 text-[#ef4444] border border-[#ef4444]/20'}`}>{chatOk ? 'Passed' : 'Failed'}</span>
         </div>
         <div className="grid grid-cols-2 gap-x-2 gap-y-3 mb-3">
-          <MetricMini label="Inbound" value={data.chat.inbound} />
-          <MetricMini label="FRT" value={data.chat.frt} />
-          <MetricMini label="AHT" value={data.chat.aht} />
-          <MetricMini label="Absenteeism" value={data.chat.absenteeism} badge={data.chat.absentCount} />
+          <MetricMini label="Chat Inbound" value={data.chat.inbound} />
+          <MetricMini label="Queue Wait" value={data.chat.inQueue} />
+          <MetricMini label="FRT / AHT" value={`${data.chat.frt} / ${data.chat.aht}`} />
+          <MetricMini label="Abandon Rate" value={data.chat.abandonRate} />
         </div>
         <SLARow value={data.chat.sla} ok={chatOk} />
       </div>
@@ -537,10 +545,10 @@ function LOBGroupCard({ data, slaTargets }: { data: LOBData; slaTargets: { voice
       {/* Voice */}
       <div className="p-4 pt-5 pb-5">
         <div className="grid grid-cols-2 gap-x-2 gap-y-3 mb-3">
-          <MetricMini label="Inbound" value={data.voice.inbound} />
-          <MetricMini label="Abandoned" value={data.voice.abandoned} />
-          <MetricMini label="Efficiency" value="0.0/hr" />
-          <MetricMini label="Absenteeism" value={data.voice.absenteeism} badge={data.voice.absentCount} />
+          <MetricMini label="Voice Inbound" value={data.voice.inbound} />
+          <MetricMini label="Queue Wait" value={data.voice.inQueue} />
+          <MetricMini label="AHT" value={data.voice.aht} />
+          <MetricMini label="Abandon Rate" value={data.voice.abandonRate} />
         </div>
         <SLARow value={data.voice.sla} ok={voiceOk} />
       </div>
@@ -573,12 +581,13 @@ function DetailView({ title, data, slaTargets }: { title: string; data: LOBData;
           <div className="w-[30px] h-[30px] rounded-lg bg-[#6366f1]/10 flex items-center justify-center"><Phone size={16} className="text-[#6366f1]" /></div>
           <h3 className="text-[0.72rem] font-extrabold uppercase tracking-[0.06em]">Voice Operations</h3>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 p-4">
-          <DetailCard label="Service Level (SLA)" value={data.voice.sla} isSLA={true} />
-          <DetailCard label="Inbound Calls" value={data.voice.inbound} />
-          <DetailCard label="Abandoned Calls" value={data.voice.abandoned} />
-          <DetailCard label="Staff Efficiency" value="0.0" />
-          <DetailCard label="Absenteeism Rate" value={data.voice.absenteeism} highlight={parsePct(data.voice.absenteeism) > 8 ? 'alert' : ''} />
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-3 p-4">
+          <DetailCard label="Service Level" value={data.voice.sla} isSLA={true} />
+          <DetailCard label="Inbound" value={data.voice.inbound} />
+          <DetailCard label="Abandoned" value={data.voice.abandoned} />
+          <DetailCard label="Abandon Rate" value={data.voice.abandonRate} highlight={parsePct(data.voice.abandonRate) > 10 ? 'alert' : ''} />
+          <DetailCard label="Avg Queue" value={data.voice.inQueue} />
+          <DetailCard label="Handle Time" value={data.voice.aht} />
         </div>
       </div>
       <div className="bg-[#141414] border border-[#222] rounded-2xl overflow-hidden">
@@ -586,12 +595,13 @@ function DetailView({ title, data, slaTargets }: { title: string; data: LOBData;
           <div className="w-[30px] h-[30px] rounded-lg bg-[#4f7df3]/10 flex items-center justify-center"><MessageSquare size={16} className="text-[#3b82f6]" /></div>
           <h3 className="text-[0.72rem] font-extrabold uppercase tracking-[0.06em]">Chat Operations</h3>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 p-4">
-          <DetailCard label="Service Level (SLA)" value={data.chat.sla} isSLA={true} />
-          <DetailCard label="Chat Inbound" value={data.chat.inbound} />
-          <DetailCard label="FRT (First Response)" value={data.chat.frt} />
-          <DetailCard label="Staff Efficiency" value="0.0" />
-          <DetailCard label="Absenteeism Rate" value={data.chat.absenteeism} highlight={parsePct(data.chat.absenteeism) > 8 ? 'alert' : ''} />
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-3 p-4">
+          <DetailCard label="Service Level" value={data.chat.sla} isSLA={true} />
+          <DetailCard label="Inbound" value={data.chat.inbound} />
+          <DetailCard label="Abandoned" value={data.chat.abandoned} />
+          <DetailCard label="Abandon Rate" value={data.chat.abandonRate} highlight={parsePct(data.chat.abandonRate) > 10 ? 'alert' : ''} />
+          <DetailCard label="Avg Queue" value={data.chat.inQueue} />
+          <DetailCard label="FRT / AHT" value={`${data.chat.frt} / ${data.chat.aht}`} />
         </div>
       </div>
     </div>

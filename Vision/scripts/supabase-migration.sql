@@ -96,8 +96,10 @@ CREATE TABLE IF NOT EXISTS ops_metrics (
   inbound_count INTEGER DEFAULT 0,
   passed_count INTEGER DEFAULT 0,
   abandoned_count INTEGER DEFAULT 0,
+  wait_seconds INTEGER DEFAULT 0, -- Queue Time
+  handle_seconds INTEGER DEFAULT 0, -- AHT (Calls)
   frt_seconds INTEGER DEFAULT 0,
-  efficiency DECIMAL(10,2) DEFAULT 0,
+  efficiency DECIMAL(10,2) DEFAULT 0, -- Keeping for legacy but we will display Abandon Rate
   absenteeism_pct INTEGER DEFAULT 0,
   absent_count INTEGER DEFAULT 0,
   date DATE DEFAULT CURRENT_DATE,
@@ -144,6 +146,30 @@ BEGIN
     inbound_count = intercom_sla_daily.inbound_count + 1,
     sla_passes = intercom_sla_daily.sla_passes + (CASE WHEN is_pass THEN 1 ELSE 0 END),
     sla_fails = intercom_sla_daily.sla_fails + (CASE WHEN is_pass THEN 0 ELSE 1 END),
+    updated_at = now();
+END;
+-- Atomic update including Queue Time and Handle Time
+CREATE OR REPLACE FUNCTION update_ops_metrics(
+  p_dept TEXT,
+  p_chan TEXT,
+  p_date DATE,
+  p_is_pass BOOLEAN,
+  p_frt INTEGER,
+  p_wait INTEGER DEFAULT 0,
+  p_handle INTEGER DEFAULT 0,
+  p_is_abandon BOOLEAN DEFAULT FALSE
+)
+RETURNS void AS $$
+BEGIN
+  INSERT INTO ops_metrics (department, channel, date, inbound_count, passed_count, abandoned_count, frt_seconds, wait_seconds, handle_seconds, updated_at)
+  VALUES (p_dept, p_chan, p_date, 1, CASE WHEN p_is_pass THEN 1 ELSE 0 END, CASE WHEN p_is_abandon THEN 1 ELSE 0 END, p_frt, p_wait, p_handle, now())
+  ON CONFLICT (department, channel, date) DO UPDATE SET
+    inbound_count = ops_metrics.inbound_count + 1,
+    passed_count = ops_metrics.passed_count + (CASE WHEN p_is_pass THEN 1 ELSE 0 END),
+    abandoned_count = ops_metrics.abandoned_count + (CASE WHEN p_is_abandon THEN 1 ELSE 0 END),
+    frt_seconds = ROUND((ops_metrics.frt_seconds + p_frt) / 2),
+    wait_seconds = ROUND((ops_metrics.wait_seconds + p_wait) / 2),
+    handle_seconds = ROUND((ops_metrics.handle_seconds + p_handle) / 2),
     updated_at = now();
 END;
 $$ LANGUAGE plpgsql;
