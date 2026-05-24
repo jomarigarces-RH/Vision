@@ -148,3 +148,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Enable Realtime for these tables
+ALTER PUBLICATION supabase_realtime ADD TABLE ops_metrics;
+ALTER PUBLICATION supabase_realtime ADD TABLE absenteeism;
+ALTER PUBLICATION supabase_realtime ADD TABLE ops_log;
+ALTER PUBLICATION supabase_realtime ADD TABLE intercom_sla_daily;

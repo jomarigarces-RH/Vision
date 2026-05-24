@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { 
   Mail, Lock, ChevronRight, Eye, EyeOff, 
   AlertCircle, ShieldQuestion, ArrowLeft,
-  Moon, Sun, Zap
+  Moon, Sun, Zap, RefreshCw
 } from 'lucide-react';
 
 interface AuthViewProps {
