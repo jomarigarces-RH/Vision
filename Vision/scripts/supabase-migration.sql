@@ -88,3 +88,45 @@ CREATE TABLE IF NOT EXISTS intercom_sla_daily (
 );
 CREATE INDEX IF NOT EXISTS idx_sla_date ON intercom_sla_daily(date);
 
+-- Advanced SLA Dashboard Support
+CREATE TABLE IF NOT EXISTS ops_metrics (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  department TEXT NOT NULL, -- Support, Sales, Service Recovery
+  channel TEXT NOT NULL, -- Chat, Voice
+  inbound_count INTEGER DEFAULT 0,
+  frt_seconds INTEGER DEFAULT 0,
+  efficiency DECIMAL(10,2) DEFAULT 0,
+  absenteeism_pct INTEGER DEFAULT 0,
+  absent_count INTEGER DEFAULT 0,
+  date DATE DEFAULT CURRENT_DATE,
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(department, channel, date)
+);
+
+CREATE TABLE IF NOT EXISTS absenteeism (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  total_absent INTEGER DEFAULT 0,
+  global_pct INTEGER DEFAULT 0,
+  date DATE UNIQUE DEFAULT CURRENT_DATE,
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS ops_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  type TEXT NOT NULL, -- mitigation, cause
+  content TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS email_productivity (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  total_closed INTEGER DEFAULT 0,
+  total_assigned INTEGER DEFAULT 0,
+  total_replied INTEGER DEFAULT 0,
+  replies_sent INTEGER DEFAULT 0,
+  date DATE UNIQUE DEFAULT CURRENT_DATE,
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+
+
