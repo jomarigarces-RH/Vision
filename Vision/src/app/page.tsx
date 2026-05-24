@@ -1139,7 +1139,7 @@ export default function Dashboard() {
                       </div>
                       <button
                         onClick={() => setMissedObsModalOpen(true)}
-                        className="text-[10px] font-bold text-brand-blue bg-blue-50 px-2 py-1 rounded border border-blue-100 hover:bg-brand-blue hover:text-white transition-colors"
+                        className="text-[10px] font-bold text-brand-blue bg-brand-blue/10 px-2 py-1 rounded border border-brand-blue/20 hover:bg-brand-blue hover:text-white transition-colors"
                       >
                         VIEW ALL
                       </button>
@@ -1149,9 +1149,9 @@ export default function Dashboard() {
                       {missedObservationsStats.slice(0, 3).map((agent, i) => (
                         <div key={i} className="flex items-center gap-3 p-2.5 rounded-xl border border-[var(--border-light)] hover:bg-white/5 transition-all group">
                           <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${
-                            i === 0 ? 'bg-rose-100 text-rose-600' : 
-                            i === 1 ? 'bg-orange-100 text-orange-600' : 
-                            'bg-amber-100 text-amber-600'
+                            i === 0 ? 'bg-rose-500/10 text-rose-500 border border-rose-500/20' : 
+                            i === 1 ? 'bg-orange-500/10 text-orange-500 border border-orange-500/20' : 
+                            'bg-amber-500/10 text-amber-500 border border-amber-500/20'
                           }`}>
                             {i + 1}
                           </div>

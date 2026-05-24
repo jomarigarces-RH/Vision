@@ -69,6 +69,17 @@ export async function POST(req: Request) {
 
     console.log(`[Webhook] ${eventType} for ${mappedDept}. SLA: ${isSlaPass}, Abandon: ${isAbandon}, Queue: ${queueTime}s, AHT: ${handleTime}s`);
 
+    // 2. Detect Channel (Chat vs Voice)
+    let mappedChannel = 'Chat';
+    const sourceType = conversation.source?.type?.toLowerCase();
+    
+    // Most Intercom voice integrations (like Aircall) use 'phone' or 'call' as the source type
+    if (sourceType === 'phone' || sourceType === 'call' || conversation.source?.delivery_method === 'phone') {
+      mappedChannel = 'Voice';
+    }
+
+    console.log(`[Webhook] ${eventType} for ${mappedDept} [${mappedChannel}]. SLA: ${isSlaPass}, Abandon: ${isAbandon}, Queue: ${queueTime}s, AHT: ${handleTime}s`);
+
     // 3. Database Update: Atomic Increments
     if (eventType === 'conversation.admin.replied') {
       await supabase.rpc('increment_sla_metrics', {
@@ -79,7 +90,7 @@ export async function POST(req: Request) {
 
     const { error: rpcError } = await supabase.rpc('update_ops_metrics', {
       p_dept: mappedDept,
-      p_chan: 'Chat',
+      p_chan: mappedChannel,
       p_date: today,
       p_is_pass: isSlaPass,
       p_frt: secondsToReply,
