@@ -94,6 +94,8 @@ CREATE TABLE IF NOT EXISTS ops_metrics (
   department TEXT NOT NULL, -- Support, Sales, Service Recovery
   channel TEXT NOT NULL, -- Chat, Voice
   inbound_count INTEGER DEFAULT 0,
+  passed_count INTEGER DEFAULT 0,
+  abandoned_count INTEGER DEFAULT 0,
   frt_seconds INTEGER DEFAULT 0,
   efficiency DECIMAL(10,2) DEFAULT 0,
   absenteeism_pct INTEGER DEFAULT 0,
@@ -115,8 +117,11 @@ CREATE TABLE IF NOT EXISTS ops_log (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   type TEXT NOT NULL, -- mitigation, cause
   content TEXT NOT NULL,
+  date DATE DEFAULT CURRENT_DATE,
   created_at TIMESTAMPTZ DEFAULT now()
 );
+
+CREATE INDEX IF NOT EXISTS idx_ops_log_date ON ops_log(date);
 
 CREATE TABLE IF NOT EXISTS email_productivity (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -124,9 +129,11 @@ CREATE TABLE IF NOT EXISTS email_productivity (
   total_assigned INTEGER DEFAULT 0,
   total_replied INTEGER DEFAULT 0,
   replies_sent INTEGER DEFAULT 0,
+  top_agents JSONB DEFAULT '[]',
   date DATE UNIQUE DEFAULT CURRENT_DATE,
   updated_at TIMESTAMPTZ DEFAULT now()
 );
+
 -- Function to atomically increment SLA metrics
 CREATE OR REPLACE FUNCTION increment_sla_metrics(target_date DATE, is_pass BOOLEAN)
 RETURNS void AS $$
@@ -140,15 +147,4 @@ BEGIN
     updated_at = now();
 END;
 $$ LANGUAGE plpgsql;
-
--- Seed data for testing (Optional)
-INSERT INTO ops_metrics (department, channel, inbound_count, frt_seconds, date)
-VALUES 
-  ('Support Operations', 'Chat', 120, 45, CURRENT_DATE),
-  ('Support Operations', 'Voice', 85, 12, CURRENT_DATE),
-  ('Sales Operations', 'Chat', 45, 30, CURRENT_DATE),
-  ('Sales Operations', 'Voice', 30, 8, CURRENT_DATE),
-  ('Service Recovery', 'Chat', 20, 60, CURRENT_DATE),
-  ('Service Recovery', 'Voice', 15, 15, CURRENT_DATE)
-ON CONFLICT DO NOTHING;
 

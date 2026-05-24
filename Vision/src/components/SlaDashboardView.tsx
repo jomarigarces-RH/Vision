@@ -102,25 +102,27 @@ export default function SlaDashboardView() {
 
       if (metricsErr) throw metricsErr;
 
-      const newOps = { ...ops };
-      metrics?.forEach(m => {
-        const lobKey = m.department.toLowerCase().includes('sales') ? 'sales' : 
-                       m.department.toLowerCase().includes('recovery') ? 'serviceRecovery' : 'support';
-        const channelKey = m.channel === 'Chat' ? 'chat' : 'voice';
-        const slaVal = m.sla_percent || (m.inbound_count > 0 ? (m.passed_count / m.inbound_count * 100) : 100);
-        const target = channelKey === 'chat' ? slaTargets.chat : slaTargets.voice;
-        
-        newOps[lobKey][channelKey] = {
-          ...newOps[lobKey][channelKey],
-          inbound: String(m.inbound_count || 0),
-          abandoned: String(m.abandoned_count || 0),
-          sla: slaVal.toFixed(2) + '%',
-          status: slaVal >= target ? 'passed' : 'failed',
-          frt: (m.frt_seconds || 0) + 's',
-          aht: (m.aht_seconds || 0) + 's'
-        };
+      setOps(prev => {
+        const next = { ...prev };
+        metrics?.forEach(m => {
+          const lobKey = m.department.toLowerCase().includes('sales') ? 'sales' : 
+                         m.department.toLowerCase().includes('recovery') ? 'serviceRecovery' : 'support';
+          const channelKey = m.channel === 'Chat' ? 'chat' : 'voice';
+          const slaVal = m.sla_percent || (m.inbound_count > 0 ? (m.passed_count / m.inbound_count * 100) : 100);
+          const target = channelKey === 'chat' ? slaTargets.chat : slaTargets.voice;
+          
+          next[lobKey][channelKey] = {
+            ...next[lobKey][channelKey],
+            inbound: String(m.inbound_count || 0),
+            abandoned: String(m.abandoned_count || 0),
+            sla: slaVal.toFixed(2) + '%',
+            status: slaVal >= target ? 'passed' : 'failed',
+            frt: (m.frt_seconds || 0) + 's',
+            aht: (m.aht_seconds || 0) + 's'
+          };
+        });
+        return next;
       });
-      setOps(newOps);
 
       const { data: absData } = await supabase.from('absenteeism').select('*').eq('date', endDate).maybeSingle();
       if (absData) setGlobalAbsent({ pct: absData.rate + '%', count: absData.absent_count });
@@ -130,12 +132,14 @@ export default function SlaDashboardView() {
 
       const { data: logs } = await supabase.from('ops_log').select('*').eq('date', endDate);
       if (logs) {
-        const newLogs = { ...opsLog };
-        logs.forEach(l => {
-          const key = l.type.toLowerCase();
-          if (newLogs[key]) newLogs[key] = { applicable: true, selected: l.selected_items || [], custom: l.custom_notes || '', showCustom: !!l.custom_notes };
+        setOpsLog(prev => {
+          const next = { ...prev };
+          logs.forEach(l => {
+            const key = l.type.toLowerCase();
+            if (next[key]) next[key] = { applicable: true, selected: l.selected_items || [], custom: l.custom_notes || '', showCustom: !!l.custom_notes };
+          });
+          return next;
         });
-        setOpsLog(newLogs);
       }
       setDataHealth('good');
     } catch (err: any) {
@@ -144,7 +148,7 @@ export default function SlaDashboardView() {
     } finally {
       setLoading(false);
     }
-  }, [endDate, slaTargets, ops, opsLog]);
+  }, [endDate, slaTargets]); // Removed ops and opsLog to prevent infinite loop
 
   // Initial Fetch & Realtime
   useEffect(() => {
