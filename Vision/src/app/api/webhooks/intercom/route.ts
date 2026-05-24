@@ -27,24 +27,26 @@ export async function POST(req: Request) {
     // Extract metadata for better matching
     const teamName = (conversation.team_assignee?.name || '').toLowerCase();
     const tags = (conversation.tags?.tags || []).map((t: any) => t.name.toLowerCase());
-    const allIdentifiers = [teamName, ...tags].join(' ');
+    const sourceApp = (conversation.source?.author?.name || '').toLowerCase();
+    const allIdentifiers = [teamName, sourceApp, ...tags].join(' ');
 
     // Department Mapping
     if (allIdentifiers.includes('sales')) mappedDept = 'Sales Operations';
     else if (allIdentifiers.includes('recovery')) mappedDept = 'Service Recovery';
 
-    // Channel Mapping (Voice vs Chat)
+    // Channel Mapping (Broad Voice Detection)
     const sourceType = (conversation.source?.type || '').toLowerCase();
     const deliveryMethod = (conversation.source?.delivery_method || '').toLowerCase();
+    const compType = (conversation.source?.component_type || '').toLowerCase();
     
-    if (
-      allIdentifiers.includes('voice') || 
-      allIdentifiers.includes('phone') || 
-      allIdentifiers.includes('call') ||
-      sourceType === 'phone' || 
-      sourceType === 'call' || 
-      deliveryMethod === 'phone'
-    ) {
+    const voiceSignatures = ['voice', 'phone', 'call', 'aircall', 'talk', 'dialpad', 'ringcentral'];
+    const isVoice = voiceSignatures.some(sig => allIdentifiers.includes(sig)) || 
+                    sourceType.includes('phone') || 
+                    sourceType.includes('call') || 
+                    deliveryMethod === 'phone' ||
+                    compType.includes('call');
+
+    if (isVoice) {
       mappedChannel = 'Voice';
     }
 
