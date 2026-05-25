@@ -355,35 +355,38 @@ export default function SlaDashboardView() {
 
             {/* Bottom Row */}
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-              {/* Email */}
-              <div className="lg:col-span-3 bg-[#141414] border border-[#222] rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.5)]">
-                <div className="px-4 py-3 border-b border-[#2a2a2a] flex items-center gap-2">
-                  <Mail size={14} className="text-[#4f7df3]" />
-                  <h2 className="text-[0.75rem] font-extrabold uppercase tracking-[0.06em] text-[#a0a0a0]">Resident Home – Email Productivity</h2>
-                </div>
-                <div className="p-4 flex flex-wrap gap-5">
-                  <div className="grid grid-cols-2 gap-2.5 flex-[3] min-w-[180px]">
-                    <EmailStat label="Total Closed" value={emailData.closed} cls="blue" />
-                    <EmailStat label="Total Assigned" value={emailData.assigned} cls="indigo" />
-                    <EmailStat label="Total Replied" value={emailData.replied} cls="green" />
-                    <EmailStat label="Replies Sent" value={emailData.sent} cls="purple" />
+              {/* Email Productivity Table (Simulating the report view) */}
+              <div className="lg:col-span-3 bg-[#141414] border border-[#222] rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.5)] overflow-hidden">
+                <div className="px-4 py-3 border-b border-[#2a2a2a] flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Mail size={14} className="text-[#4f7df3]" />
+                    <h2 className="text-[0.75rem] font-extrabold uppercase tracking-[0.06em] text-[#a0a0a0]">Email Productivity</h2>
                   </div>
-                  <div className="flex-[2] border-l border-[#2a2a2a] pl-5 min-w-[160px]">
-                    <div className="text-[0.7rem] font-extrabold uppercase tracking-widest text-[#a0a0a0] mb-2.5 flex items-center gap-1.5">
-                      <BarChart3 size={12} /> Top 5 Agents
+                  <span className="text-[0.65rem] font-bold text-[#444]">Source: Teammates Dataset</span>
+                </div>
+                <div className="p-5">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <EmailStat label="Closed" value={emailData.closed} cls="blue" />
+                    <EmailStat label="Assigned" value={emailData.assigned} cls="indigo" />
+                    <EmailStat label="Replied" value={emailData.replied} cls="green" />
+                    <EmailStat label="Sent" value={emailData.sent} cls="purple" />
+                  </div>
+                  
+                  <div className="border-t border-[#222] pt-4">
+                    <div className="text-[0.65rem] font-bold uppercase tracking-widest text-[#a0a0a0] mb-3 flex items-center gap-2">
+                      <BarChart3 size={12} /> Top Performance (Closed)
                     </div>
                     {emailData.topAgents.length > 0 ? (
-                      <div className="space-y-1.5">
+                      <div className="space-y-2">
                         {emailData.topAgents.map((a, i) => (
-                          <div key={i} className="flex items-center justify-between p-1.5 px-2 rounded-md border border-[#2a2a2a] bg-white/[0.02]">
-                            <span className="text-[0.68rem] font-bold text-[#555] w-4">{i + 1}.</span>
-                            <span className="text-[0.78rem] font-semibold flex-1 px-1.5">{a.name}</span>
-                            <span className="text-[0.75rem] font-extrabold px-1.5 py-0.5 rounded border border-[#2a2a2a] bg-[#1a1a1a]">{a.count}</span>
+                          <div key={i} className="flex items-center justify-between p-2 rounded-xl border border-[#222] bg-white/[0.01]">
+                            <span className="text-[0.75rem] font-bold text-[#a0a0a0]">{a.name}</span>
+                            <span className="text-[0.8rem] font-black">{a.count}</span>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <div className="text-[0.68rem] italic text-[#555]">No data yet.</div>
+                      <div className="text-[0.7rem] italic text-[#555]">Waiting for agent distribution data...</div>
                     )}
                   </div>
                 </div>
