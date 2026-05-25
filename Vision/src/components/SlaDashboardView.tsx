@@ -160,12 +160,36 @@ export default function SlaDashboardView() {
     }
   }, [endDate, slaTargets]);
 
+  const syncIntercom = useCallback(async () => {
+    // Only sync if looking at Today
+    const today = new Date().toISOString().split('T')[0];
+    if (endDate !== today) return;
+
+    try {
+      setLoading(true);
+      const res = await fetch('/api/intercom/sync', { method: 'POST' });
+      if (res.ok) {
+        showToastMsg('Intercom metrics synced successfully!');
+        // No need to call fetchData() because Realtime listener will handle it!
+      }
+    } catch (err) {
+      console.error('Sync Error:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [endDate]);
+
   // Initial Fetch & Realtime - Visibility Aware
   useEffect(() => {
     if (!isVisible) return;
 
+    // Trigger sync on load
+    syncIntercom();
     fetchData();
     
+    // Auto-sync every 5 minutes
+    const syncInterval = setInterval(() => syncIntercom(), 5 * 60 * 1000);
+
     console.log('SLA Dashboard: Subscribing to Realtime (Page Visible)');
     const channel = supabase
       .channel('sla-realtime')
@@ -176,9 +200,10 @@ export default function SlaDashboardView() {
       
     return () => { 
       console.log('SLA Dashboard: Unsubscribing (Tab Hidden or Unmount)');
+      clearInterval(syncInterval);
       supabase.removeChannel(channel); 
     };
-  }, [fetchData, isVisible]);
+  }, [fetchData, syncIntercom, isVisible]);
 
   // UI Handlers
   const togglePreset = (field: string, preset: string) => {
@@ -230,7 +255,7 @@ export default function SlaDashboardView() {
           <div className="flex flex-col gap-1.5">
             <h1 className="text-[1.6rem] font-extrabold tracking-[-0.03em] flex items-center gap-2 cursor-pointer group">
               Intercom SLA Report
-              <RefreshCw size={18} onClick={() => fetchData()} className={`text-[#4f7df3] transition-all duration-500 ${loading ? 'rotate-180 opacity-50' : 'opacity-100'}`} />
+              <RefreshCw size={18} onClick={() => syncIntercom()} className={`text-[#4f7df3] transition-all duration-500 ${loading ? 'rotate-180 opacity-50' : 'opacity-100'}`} />
             </h1>
             <div className="flex flex-wrap items-center gap-2.5">
               <span className="text-[0.78rem] text-[#a0a0a0] font-medium">Real-time Operations & Workforce Metrics</span>
