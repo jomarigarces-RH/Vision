@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
+import { usePageVisibility } from '@/hooks/usePageVisibility';
 import { 
   Activity, Users, Clock, MessageSquare, Phone, 
   CheckCircle2, AlertCircle, Settings, Mail, ChevronDown,
@@ -47,6 +48,7 @@ const DEFAULT_CHANNEL: ChannelData = {
 
 // ===== MAIN COMPONENT =====
 export default function SlaDashboardView() {
+  const isVisible = usePageVisibility();
   const [activeTab, setActiveTab] = useState('overview');
   const [cpOpen, setCpOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -107,8 +109,9 @@ export default function SlaDashboardView() {
       setOps(prev => {
         const next = { ...prev };
         metrics?.forEach(m => {
-          const lobKey = m.department.toLowerCase().includes('sales') ? 'sales' : 
-                         m.department.toLowerCase().includes('recovery') ? 'serviceRecovery' : 'support';
+          const dept = (m.department || '').toLowerCase();
+          const lobKey = dept.includes('sales') ? 'sales' : 
+                         dept.includes('recovery') ? 'serviceRecovery' : 'support';
           const channelKey = m.channel === 'Chat' ? 'chat' : 'voice';
           const inbound = m.inbound_count || 0;
           const abandoned = m.abandoned_count || 0;
@@ -157,17 +160,25 @@ export default function SlaDashboardView() {
     }
   }, [endDate, slaTargets]);
 
-  // Initial Fetch & Realtime
+  // Initial Fetch & Realtime - Visibility Aware
   useEffect(() => {
+    if (!isVisible) return;
+
     fetchData();
+    
+    console.log('SLA Dashboard: Subscribing to Realtime (Page Visible)');
     const channel = supabase
-      .channel('schema-db-changes')
+      .channel('sla-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'ops_metrics' }, () => fetchData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'absenteeism' }, () => fetchData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'ops_log' }, () => fetchData())
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [fetchData]);
+      
+    return () => { 
+      console.log('SLA Dashboard: Unsubscribing (Tab Hidden or Unmount)');
+      supabase.removeChannel(channel); 
+    };
+  }, [fetchData, isVisible]);
 
   // UI Handlers
   const togglePreset = (field: string, preset: string) => {

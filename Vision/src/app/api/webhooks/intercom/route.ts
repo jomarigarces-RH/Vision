@@ -95,6 +95,11 @@ export async function POST(req: Request) {
       }
     }
 
+    console.log(`[Intercom Webhook] Topic: ${eventType}`);
+    console.log(`[Intercom Webhook] Source:`, JSON.stringify(conversation.source));
+    console.log(`[Intercom Webhook] Team: ${teamId}, Name: ${conversation.team_assignee?.name}`);
+    console.log(`[Intercom Webhook] Metadata:`, JSON.stringify(conversation.metadata || {}));
+
     console.log(`[Webhook] ${eventType} -> Dept: ${mappedDept}, Chan: ${mappedChannel}, TeamID: ${teamId || 'NONE'}, Inbound: ${isInbound}, Abandon: ${isAbandon}`);
 
     // 3. Update Database
@@ -116,25 +121,11 @@ export async function POST(req: Request) {
       p_wait: queueTime,
       p_handle: handleTime,
       p_is_abandon: isAbandon,
-      p_is_inbound: isInbound // REQUIRES RPC UPDATE TO WORK CORRECTLY
+      p_is_inbound: isInbound
     });
 
     if (rpcError) {
       console.error('[Webhook] DB Error:', rpcError.message);
-      // Fallback for old RPC if new one isn't deployed yet: 
-      // If error is about parameter mismatch, try calling without p_is_inbound
-      if (rpcError.message.includes('p_is_inbound')) {
-        await supabase.rpc('update_ops_metrics', {
-          p_dept: mappedDept,
-          p_chan: mappedChannel,
-          p_date: today,
-          p_is_pass: isSlaPass,
-          p_frt: secondsToReply,
-          p_wait: queueTime,
-          p_handle: handleTime,
-          p_is_abandon: isAbandon
-        });
-      }
     }
 
     return NextResponse.json({ status: 'success', dept: mappedDept, channel: mappedChannel });

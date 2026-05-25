@@ -157,19 +157,20 @@ CREATE OR REPLACE FUNCTION update_ops_metrics(
   p_frt INTEGER,
   p_wait INTEGER DEFAULT 0,
   p_handle INTEGER DEFAULT 0,
-  p_is_abandon BOOLEAN DEFAULT FALSE
+  p_is_abandon BOOLEAN DEFAULT FALSE,
+  p_is_inbound BOOLEAN DEFAULT FALSE
 )
 RETURNS void AS $$
 BEGIN
   INSERT INTO ops_metrics (department, channel, date, inbound_count, passed_count, abandoned_count, frt_seconds, wait_seconds, handle_seconds, updated_at)
-  VALUES (p_dept, p_chan, p_date, 1, CASE WHEN p_is_pass THEN 1 ELSE 0 END, CASE WHEN p_is_abandon THEN 1 ELSE 0 END, p_frt, p_wait, p_handle, now())
+  VALUES (p_dept, p_chan, p_date, CASE WHEN p_is_inbound THEN 1 ELSE 0 END, CASE WHEN p_is_pass THEN 1 ELSE 0 END, CASE WHEN p_is_abandon THEN 1 ELSE 0 END, p_frt, p_wait, p_handle, now())
   ON CONFLICT (department, channel, date) DO UPDATE SET
-    inbound_count = ops_metrics.inbound_count + 1,
+    inbound_count = ops_metrics.inbound_count + (CASE WHEN p_is_inbound THEN 1 ELSE 0 END),
     passed_count = ops_metrics.passed_count + (CASE WHEN p_is_pass THEN 1 ELSE 0 END),
     abandoned_count = ops_metrics.abandoned_count + (CASE WHEN p_is_abandon THEN 1 ELSE 0 END),
-    frt_seconds = ROUND((ops_metrics.frt_seconds + p_frt) / 2),
-    wait_seconds = ROUND((ops_metrics.wait_seconds + p_wait) / 2),
-    handle_seconds = ROUND((ops_metrics.handle_seconds + p_handle) / 2),
+    frt_seconds = CASE WHEN p_frt > 0 THEN ROUND((ops_metrics.frt_seconds + p_frt) / 2) ELSE ops_metrics.frt_seconds END,
+    wait_seconds = CASE WHEN p_wait > 0 THEN ROUND((ops_metrics.wait_seconds + p_wait) / 2) ELSE ops_metrics.wait_seconds END,
+    handle_seconds = CASE WHEN p_handle > 0 THEN ROUND((ops_metrics.handle_seconds + p_handle) / 2) ELSE ops_metrics.handle_seconds END,
     updated_at = now();
 END;
 $$ LANGUAGE plpgsql;
