@@ -20,6 +20,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ status: 'ignored', reason: 'No conversation item found' });
     }
 
+    // 0. Filter: Ignore Outbound (Admin-initiated)
+    const authorType = conversation.source?.author?.type;
+    if (authorType === 'admin') {
+      console.log(`[Webhook] Ignoring Outbound conversation (Author: admin)`);
+      return NextResponse.json({ status: 'ignored', reason: 'Outbound conversation' });
+    }
+
     // 1. Precise Team ID Mappings
     const TEAM_MAPS = {
       sales: { voice: ['10117691', '10126750'], chat: ['9540784'] },
