@@ -516,13 +516,6 @@ export default function SlaDashboardView() {
             ))}
           </CPSection>
 
-          {/* WEBHOOK */}
-          <CPSection title="Webhook Integration">
-            <div className="p-3 bg-[#1a1a1a] border border-[#222] rounded-xl text-[0.7rem] leading-relaxed">
-              <div className="mb-2 text-[#a0a0a0]"><strong>Target Endpoint:</strong><br /><code className="text-[#4f7df3] break-all">.../api/webhooks/intercom</code></div>
-              <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse" /> <span className="text-[#10b981] font-bold uppercase tracking-widest text-[0.6rem]">Realtime Listening</span></div>
-            </div>
-          </CPSection>
 
           <button onClick={() => { setCpOpen(false); showToastMsg('Dashboard preferences updated.'); }} className="w-full py-3 rounded-xl bg-[#4f7df3] text-white text-[0.82rem] font-black hover:opacity-90 transition-opacity cursor-pointer mb-6 uppercase tracking-widest">
             Apply Changes

@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 
 interface AuthViewProps {
-  onLogin: (user: { name: string; email: string }) => void;
+  onLogin: (user: { name: string; email: string; role: string; preferences?: any }) => void;
 }
 
 type AuthStep = 'email' | 'setup' | 'login' | 'forgot';
@@ -84,7 +84,12 @@ export default function AuthView({ onLogin }: AuthViewProps) {
     setLoading(true);
     try {
       await registerUser({ email, password, securityQuestion: securityQ, securityAnswer: securityA });
-      onLogin({ name: dbUser?.name || 'User', email });
+      onLogin({ 
+        name: dbUser?.name || 'User', 
+        email, 
+        role: dbUser?.role || 'Operations', 
+        preferences: dbUser?.preferences 
+      });
     } catch (err: any) { setError(err.message); } finally { setLoading(false); }
   };
 

@@ -179,6 +179,7 @@ export async function POST(request: Request) {
       if (action === "revoke") dbUpdates.is_revoked = true;
       if (action === "restore") dbUpdates.is_revoked = false;
       if (action === "makeAdmin") dbUpdates.role = "admin";
+      if (action === "setRole") dbUpdates.role = body.role; // Generic role setter
       if (action === "resetPassword") {
         dbUpdates.is_first_login = true;
         dbUpdates.password = null;

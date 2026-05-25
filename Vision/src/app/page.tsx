@@ -64,7 +64,7 @@ function useCachedQuery<T = any>(action: string, params?: Record<string, string 
 
 export default function Dashboard() {
   // --- AUTH STATE ---
-  const [user, setUser] = useState<{ name: string; email: string; preferences?: any } | null>(null);
+  const [user, setUser] = useState<{ name: string; email: string; role: string; preferences?: any } | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
@@ -77,7 +77,7 @@ export default function Dashboard() {
     setAuthChecked(true);
   }, []);
 
-  const handleLogin = (userData: { name: string; email: string; preferences?: any }) => {
+  const handleLogin = (userData: { name: string; email: string; role: string; preferences?: any }) => {
     setUser(userData);
     localStorage.setItem('vision_user', JSON.stringify(userData));
   };
@@ -90,6 +90,21 @@ export default function Dashboard() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [agentsOpen, setAgentsOpen] = useState(false);
   const [activeView, setActiveView] = useState<string>("intercom-sla");
+  const [activePerspective, setActivePerspective] = useState<'RTA' | 'Operations'>('RTA');
+  
+  // Set initial perspective based on role
+  useEffect(() => {
+    if (user) {
+      if (user.role === 'RTA') {
+        setActivePerspective('RTA');
+        setActiveView('intercom-sla');
+      } else if (user.role === 'Operations') {
+        setActivePerspective('Operations');
+        setActiveView('observation');
+      }
+    }
+  }, [user?.role]);
+
   const [observationSubTab, setObservationSubTab] = useState<'dashboard' | 'agents' | 'coaches'>('dashboard');
   const [selectedDept, setSelectedDept] = useState<string>('Sales');
 
@@ -660,105 +675,108 @@ export default function Dashboard() {
         </div>
 
         <nav className="flex-1 px-3 py-2 flex flex-col gap-1 overflow-y-auto hide-scrollbar">
-          {/* Observation Tab with Sub-tabs */}
-          <div className="my-1">
-            <div
-              className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer font-medium transition-colors
-                ${activeView === 'observation' ? 'bg-brand-blue-light text-brand-blue' : 'text-[var(--text-secondary)] hover:bg-white/5'}
-                ${sidebarCollapsed ? 'justify-center' : ''}`}
-              onClick={() => {
-                if (sidebarCollapsed) {
-                  setSidebarCollapsed(false);
-                  setTimeout(() => setAgentsOpen(true), 300);
-                } else {
-                  setActiveView('observation');
-                  setAgentsOpen(!agentsOpen);
-                }
-              }}
-              title={sidebarCollapsed ? "Observation" : ""}
-            >
-              <div className="flex items-center gap-3">
-                <Eye size={20} className={activeView === 'observation' ? 'text-brand-blue' : 'text-slate-400'} />
-                {!sidebarCollapsed && <span>Observation</span>}
-              </div>
-              {!sidebarCollapsed && (
-                <ChevronDown size={16} className={`transition-transform duration-200 ${agentsOpen ? 'rotate-180' : ''}`} />
-              )}
-            </div>
-
-            {/* Observation Sub-tabs */}
-            <div className={`overflow-hidden transition-all duration-300 ${!sidebarCollapsed && agentsOpen ? 'max-h-[400px] opacity-100 mt-1' : 'max-h-0 opacity-0'}`}>
-              <div className="pl-4 pr-3 flex flex-col gap-0.5 border-l-2 border-slate-100 ml-5 py-1">
-                {/* Dashboard Sub-tab */}
+          {/* Operations View Items */}
+          {activePerspective === 'Operations' && (
+            <>
+              <div className="my-1">
                 <div
-                  className={`px-3 py-2 text-[13px] font-medium cursor-pointer rounded-md transition-colors flex items-center gap-2
-                    ${activeView === 'observation' && observationSubTab === 'dashboard' ? 'bg-brand-blue-light text-brand-blue font-semibold' : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--brand-blue)]'}`}
-                  onClick={() => { setActiveView('observation'); setObservationSubTab('dashboard'); }}
+                  className={`flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer font-medium transition-colors
+                    ${activeView === 'observation' ? 'bg-brand-blue-light text-brand-blue' : 'text-[var(--text-secondary)] hover:bg-white/5'}
+                    ${sidebarCollapsed ? 'justify-center' : ''}`}
+                  onClick={() => {
+                    if (sidebarCollapsed) {
+                      setSidebarCollapsed(false);
+                      setTimeout(() => setAgentsOpen(true), 300);
+                    } else {
+                      setActiveView('observation');
+                      setAgentsOpen(!agentsOpen);
+                    }
+                  }}
+                  title={sidebarCollapsed ? "Observation" : ""}
                 >
-                  <LayoutDashboard size={14} />
-                  Dashboard
-                </div>
-
-                {/* Agents Sub-tab with LOB children */}
-                <div
-                  className={`px-3 py-2 text-[13px] font-medium cursor-pointer rounded-md transition-colors flex items-center gap-2
-                    ${activeView === 'observation' && observationSubTab === 'agents' ? 'bg-brand-blue-light text-brand-blue font-semibold' : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--brand-blue)]'}`}
-                  onClick={() => { setActiveView('observation'); setObservationSubTab('agents'); }}
-                >
-                  <Users size={14} />
-                  Agents
-                </div>
-                {/* LOB Departments under Agents */}
-                {observationSubTab === 'agents' && activeView === 'observation' && (
-                  <div className="pl-4 flex flex-col gap-0.5 ml-2 border-l-2 border-slate-50 py-0.5">
-                    {['Sales', 'Support', 'Specialty'].map(dept => {
-                      const deptAgents = getAgentsByDept(dept);
-                      const isActive = selectedDept === dept;
-                      return (
-                        <div
-                          key={dept}
-                          className={`px-3 py-1.5 text-[12px] font-medium cursor-pointer rounded-md transition-colors flex items-center justify-between
-                            ${isActive ? 'bg-blue-500/10 text-brand-blue font-semibold' : 'text-slate-400 hover:bg-white/5 hover:text-slate-300'}`}
-                          onClick={() => setSelectedDept(dept)}
-                        >
-                          <span className="flex items-center gap-2">
-                            <span className={`w-2 h-2 rounded-full ${dept === 'Sales' ? 'bg-blue-500' : dept === 'Support' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-                            {dept}
-                          </span>
-                          <span className="text-[10px] text-slate-400 font-normal">{deptAgents.length}</span>
-                        </div>
-                      );
-                    })}
+                  <div className="flex items-center gap-3">
+                    <Eye size={20} className={activeView === 'observation' ? 'text-brand-blue' : 'text-slate-400'} />
+                    {!sidebarCollapsed && <span>Observation</span>}
                   </div>
-                )}
+                  {!sidebarCollapsed && (
+                    <ChevronDown size={16} className={`transition-transform duration-200 ${agentsOpen ? 'rotate-180' : ''}`} />
+                  )}
+                </div>
 
-                {/* Coaches Sub-tab */}
-                <div
-                  className={`px-3 py-2 text-[13px] font-medium cursor-pointer rounded-md transition-colors flex items-center gap-2
-                    ${activeView === 'observation' && observationSubTab === 'coaches' ? 'bg-brand-blue-light text-brand-blue font-semibold' : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--brand-blue)]'}`}
-                  onClick={() => { setActiveView('observation'); setObservationSubTab('coaches'); }}
-                >
-                  <UserCog size={14} />
-                  Coaches
+                <div className={`overflow-hidden transition-all duration-300 ${!sidebarCollapsed && agentsOpen ? 'max-h-[400px] opacity-100 mt-1' : 'max-h-0 opacity-0'}`}>
+                  <div className="pl-4 pr-3 flex flex-col gap-0.5 border-l-2 border-slate-100 ml-5 py-1">
+                    <div
+                      className={`px-3 py-2 text-[13px] font-medium cursor-pointer rounded-md transition-colors flex items-center gap-2
+                        ${activeView === 'observation' && observationSubTab === 'dashboard' ? 'bg-brand-blue-light text-brand-blue font-semibold' : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--brand-blue)]'}`}
+                      onClick={() => { setActiveView('observation'); setObservationSubTab('dashboard'); }}
+                    >
+                      <LayoutDashboard size={14} />
+                      Dashboard
+                    </div>
+
+                    <div
+                      className={`px-3 py-2 text-[13px] font-medium cursor-pointer rounded-md transition-colors flex items-center gap-2
+                        ${activeView === 'observation' && observationSubTab === 'agents' ? 'bg-brand-blue-light text-brand-blue font-semibold' : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--brand-blue)]'}`}
+                      onClick={() => { setActiveView('observation'); setObservationSubTab('agents'); }}
+                    >
+                      <Users size={14} />
+                      Agents
+                    </div>
+                    {observationSubTab === 'agents' && activeView === 'observation' && (
+                      <div className="pl-4 flex flex-col gap-0.5 ml-2 border-l-2 border-slate-50 py-0.5">
+                        {['Sales', 'Support', 'Specialty'].map(dept => {
+                          const deptAgents = getAgentsByDept(dept);
+                          const isActive = selectedDept === dept;
+                          return (
+                            <div
+                              key={dept}
+                              className={`px-3 py-1.5 text-[12px] font-medium cursor-pointer rounded-md transition-colors flex items-center justify-between
+                                ${isActive ? 'bg-blue-500/10 text-brand-blue font-semibold' : 'text-brand-blue hover:bg-white/5 hover:text-slate-300'}`}
+                              onClick={() => setSelectedDept(dept)}
+                            >
+                              <span className="flex items-center gap-2">
+                                <span className={`w-2 h-2 rounded-full ${dept === 'Sales' ? 'bg-blue-500' : dept === 'Support' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                                {dept}
+                              </span>
+                              <span className="text-[10px] text-slate-400 font-normal">{deptAgents.length}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    <div
+                      className={`px-3 py-2 text-[13px] font-medium cursor-pointer rounded-md transition-colors flex items-center gap-2
+                        ${activeView === 'observation' && observationSubTab === 'coaches' ? 'bg-brand-blue-light text-brand-blue font-semibold' : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--brand-blue)]'}`}
+                      onClick={() => { setActiveView('observation'); setObservationSubTab('coaches'); }}
+                    >
+                      <UserCog size={14} />
+                      Coaches
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
 
-          <NavItem
-            icon={<Briefcase size={20} />}
-            label="Volume Accuracy"
-            collapsed={sidebarCollapsed}
-            active={activeView === "business-volume"}
-            onClick={() => setActiveView("business-volume")}
-          />
-          <NavItem
-            icon={<Activity size={20} />}
-            label="Intercom SLA"
-            collapsed={sidebarCollapsed}
-            active={activeView === "intercom-sla"}
-            onClick={() => setActiveView("intercom-sla")}
-          />
+              <NavItem
+                icon={<Briefcase size={20} />}
+                label="Volume Accuracy"
+                collapsed={sidebarCollapsed}
+                active={activeView === "business-volume"}
+                onClick={() => setActiveView("business-volume")}
+              />
+            </>
+          )}
+
+          {/* RTA View Items */}
+          {activePerspective === 'RTA' && (
+            <NavItem
+              icon={<Activity size={20} />}
+              label="Intercom SLA"
+              collapsed={sidebarCollapsed}
+              active={activeView === "intercom-sla"}
+              onClick={() => setActiveView("intercom-sla")}
+            />
+          )}
         </nav>
 
         <div className="p-3 border-t border-[var(--border-light)] flex flex-col gap-1">
@@ -797,6 +815,24 @@ export default function Dashboard() {
               <span className="text-[var(--text-tertiary)] font-medium mx-1 sm:mx-2">|</span>
               <span className="truncate">Vision</span>
             </h1>
+
+            {/* Admin Perspective Switcher */}
+            {user.role === 'admin' && (
+              <div className="hidden md:flex items-center ml-4 bg-slate-100 rounded-full p-1 border border-slate-200">
+                <button
+                  onClick={() => { setActivePerspective('RTA'); setActiveView('intercom-sla'); }}
+                  className={`px-4 py-1.5 rounded-full text-[0.7rem] font-black tracking-widest uppercase transition-all ${activePerspective === 'RTA' ? 'bg-[#4f7df3] text-white shadow-md' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  RTA View
+                </button>
+                <button
+                  onClick={() => { setActivePerspective('Operations'); setActiveView('observation'); }}
+                  className={`px-4 py-1.5 rounded-full text-[0.7rem] font-black tracking-widest uppercase transition-all ${activePerspective === 'Operations' ? 'bg-[#10b981] text-white shadow-md' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  Operations View
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-3 sm:gap-6 flex-1 max-w-2xl px-4 sm:px-8">

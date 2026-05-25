@@ -53,10 +53,12 @@ export default function SettingsView({ user, onUpdateUser }: SettingsViewProps) 
     return await res.json();
   };
 
-  const callManageUser = async (userId: string, action: string) => {
+  const callManageUser = async (userId: string, action: string, extra?: any) => {
+    const body: any = { type: 'manageUser', email: user.email, userId, action };
+    if (action === 'setRole') body.role = extra;
     const res = await fetch('/api/auth', {
       method: 'POST',
-      body: JSON.stringify({ type: 'manageUser', email: user.email, userId, action })
+      body: JSON.stringify(body)
     });
     return await res.json();
   };
@@ -94,10 +96,10 @@ export default function SettingsView({ user, onUpdateUser }: SettingsViewProps) 
     }
   };
 
-  const handleAdminAction = async (userId: string, action: string) => {
+  const handleAdminAction = async (userId: string, action: string, extra?: any) => {
     if (!window.confirm(`Are you sure you want to ${action} this user?`)) return;
     try {
-      const res = await callManageUser(userId, action);
+      const res = await callManageUser(userId, action, extra);
       if (res.error) throw new Error(res.error);
       setStatus({ type: 'success', msg: `User ${action}ed successfully!` });
       // Refresh user list
@@ -301,9 +303,17 @@ export default function SettingsView({ user, onUpdateUser }: SettingsViewProps) 
                           {u.isRevoked && (
                             <span className="px-2 py-0.5 bg-rose-500/10 text-rose-500 text-[9px] font-black uppercase rounded-full">Revoked</span>
                           )}
-                          {u.role === 'admin' && (
-                            <span className="px-2 py-0.5 bg-brand-blue/10 text-brand-blue text-[9px] font-black uppercase rounded-full">Admin</span>
-                          )}
+                          <div className="flex gap-1 ml-2">
+                            {['admin', 'RTA', 'Operations'].map((r) => (
+                              <button 
+                                key={r}
+                                onClick={() => handleAdminAction(u._id, 'setRole', r)}
+                                className={`px-2 py-0.5 text-[9px] font-black uppercase rounded-full border transition-all ${u.role === r ? 'bg-brand-blue/10 text-brand-blue border-brand-blue/20' : 'bg-transparent text-slate-500 border-slate-700 hover:border-slate-500'}`}
+                              >
+                                {r}
+                              </button>
+                            ))}
+                          </div>
                         </div>
                         <p className="text-xs text-[var(--text-secondary)] font-medium">{u.email}</p>
                       </div>
