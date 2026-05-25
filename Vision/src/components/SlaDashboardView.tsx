@@ -543,6 +543,16 @@ function CPSection({ title, children }: { title: string; children: React.ReactNo
   );
 }
 
+// Helper to format time (e.g. 150s -> 2m 30s)
+function fmtTime(s: string) {
+  const totalSeconds = parseInt(String(s).replace('s', '')) || 0;
+  if (totalSeconds === 0) return '0s';
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+  const mins = Math.floor(totalSeconds / 60);
+  const secs = totalSeconds % 60;
+  return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+}
+
 function LOBGroupCard({ data, slaTargets }: { data: LOBData; slaTargets: { voice: number; chat: number } }) {
   const parsePct = (v: string) => parseFloat(String(v).replace('%', '')) || 0;
   const chatOk = parsePct(data.chat.sla) >= slaTargets.chat;
@@ -560,9 +570,9 @@ function LOBGroupCard({ data, slaTargets }: { data: LOBData; slaTargets: { voice
           <span className={`text-[0.55rem] font-extrabold px-1.5 py-px rounded-full ml-1.5 ${chatOk ? 'bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/20' : 'bg-[#ef4444]/10 text-[#ef4444] border border-[#ef4444]/20'}`}>{chatOk ? 'Passed' : 'Failed'}</span>
         </div>
         <div className="grid grid-cols-2 gap-x-2 gap-y-3 mb-3">
-          <MetricMini label="Chat Inbound" value={data.chat.inbound} />
-          <MetricMini label="Queue Wait" value={data.chat.inQueue} />
-          <MetricMini label="FRT / AHT" value={`${data.chat.frt} / ${data.chat.aht}`} />
+          <MetricMini label="Inbound" value={data.chat.inbound} />
+          <MetricMini label="Abandoned" value={data.chat.abandoned} />
+          <MetricMini label="Absenteeism" value={data.chat.absenteeism} />
           <MetricMini label="Abandon Rate" value={data.chat.abandonRate} />
         </div>
         <SLARow value={data.chat.sla} ok={chatOk} />
@@ -580,9 +590,9 @@ function LOBGroupCard({ data, slaTargets }: { data: LOBData; slaTargets: { voice
       {/* Voice */}
       <div className="p-4 pt-5 pb-5">
         <div className="grid grid-cols-2 gap-x-2 gap-y-3 mb-3">
-          <MetricMini label="Voice Inbound" value={data.voice.inbound} />
-          <MetricMini label="Queue Wait" value={data.voice.inQueue} />
-          <MetricMini label="AHT" value={data.voice.aht} />
+          <MetricMini label="Inbound" value={data.voice.inbound} />
+          <MetricMini label="Abandoned" value={data.voice.abandoned} />
+          <MetricMini label="Absenteeism" value={data.voice.absenteeism} />
           <MetricMini label="Abandon Rate" value={data.voice.abandonRate} />
         </div>
         <SLARow value={data.voice.sla} ok={voiceOk} />
@@ -596,8 +606,8 @@ function DetailView({ title, data, slaTargets }: { title: string; data: LOBData;
   function DetailCard({ label, value, highlight, isSLA }: any) {
     let cls = 'p-4 rounded-xl border border-[#2a2a2a] bg-white/[0.03]';
     let vcls = 'text-[1.6rem] font-black';
-    if (isSLA) { cls = 'p-4 rounded-xl border border-[#6366f1]/30 bg-[#6366f1]/5'; vcls += ' text-[#6366f1]'; }
-    else if (highlight === 'alert') { cls = 'p-4 rounded-xl border border-[#ef4444]/30 bg-[#ef4444]/5'; vcls += ' text-[#ef4444]'; }
+    if (isSLA) { cls = 'p-4 rounded-xl border border-[#6366f1]/30 bg-[#6366f1]/10'; vcls += ' text-[#6366f1]'; }
+    else if (highlight === 'alert') { cls = 'p-4 rounded-xl border border-[#ef4444]/30 bg-[#ef4444]/10'; vcls += ' text-[#ef4444]'; }
     return (
       <div className={cls}>
         <div className="text-[0.65rem] font-bold uppercase tracking-widest text-[#a0a0a0] mb-2">{label}</div>
@@ -607,36 +617,40 @@ function DetailView({ title, data, slaTargets }: { title: string; data: LOBData;
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
       <div className="flex items-center justify-between pb-3 border-b border-[#222]">
         <h2 className="text-[1.2rem] font-extrabold">{title} — Detailed Performance</h2>
       </div>
-      <div className="bg-[#141414] border border-[#222] rounded-2xl overflow-hidden">
-        <div className="flex items-center gap-2.5 px-4 py-3 border-b border-[#2a2a2a] bg-white/[0.03]">
-          <div className="w-[30px] h-[30px] rounded-lg bg-[#6366f1]/10 flex items-center justify-center"><Phone size={16} className="text-[#6366f1]" /></div>
-          <h3 className="text-[0.72rem] font-extrabold uppercase tracking-[0.06em]">Voice Operations</h3>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        {/* Voice Section */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-[#6366f1] font-bold uppercase tracking-widest text-[0.7rem]">
+            <Phone size={14} /> Voice Channel
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <DetailCard label="SLA" value={data.voice.sla} isSLA={true} />
+            <DetailCard label="Inbound" value={data.voice.inbound} />
+            <DetailCard label="Abandoned" value={data.voice.abandoned} highlight={parseInt(data.voice.abandoned) > 0 ? 'alert' : ''} />
+            <DetailCard label="Abandon Rate" value={data.voice.abandonRate} />
+            <DetailCard label="Queue Wait" value={fmtTime(data.voice.inQueue)} />
+            <DetailCard label="Handle Time" value={fmtTime(data.voice.aht)} />
+          </div>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-3 p-4">
-          <DetailCard label="Service Level" value={data.voice.sla} isSLA={true} />
-          <DetailCard label="Inbound" value={data.voice.inbound} />
-          <DetailCard label="Abandoned" value={data.voice.abandoned} />
-          <DetailCard label="Abandon Rate" value={data.voice.abandonRate} highlight={parsePct(data.voice.abandonRate) > 10 ? 'alert' : ''} />
-          <DetailCard label="Avg Queue" value={data.voice.inQueue} />
-          <DetailCard label="Handle Time" value={data.voice.aht} />
-        </div>
-      </div>
-      <div className="bg-[#141414] border border-[#222] rounded-2xl overflow-hidden">
-        <div className="flex items-center gap-2.5 px-4 py-3 border-b border-[#2a2a2a] bg-white/[0.03]">
-          <div className="w-[30px] h-[30px] rounded-lg bg-[#4f7df3]/10 flex items-center justify-center"><MessageSquare size={16} className="text-[#3b82f6]" /></div>
-          <h3 className="text-[0.72rem] font-extrabold uppercase tracking-[0.06em]">Chat Operations</h3>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-3 p-4">
-          <DetailCard label="Service Level" value={data.chat.sla} isSLA={true} />
-          <DetailCard label="Inbound" value={data.chat.inbound} />
-          <DetailCard label="Abandoned" value={data.chat.abandoned} />
-          <DetailCard label="Abandon Rate" value={data.chat.abandonRate} highlight={parsePct(data.chat.abandonRate) > 10 ? 'alert' : ''} />
-          <DetailCard label="Avg Queue" value={data.chat.inQueue} />
-          <DetailCard label="FRT / AHT" value={`${data.chat.frt} / ${data.chat.aht}`} />
+
+        {/* Chat Section */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-[#3b82f6] font-bold uppercase tracking-widest text-[0.7rem]">
+            <MessageSquare size={14} /> Chat Channel
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <DetailCard label="SLA" value={data.chat.sla} isSLA={true} />
+            <DetailCard label="Inbound" value={data.chat.inbound} />
+            <DetailCard label="Abandoned" value={data.chat.abandoned} highlight={parseInt(data.chat.abandoned) > 0 ? 'alert' : ''} />
+            <DetailCard label="Abandon Rate" value={data.chat.abandonRate} />
+            <DetailCard label="Queue Wait" value={fmtTime(data.chat.inQueue)} />
+            <DetailCard label="FRT (Avg)" value={fmtTime(data.chat.frt)} />
+          </div>
         </div>
       </div>
     </div>
