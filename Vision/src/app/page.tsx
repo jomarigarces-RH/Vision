@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Menu, Activity, Settings as SettingsIcon, LogOut, Bell } from "lucide-react";
+import { Menu, Activity, Settings as SettingsIcon, LogOut, Bell, Headphones, ClipboardList } from "lucide-react";
 import AuthView from "@/components/AuthView";
 import SettingsView from "@/components/SettingsView";
 import SlaDashboardView from "@/components/SlaDashboardView";
+import MonitorView from "@/components/MonitorView";
+import ReportView from "@/components/ReportView";
 
 type User = { name: string; email: string; role: string; preferences?: any };
 
@@ -15,7 +17,7 @@ function getInitials(name: string) {
 export default function Dashboard() {
   const [user, setUser] = useState<User | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
-  const [activeView, setActiveView] = useState<"intercom-sla" | "settings">("intercom-sla");
+  const [activeView, setActiveView] = useState<"intercom-sla" | "monitoring" | "report" | "settings">("intercom-sla");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
@@ -85,7 +87,20 @@ export default function Dashboard() {
             active={activeView === "intercom-sla"}
             onClick={() => setActiveView("intercom-sla")}
           />
-          {/* Agent Monitoring (Step 2) will be added here */}
+          <NavItem
+            icon={<Headphones size={20} />}
+            label="Agent Monitoring"
+            collapsed={sidebarCollapsed}
+            active={activeView === "monitoring"}
+            onClick={() => setActiveView("monitoring")}
+          />
+          <NavItem
+            icon={<ClipboardList size={20} />}
+            label="Behavior Report"
+            collapsed={sidebarCollapsed}
+            active={activeView === "report"}
+            onClick={() => setActiveView("report")}
+          />
         </nav>
 
         <div className="p-3 border-t border-[var(--border-light)] flex flex-col gap-1">
@@ -148,6 +163,8 @@ export default function Dashboard() {
 
         <main className="flex-1 overflow-y-auto scroll-smooth">
           {activeView === "intercom-sla" && <SlaDashboardView />}
+          {activeView === "monitoring" && <MonitorView />}
+          {activeView === "report" && <ReportView />}
           {activeView === "settings" && (
             <div className="p-6">
               <SettingsView

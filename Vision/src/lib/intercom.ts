@@ -275,6 +275,42 @@ export function exportSlaStatus(start: number, end: number): Promise<SlaRow[]> {
   return runExport('conversation_sla_status_log', SLA_ATTRS, start, end) as Promise<SlaRow[]>;
 }
 
+// --- Per-teammate call outcomes (missed / declined) ------------------------
+
+export type CallTeammateRow = {
+  conversation_id: string; // the "Contact ID"
+  call_id: string;
+  call_teammate_id: string; // teammate NAME
+  call_direction: string;
+  call_state: string; // "Answered" | "Abandoned in queue" | ...
+  call_terminating_party_type: string; // "Customer" | "Teammate"
+  call_teammate_declined_call_count: string;
+  call_teammate_missed_call_count: string;
+  customer_name: string;
+  voice_routing_inbox: string; // inbox name -> LOB
+  call_initiated_at: string; // "YYYY-MM-DD HH:MM:SS" (UTC)
+  [k: string]: string;
+};
+
+const CALL_TEAMMATE_ATTRS = [
+  'standard.conversation_id',
+  'call.call_id',
+  'teammate.call_teammate_id',
+  'call.call_direction',
+  'call.call_state',
+  'call.call_terminating_party_type',
+  'call.call_teammate_declined_call_count',
+  'call.call_teammate_missed_call_count',
+  'conversation.customer_name',
+  'conversation.voice_routing_inbox',
+  'timestamp.call_initiated_at',
+];
+
+/** Per-teammate call rows (one per teammate-offer), incl. declined/missed counts. */
+export function exportCallTeammateStats(start: number, end: number): Promise<CallTeammateRow[]> {
+  return runExport('call_teammate_stats', CALL_TEAMMATE_ATTRS, start, end) as Promise<CallTeammateRow[]>;
+}
+
 // ===========================================================================
 // Agent Monitoring (Step 2) — live REST helpers
 // ===========================================================================
@@ -342,6 +378,28 @@ export async function getAdmins(): Promise<Map<string, { name: string; email: st
   return map;
 }
 
+export type AdminDetail = {
+  id: string;
+  name: string;
+  email: string;
+  away_mode_enabled: boolean;   // true => "Away"; false => "Active" (can receive work)
+  away_mode_reassign: boolean;
+  has_inbox_seat: boolean;      // true => a real teammate who takes inbox work
+};
+
+/** Full admin records (presence baseline). Not cached — reconcile wants fresh. */
+export async function getAdminsDetailed(): Promise<AdminDetail[]> {
+  const data = await fetch(`${BASE}/admins`, { headers: apiHeaders() }).then((r) => r.json());
+  return (data?.admins || []).map((ad: Record<string, unknown>) => ({
+    id: String(ad.id),
+    name: String(ad.name ?? ''),
+    email: String(ad.email ?? ''),
+    away_mode_enabled: !!ad.away_mode_enabled,
+    away_mode_reassign: !!ad.away_mode_reassign,
+    has_inbox_seat: !!ad.has_inbox_seat,
+  }));
+}
+
 export type ActivityEvent = {
   id: string;
   activity_type: string; // admin_away_mode_change | admin_channel_change | admin_login_success | admin_logout | ...
@@ -351,10 +409,10 @@ export type ActivityEvent = {
 };
 
 /** Admin activity-log events since a unix time (paginated). Powers presence/away/channel/off-script. */
-export async function getActivityLogs(sinceUnix: number): Promise<ActivityEvent[]> {
+export async function getActivityLogs(sinceUnix: number, maxPages = 20): Promise<ActivityEvent[]> {
   let url: string | null = `${BASE}/admins/activity_logs?created_at_after=${sinceUnix}`;
   const out: ActivityEvent[] = [];
-  for (let i = 0; i < 20 && url; i++) {
+  for (let i = 0; i < maxPages && url; i++) {
     const j: { activity_logs?: ActivityEvent[]; pages?: { next?: string | null } } = await fetch(url, { headers: apiHeaders() }).then((r) => r.json());
     out.push(...(j.activity_logs || []));
     url = j.pages?.next || null;
@@ -372,13 +430,24 @@ export type OpenConversation = {
   statistics?: { time_to_admin_reply?: number | null } | null;
 };
 
-/** All currently-open conversations (paginated). For reconcile, queue depth, and live workload. */
-export async function getOpenConversations(): Promise<OpenConversation[]> {
+/**
+ * Currently-open conversations (paginated), optionally bounded to those created
+ * after `createdAfterUnix` (default: last 48h) so a large open-email backlog
+ * doesn't blow up the snapshot. For reconcile, queue depth, and live workload.
+ */
+export async function getOpenConversations(createdAfterUnix?: number): Promise<OpenConversation[]> {
+  const since = createdAfterUnix ?? Math.floor(Date.now() / 1000) - 48 * 3600;
   const out: OpenConversation[] = [];
   let startingAfter: string | undefined;
   for (let page = 0; page < 100; page++) {
     const body: Record<string, unknown> = {
-      query: { field: 'state', operator: '=', value: 'open' },
+      query: {
+        operator: 'AND',
+        value: [
+          { field: 'state', operator: '=', value: 'open' },
+          { field: 'created_at', operator: '>', value: since },
+        ],
+      },
       pagination: { per_page: 150, ...(startingAfter ? { starting_after: startingAfter } : {}) },
     };
     const res = await fetch(`${BASE}/conversations/search`, { method: 'POST', headers: apiHeaders(), body: JSON.stringify(body) });
@@ -391,4 +460,59 @@ export async function getOpenConversations(): Promise<OpenConversation[]> {
     if (!startingAfter) break;
   }
   return out;
+}
+
+/**
+ * Open Voice + Chat + SMS conversations in full detail (NOT email). These are
+ * the live-critical channels (someone is actively waiting / being handled) and
+ * there are few of them, so this returns in ~1 page. Email is excluded because
+ * the open-email backlog is huge (~94% of open conversations) and paginating it
+ * pushes the snapshot past Vercel's 60s cap — it's fetched as a count instead
+ * (see getOpenEmailCount). source.type is a searchable field.
+ */
+export async function getLiveConversations(): Promise<OpenConversation[]> {
+  const out: OpenConversation[] = [];
+  let startingAfter: string | undefined;
+  for (let page = 0; page < 10; page++) {
+    const body: Record<string, unknown> = {
+      query: {
+        operator: 'AND',
+        value: [
+          { field: 'state', operator: '=', value: 'open' },
+          {
+            operator: 'OR',
+            value: [
+              { field: 'source.type', operator: '=', value: 'phone_call' },
+              { field: 'source.type', operator: '=', value: 'conversation' },
+              { field: 'source.type', operator: '=', value: 'sms' },
+            ],
+          },
+        ],
+      },
+      pagination: { per_page: 150, ...(startingAfter ? { starting_after: startingAfter } : {}) },
+    };
+    const res = await fetch(`${BASE}/conversations/search`, { method: 'POST', headers: apiHeaders(), body: JSON.stringify(body) });
+    if (!res.ok) throw new Error(`live conversations search ${res.status}`);
+    const data = await res.json();
+    const convs: OpenConversation[] = data?.conversations || [];
+    out.push(...convs);
+    startingAfter = data?.pages?.next?.starting_after;
+    if (!convs.length || !startingAfter) break;
+  }
+  return out;
+}
+
+/** Count of open email conversations (the backlog) — cheap (per_page=1, reads total_count). */
+export async function getOpenEmailCount(): Promise<number> {
+  const body = {
+    query: { operator: 'AND', value: [
+      { field: 'state', operator: '=', value: 'open' },
+      { field: 'source.type', operator: '=', value: 'email' },
+    ] },
+    pagination: { per_page: 1 },
+  };
+  const res = await fetch(`${BASE}/conversations/search`, { method: 'POST', headers: apiHeaders(), body: JSON.stringify(body) });
+  if (!res.ok) return 0;
+  const data = await res.json();
+  return data?.total_count ?? 0;
 }

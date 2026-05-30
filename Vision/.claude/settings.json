@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(try { $t=Measure-Command { $r = Invoke-RestMethod -Uri 'http://localhost:3000/api/monitor/snapshot?force=1' -TimeoutSec 70 }; \"ms=$\\([int]$t.TotalMilliseconds\\) agents=$\\($r.agents.Count\\) ONLINE=$\\($r.presence.online\\) AWAY=$\\($r.presence.away\\) OFFLINE=$\\($r.presence.offline\\)\"; Write-Host \"away reasons still showing:\"; $r.awayBreakdown | ForEach-Object { \"  $\\($_[0]\\) = $\\($_[1]\\)\" } } catch { \"ERR $\\($_.Exception.Message\\)\" })"
+    ]
+  }
+}
