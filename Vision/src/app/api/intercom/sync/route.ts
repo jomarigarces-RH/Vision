@@ -1,104 +1,59 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { pstDateString } from '@/lib/intercom';
+import { computeDayMetrics, toEmailRow, toOpsMetricRows } from '@/lib/sla-metrics';
 
-const INTERCOM_TOKEN = process.env.INTERCOM_API_TOKEN;
+// The reporting export is async (enqueue -> poll); give the route room to finish.
+export const maxDuration = 60;
+export const dynamic = 'force-dynamic';
 
-// STRICT ID LIST (Only what you told me)
-const SUPPORT_VOICE = ['10117732', '10117711', '10126764'];
-const SALES_VOICE = ['10117691', '10126750'];
-const RECOVERY_VOICE = ['10117736'];
+const TOKEN = process.env.INTERCOM_API_TOKEN;
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export async function POST(req: Request) {
   try {
-    if (!INTERCOM_TOKEN) return NextResponse.json({ error: 'Missing token' }, { status: 500 });
-    
-    // 1. PST TIMEZONE ALIGNMENT
-    const now = new Date();
-    const pstDate = new Date(now.toLocaleString("en-US", {timeZone: "America/Los_Angeles"}));
-    pstDate.setHours(0, 0, 0, 0);
-    const startTs = Math.floor(pstDate.getTime() / 1000);
-    const dateStr = pstDate.toISOString().split('T')[0];
+    if (!TOKEN) return NextResponse.json({ error: 'Missing INTERCOM_API_TOKEN' }, { status: 500 });
 
-    console.log(`[Strict-Sync] 📡 Syncing for ${dateStr} (PST)...`);
-
-    let allConvs: any[] = [];
-    let page = 1;
-    let hasMore = true;
-
-    // 2. UNFILTERED FETCH (Filtered in JS for total control)
-    while (hasMore && page <= 50) {
-      const res = await fetch(`https://api.intercom.io/conversations/search`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${INTERCOM_TOKEN}`,
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'Intercom-Version': '2.11'
-        },
-        body: JSON.stringify({
-          query: { field: 'created_at', operator: '>', value: startTs },
-          pagination: { page, per_page: 150 }
-        })
-      });
-
-      const data = await res.json();
-      if (data.conversations?.length > 0) {
-        allConvs = [...allConvs, ...data.conversations];
-        page++;
-      } else { hasMore = false; }
+    // Date: ?date=YYYY-MM-DD or JSON body { date }, defaulting to today (PST).
+    const url = new URL(req.url);
+    let date = url.searchParams.get('date') || undefined;
+    if (!date) {
+      const body = await req.json().catch(() => null);
+      if (body?.date) date = String(body.date);
+    }
+    if (!date) date = pstDateString();
+    if (!DATE_RE.test(date)) {
+      return NextResponse.json({ error: `Invalid date '${date}', expected YYYY-MM-DD` }, { status: 400 });
     }
 
-    const metrics: any = {
-      'Support Operations|Voice': { in: 0, pass: 0, ab: 0, frt: 0, h: 0, count: 0 },
-      'Sales Operations|Voice': { in: 0, pass: 0, ab: 0, frt: 0, h: 0, count: 0 },
-      'Service Recovery|Voice': { in: 0, pass: 0, ab: 0, frt: 0, h: 0, count: 0 }
-    };
+    console.log(`[intercom-sync] computing metrics for ${date} (PST)…`);
+    const metrics = await computeDayMetrics(date);
 
-    allConvs.forEach(c => {
-      // RULE: Strictly follow the provided Team IDs
-      const teamId = String(c.team_assignee_id || '');
-      let key = null;
+    // Upsert the 6 ops_metrics rows (3 LOBs x Voice/Chat).
+    const opsRows = toOpsMetricRows(metrics);
+    const { error: opsErr } = await supabase
+      .from('ops_metrics')
+      .upsert(opsRows, { onConflict: 'department,channel,date' });
+    if (opsErr) throw new Error(`ops_metrics upsert: ${opsErr.message}`);
 
-      if (SUPPORT_VOICE.includes(teamId)) key = 'Support Operations|Voice';
-      else if (SALES_VOICE.includes(teamId)) key = 'Sales Operations|Voice';
-      else if (RECOVERY_VOICE.includes(teamId)) key = 'Service Recovery|Voice';
+    // Upsert the email productivity row.
+    const { error: emailErr } = await supabase
+      .from('email_productivity')
+      .upsert(toEmailRow(metrics), { onConflict: 'date' });
+    if (emailErr) console.error('[intercom-sync] email_productivity upsert failed:', emailErr.message);
 
-      if (!key) return; // Ignore everything else (Retail, Spanish etc)
-
-      metrics[key].in++;
-      const stats = c.statistics;
-      if (stats?.first_admin_reply_at) {
-        const frt = stats.first_admin_reply_at - c.created_at;
-        if (frt <= 75) metrics[key].pass++;
-        metrics[key].frt += frt;
-        metrics[key].count++;
-        if (stats.closed_at) metrics[key].h += (stats.closed_at - stats.first_admin_reply_at);
-      } else if (c.state === 'closed') {
-        metrics[key].ab++;
-      }
+    console.log(`[intercom-sync] ✅ ${date}`, JSON.stringify(metrics.diagnostics));
+    return NextResponse.json({
+      status: 'success',
+      date,
+      voice: metrics.voice,
+      chat: metrics.chat,
+      email: metrics.email,
+      diagnostics: metrics.diagnostics,
     });
-
-    for (const [key, m] of Object.entries(metrics) as any) {
-      const [dept, chan] = key.split('|');
-      const avg_frt = Math.round(m.frt / (m.count || 1));
-      const avg_h = Math.round(m.h / (m.count || 1));
-      
-      await supabase.from('ops_metrics').upsert({
-        department: dept, channel: chan, date: dateStr,
-        inbound_count: m.in, 
-        passed_count: m.pass, 
-        abandoned_count: m.ab,
-        frt_seconds: avg_frt,
-        handle_seconds: avg_h,
-        wait_seconds: avg_frt,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'department,channel,date' });
-    }
-
-    console.log(`[Strict-Sync] ✅ Successfully synced ${allConvs.length} items for ${dateStr}.`);
-    return NextResponse.json({ status: 'success', synced: allConvs.length });
-
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[intercom-sync] error:', message);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

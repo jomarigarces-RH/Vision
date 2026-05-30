@@ -46,6 +46,14 @@ const DEFAULT_CHANNEL: ChannelData = {
   abandonRate: '0.0%'
 };
 
+// Today's date in Pacific time (matches the sync API's PST day boundaries).
+const pstToday = () =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+// How fresh today's data must be before we skip triggering another sync.
+// Gating on DB freshness means the whole team shares ~one sync per window
+// instead of every open tab firing its own (free-tier friendly).
+const SYNC_STALE_MS = 10 * 60 * 1000;
+
 // ===== MAIN COMPONENT =====
 export default function SlaDashboardView() {
   const isVisible = usePageVisibility();
@@ -55,9 +63,9 @@ export default function SlaDashboardView() {
   const [isDark] = useState(true);
   const [toast, setToast] = useState<{ msg: string; show: boolean }>({ msg: '', show: false });
 
-  // Date state
-  const [startDate, setStartDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+  // Date state (Pacific, to align with the sync API's day boundaries)
+  const [startDate, setStartDate] = useState(() => pstToday());
+  const [endDate, setEndDate] = useState(() => pstToday());
   const [calSelecting, setCalSelecting] = useState<'from' | 'to'>('from');
   const [calMonth, setCalMonth] = useState(() => new Date().getMonth());
   const [calYear, setCalYear] = useState(() => new Date().getFullYear());
@@ -135,10 +143,10 @@ export default function SlaDashboardView() {
       });
 
       const { data: absData } = await supabase.from('absenteeism').select('*').eq('date', endDate).maybeSingle();
-      if (absData) setGlobalAbsent({ pct: absData.rate + '%', count: absData.absent_count });
+      if (absData) setGlobalAbsent({ pct: (absData.global_pct ?? 0) + '%', count: absData.total_absent ?? 0 });
 
       const { data: eData } = await supabase.from('email_productivity').select('*').eq('date', endDate).maybeSingle();
-      if (eData) setEmailData({ closed: eData.closed_count, assigned: eData.assigned_count, replied: eData.replied_count, sent: eData.sent_count, topAgents: (eData.top_agents as any) || [] });
+      if (eData) setEmailData({ closed: eData.total_closed ?? 0, assigned: eData.total_assigned ?? 0, replied: eData.total_replied ?? 0, sent: eData.replies_sent ?? 0, topAgents: (eData.top_agents as any) || [] });
 
       const { data: logs } = await supabase.from('ops_log').select('*').eq('date', endDate);
       if (logs) {
@@ -160,35 +168,56 @@ export default function SlaDashboardView() {
     }
   }, [endDate, slaTargets]);
 
-  const syncIntercom = useCallback(async () => {
-    // Only sync if looking at Today
-    const today = new Date().toISOString().split('T')[0];
-    if (endDate !== today) return;
-
+  // Guard against overlapping syncs (each sync now runs two Intercom exports).
+  const syncingRef = useRef(false);
+  const syncIntercom = useCallback(async (date?: string) => {
+    if (syncingRef.current) return; // a sync is already in flight
+    syncingRef.current = true;
     try {
       setLoading(true);
-      const res = await fetch('/api/intercom/sync', { method: 'POST' });
+      // No date => the API defaults to today in PST (the correct "today").
+      const qs = date ? `?date=${date}` : '';
+      const res = await fetch(`/api/intercom/sync${qs}`, { method: 'POST' });
       if (res.ok) {
         showToastMsg('Intercom metrics synced successfully!');
-        // No need to call fetchData() because Realtime listener will handle it!
+        await fetchData(); // refresh immediately (realtime also fires)
+      } else {
+        const e = await res.json().catch(() => ({}));
+        showToastMsg(`Sync failed: ${e.error || res.status}`);
       }
     } catch (err) {
       console.error('Sync Error:', err);
+      showToastMsg('Sync error — see console.');
     } finally {
       setLoading(false);
+      syncingRef.current = false;
     }
-  }, [endDate]);
+  }, [fetchData]);
+
+  // Read fresh data, and only trigger a (costly) sync if TODAY's data is stale.
+  // This dedups syncs across every open tab/user via the shared DB timestamp,
+  // so we don't hammer Vercel/Intercom on the free tier.
+  const syncIfStale = useCallback(async () => {
+    await fetchData();
+    if (endDate !== pstToday()) return; // historical days never auto-sync
+    const { data } = await supabase
+      .from('ops_metrics')
+      .select('updated_at')
+      .eq('date', endDate)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const ts = data?.updated_at ? new Date(data.updated_at).getTime() : 0;
+    if (Date.now() - ts > SYNC_STALE_MS) syncIntercom(); // stale or missing -> refresh
+  }, [endDate, fetchData, syncIntercom]);
 
   // Initial Fetch & Realtime - Visibility Aware
   useEffect(() => {
     if (!isVisible) return;
 
-    // Trigger sync on load
-    syncIntercom();
-    fetchData();
-    
-    // Auto-sync every 5 minutes
-    const syncInterval = setInterval(() => syncIntercom(), 5 * 60 * 1000);
+    syncIfStale();
+    // Re-check staleness on an interval; realtime pushes instant updates between checks.
+    const syncInterval = setInterval(() => syncIfStale(), SYNC_STALE_MS);
 
     console.log('SLA Dashboard: Subscribing to Realtime (Page Visible)');
     const channel = supabase
@@ -197,13 +226,13 @@ export default function SlaDashboardView() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'absenteeism' }, () => fetchData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'ops_log' }, () => fetchData())
       .subscribe();
-      
-    return () => { 
+
+    return () => {
       console.log('SLA Dashboard: Unsubscribing (Tab Hidden or Unmount)');
       clearInterval(syncInterval);
-      supabase.removeChannel(channel); 
+      supabase.removeChannel(channel);
     };
-  }, [fetchData, syncIntercom, isVisible]);
+  }, [fetchData, syncIfStale, isVisible]);
 
   // UI Handlers
   const togglePreset = (field: string, preset: string) => {
@@ -220,7 +249,7 @@ export default function SlaDashboardView() {
     const t = new Date();
     const ds = (dt: Date) => dt.toISOString().split('T')[0];
     switch (type) {
-      case 'today': setStartDate(ds(t)); setEndDate(ds(t)); break;
+      case 'today': { const today = pstToday(); setStartDate(today); setEndDate(today); break; }
       case 'yesterday': { const yd = new Date(); yd.setDate(yd.getDate() - 1); setStartDate(ds(yd)); setEndDate(ds(yd)); break; }
       case 'thisWeek': { const ws = new Date(); ws.setDate(ws.getDate() - ws.getDay()); setStartDate(ds(ws)); setEndDate(ds(t)); break; }
       case 'lastWeek': { const lws = new Date(); lws.setDate(lws.getDate() - lws.getDay() - 7); const lwe = new Date(); lwe.setDate(lwe.getDate() - lws.getDay() - 1); setStartDate(ds(lws)); setEndDate(ds(lwe)); break; }
@@ -467,7 +496,7 @@ export default function SlaDashboardView() {
               </div>
             </div>
             <MiniCalendar year={calYear} month={calMonth} startDate={startDate} endDate={endDate} onPick={calPick} onPrev={() => { setCalMonth(p => p === 0 ? 11 : p - 1); if (calMonth === 0) setCalYear(p => p - 1); }} onNext={() => { setCalMonth(p => p === 11 ? 0 : p + 1); if (calMonth === 11) setCalYear(p => p + 1); }} />
-            <button onClick={() => fetchData()} className="w-full mt-3 py-2.5 rounded-lg bg-[#4f7df3] text-white text-[0.75rem] font-bold flex items-center justify-center gap-2 hover:opacity-85 cursor-pointer">
+            <button onClick={() => syncIntercom(endDate)} className="w-full mt-3 py-2.5 rounded-lg bg-[#4f7df3] text-white text-[0.75rem] font-bold flex items-center justify-center gap-2 hover:opacity-85 cursor-pointer">
               <Download size={13} /> Update Dashboard
             </button>
           </CPSection>
