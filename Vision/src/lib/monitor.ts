@@ -16,14 +16,18 @@ import { supabase } from '@/lib/supabase';
 import {
   channelFromSourceType,
   classifyMonitorGroup,
+  exportOpenEmailByTeammate,
   getActivityLogs,
   getAdminsDetailed,
+  getAppId,
   getLiveConversations,
   getOpenEmailCount,
   getTeams,
 } from '@/lib/intercom';
 
 export type Presence = 'online' | 'away' | 'offline';
+
+export type AgentConv = { id: string; ch: 'Voice' | 'Chat' | 'Email' };
 
 export type MonitorAgent = {
   teammate_id: string;
@@ -37,6 +41,7 @@ export type MonitorAgent = {
   calls_open: number;
   chats_open: number;
   emails_open: number;
+  convs: AgentConv[]; // open conversation ids (for deep-linking from the grid)
   last_event_at: string | null;
 };
 
@@ -45,6 +50,7 @@ export type QueueGroup = { voice: number; chat: number; oldestWaitingAt: string 
 export type MonitorSnapshot = {
   generatedAt: string;
   cached: boolean;
+  appId: string; // Intercom workspace id_code for inbox deep links
   agents: MonitorAgent[];
   queue: Record<string, QueueGroup>; // keyed by lob group + 'null'
   handling: { Voice: number; Chat: number };

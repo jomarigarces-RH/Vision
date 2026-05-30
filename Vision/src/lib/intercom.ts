@@ -311,6 +311,50 @@ export function exportCallTeammateStats(start: number, end: number): Promise<Cal
   return runExport('call_teammate_stats', CALL_TEAMMATE_ATTRS, start, end) as Promise<CallTeammateRow[]>;
 }
 
+// --- App id (workspace) for building Intercom inbox deep links -------------
+let appIdCache: string | null = null;
+/** Intercom workspace id_code — used in inbox URLs. Cached for the process. */
+export async function getAppId(): Promise<string> {
+  if (appIdCache !== null) return appIdCache;
+  try {
+    const me = await fetch(`${BASE}/me`, { headers: apiHeaders() }).then((r) => r.json());
+    appIdCache = String(me?.app?.id_code || '');
+  } catch {
+    appIdCache = '';
+  }
+  return appIdCache;
+}
+
+// --- Per-agent open-email workload (NAME -> conversation ids) --------------
+/**
+ * Open email conversations grouped by their currently-assigned teammate NAME,
+ * via the (fast) reporting export. Returns the conversation ids so the UI can
+ * deep-link them. Window defaults to 21d to capture the open backlog.
+ */
+export async function exportOpenEmailByTeammate(windowDays = 21): Promise<{ byName: Map<string, string[]>; unassigned: number }> {
+  const end = Math.floor(Date.now() / 1000);
+  const start = end - windowDays * 86400;
+  const rows = await runExport(
+    'conversation',
+    ['standard.conversation_id', 'standard.channel', 'standard.current_conversation_state', 'teammate.currently_assigned_teammate_id'],
+    start,
+    end,
+  );
+  const byName = new Map<string, string[]>();
+  let unassigned = 0;
+  for (const r of rows) {
+    if (!/email/i.test(r.channel) || !/open/i.test(r.current_conversation_state)) continue;
+    const a = r.currently_assigned_teammate_id;
+    if (!a || /unassigned/i.test(a)) {
+      unassigned++;
+      continue;
+    }
+    if (!byName.has(a)) byName.set(a, []);
+    if (r.conversation_id) byName.get(a)!.push(r.conversation_id);
+  }
+  return { byName, unassigned };
+}
+
 // ===========================================================================
 // Agent Monitoring (Step 2) — live REST helpers
 // ===========================================================================
