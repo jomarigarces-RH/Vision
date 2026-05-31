@@ -97,7 +97,7 @@ const PRES_RANK: Record<string, number> = { online: 0, away: 1, offline: 2 };
 // ms the agent has been in their current state (from away_since); -1 if unknown.
 const stateMs = (a: { away_since: string | null }) => (a.away_since ? Date.now() - new Date(a.away_since).getTime() : -1);
 
-const POLL_MS = 15 * 1000; // server is stale-while-revalidate, so polls are cheap & instant
+const POLL_MS = 12 * 1000; // server is stale-while-revalidate, so polls are cheap & instant
 const BEHAVIOR_POLL_MS = 120 * 1000; // matches the behavior poller's server-side cache
 
 // Overbreak: away longer than the allowed limit for the reason -> glow + anchor.
@@ -536,9 +536,16 @@ export default function MonitorView() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <h2 className="text-lg font-bold tracking-tight">Agent Monitoring</h2>
-          <span className="text-xs font-medium text-[var(--text-secondary)]">
-            {loading ? 'syncing…' : snap ? `updated ${fmtAgo(snap.generatedAt)} ago` : '—'}
-          </span>
+          {(() => {
+            const ageMs = snap ? Date.now() - new Date(snap.generatedAt).getTime() : Infinity;
+            const stale = ageMs > 90_000;
+            return (
+              <span className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-secondary)]">
+                <span className={`inline-block h-2 w-2 rounded-full ${loading ? 'animate-ping bg-brand-blue' : stale ? 'bg-amber-400' : 'animate-pulse bg-emerald-400'}`} />
+                {loading ? 'syncing…' : snap ? `live · updated ${fmtAgo(snap.generatedAt)} ago` : '—'}
+              </span>
+            );
+          })()}
         </div>
         <div className="flex items-center gap-2">
           <button

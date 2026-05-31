@@ -61,7 +61,7 @@ export type MonitorSnapshot = {
   counts: { agents: number; liveConversations: number; staleClosed: number };
 };
 
-const TTL_MS = 45 * 1000;
+const TTL_MS = 22 * 1000; // refresh the snapshot cache ~every 22s (compute is fast + bounded)
 const QUEUE_KEYS = ['support', 'sales', 'specialty', 'spanish', 'null'];
 
 // --- Agent LOB = their ROLE from the staff roster (NOT the contact's team) ---
@@ -266,7 +266,7 @@ async function computeAndPersist(): Promise<MonitorSnapshot> {
   const [admins, teams, events, convs, emailBacklog, staff, appId] = await Promise.all([
     getAdminsDetailed(),
     getTeams(),
-    getActivityLogs(sinceUnix, 40).catch(() => []),
+    getActivityLogs(sinceUnix, 12).catch(() => []),
     getLiveConversations(),
     getOpenEmailCount().catch(() => 0),
     getStaff().catch(() => []),
