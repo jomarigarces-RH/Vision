@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   title: "Ashley Digital - Vision",
   description: "Workforce Monitoring & SLA Dashboard",
   icons: {
-    icon: "/favicon.png",
+    icon: "/logo.png",
   },
 };
 

@@ -196,7 +196,12 @@ export default function MonitorView() {
     setLoading(true);
     try {
       const res = await fetch(`/api/monitor/snapshot${force ? '?force=1' : ''}`);
-      if (res.ok) setSnap(await res.json());
+      if (res.ok) {
+        const data = (await res.json()) as MonitorSnapshot;
+        // Never downgrade a populated grid to the server's empty fallback (which
+        // it returns if a cold compute hit an Intercom hiccup) — keep last good.
+        setSnap((prev) => (data.agents?.length === 0 && prev && prev.agents.length > 0 ? prev : data));
+      }
     } catch {
       /* keep last snapshot on screen */
     } finally {

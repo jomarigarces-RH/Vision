@@ -22,6 +22,29 @@ export type Channel = 'Voice' | 'Chat' | 'Email' | 'SMS';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** Retry a flaky call (Intercom 429s / transient network) with linear backoff. */
+async function withRetry<T>(fn: () => Promise<T>, tries = 3, delayMs = 700): Promise<T> {
+  let lastErr: unknown;
+  for (let i = 0; i < tries; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      lastErr = e;
+      if (i < tries - 1) await sleep(delayMs * (i + 1));
+    }
+  }
+  throw lastErr;
+}
+
+/** GET JSON with ok-check + retry; throws (after retries) so callers don't cache empties. */
+async function getJson(url: string): Promise<any> {
+  return withRetry(async () => {
+    const res = await fetch(url, { headers: apiHeaders() });
+    if (!res.ok) throw new Error(`GET ${url.replace(BASE, '')} -> ${res.status}`);
+    return res.json();
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Team -> LOB classification (by name). Mirrors the user's confirmed rules.
 // ---------------------------------------------------------------------------
@@ -405,11 +428,17 @@ const CACHE_MS = 5 * 60 * 1000;
 /** team_id -> team name (cached 5 min). */
 export async function getTeams(): Promise<Map<string, string>> {
   if (teamCache && Date.now() - teamCache.at < CACHE_MS) return teamCache.map;
-  const data = await fetch(`${BASE}/teams`, { headers: apiHeaders() }).then((r) => r.json());
-  const map = new Map<string, string>();
-  for (const t of data?.teams || []) map.set(String(t.id), t.name);
-  teamCache = { at: Date.now(), map };
-  return map;
+  try {
+    const data = await getJson(`${BASE}/teams`);
+    if (!Array.isArray(data?.teams)) throw new Error('teams: unexpected response');
+    const map = new Map<string, string>();
+    for (const t of data.teams) map.set(String(t.id), t.name);
+    teamCache = { at: Date.now(), map };
+    return map;
+  } catch (e) {
+    if (teamCache) return teamCache.map; // serve stale rather than fail the snapshot
+    throw e;
+  }
 }
 
 /** admin_id -> { name, email } (cached 5 min). */
@@ -431,10 +460,12 @@ export type AdminDetail = {
   has_inbox_seat: boolean;      // true => a real teammate who takes inbox work
 };
 
-/** Full admin records (presence baseline). Not cached — reconcile wants fresh. */
+/** Full admin records (presence baseline). Retries + throws on failure so the
+ *  snapshot never caches an empty agent list from a transient 429. */
 export async function getAdminsDetailed(): Promise<AdminDetail[]> {
-  const data = await fetch(`${BASE}/admins`, { headers: apiHeaders() }).then((r) => r.json());
-  return (data?.admins || []).map((ad: Record<string, unknown>) => ({
+  const data = await getJson(`${BASE}/admins`);
+  if (!Array.isArray(data?.admins)) throw new Error('admins: unexpected response');
+  return data.admins.map((ad: Record<string, unknown>) => ({
     id: String(ad.id),
     name: String(ad.name ?? ''),
     email: String(ad.email ?? ''),
@@ -535,9 +566,11 @@ export async function getLiveConversations(): Promise<OpenConversation[]> {
       },
       pagination: { per_page: 150, ...(startingAfter ? { starting_after: startingAfter } : {}) },
     };
-    const res = await fetch(`${BASE}/conversations/search`, { method: 'POST', headers: apiHeaders(), body: JSON.stringify(body) });
-    if (!res.ok) throw new Error(`live conversations search ${res.status}`);
-    const data = await res.json();
+    const data = await withRetry(async () => {
+      const res = await fetch(`${BASE}/conversations/search`, { method: 'POST', headers: apiHeaders(), body: JSON.stringify(body) });
+      if (!res.ok) throw new Error(`live conversations search ${res.status}`);
+      return res.json();
+    });
     const convs: OpenConversation[] = data?.conversations || [];
     out.push(...convs);
     startingAfter = data?.pages?.next?.starting_after;
