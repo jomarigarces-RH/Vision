@@ -197,6 +197,47 @@ async function writeOverbreaks(agents: MonitorAgent[]): Promise<void> {
   }
 }
 
+// Human-readable channel name for the alert detail (matches the grid's labels).
+const channelText = (c: string | null) =>
+  c === 'phone' ? 'Voice' : c === 'conversations' ? 'Messaging' : c === 'both' ? 'Both' : c || 'unknown';
+
+/**
+ * Record an Alert-Feed event for each MANUAL (off-script) channel change found in
+ * the activity log. Deduped on the activity-event id (same key the webhook uses)
+ * so a change is never posted twice. This runs from the snapshot compute, so
+ * off-script channel changes surface even where Intercom webhooks aren't
+ * delivered (e.g. localhost, or before the webhook is configured) — which is why
+ * the Alert Feed had stopped showing manual changes.
+ */
+async function writeManualChannelAlerts(
+  manual: Array<{ id: string; eventId: string; channel: string | null; atIso: string }>,
+  drafts: Map<string, MonitorAgent>,
+): Promise<void> {
+  if (!manual.length) return;
+  const rows = manual
+    .filter((e) => drafts.has(e.id))
+    .map((e) => {
+      const d = drafts.get(e.id)!;
+      return {
+        teammate_id: e.id,
+        teammate_name: d.name,
+        lob: d.lob,
+        behavior: 'channel_change',
+        is_alert: true,
+        detail: `Manually switched channel to "${channelText(e.channel)}"`,
+        at: e.atIso,
+        date: pstDateString(new Date(e.atIso)),
+        dedup_key: `channel:${e.id}:${e.eventId}`,
+      };
+    });
+  if (!rows.length) return;
+  try {
+    await supabase.from('behavior_events').upsert(rows, { onConflict: 'dedup_key', ignoreDuplicates: true });
+  } catch {
+    /* best-effort */
+  }
+}
+
 let cache: { at: number; snap: MonitorSnapshot } | null = null;
 let inFlight: Promise<MonitorSnapshot> | null = null;
 let inFlightAt = 0;
@@ -302,6 +343,8 @@ async function computeAndPersist(): Promise<MonitorSnapshot> {
   const lastAwayOn = new Map<string, { reason: string | null; at: string }>();
   const lastChannel = new Map<string, { channel: string | null; auto: boolean | null }>();
   const lastEventAt = new Map<string, string>();
+  // Every off-script (manual) channel change in the window -> Alert Feed rows.
+  const manualChannel: Array<{ id: string; eventId: string; channel: string | null; atIso: string }> = [];
   for (const ev of [...events].sort((x, y) => x.created_at - y.created_at)) {
     const id = String(ev.performed_by?.id || '');
     if (!id || !drafts.has(id)) continue;
@@ -312,10 +355,11 @@ async function computeAndPersist(): Promise<MonitorSnapshot> {
       if (meta.away_mode) lastAwayOn.set(id, { reason: (meta.away_status_reason as string) || null, at: atIso });
       else lastAwayOn.delete(id);
     } else if (ev.activity_type === 'admin_channel_change') {
-      lastChannel.set(id, {
-        channel: (meta.channel_availability as string) ?? null,
-        auto: typeof meta.auto_changed === 'boolean' ? (meta.auto_changed as boolean) : null,
-      });
+      const channel = (meta.channel_availability as string) ?? null;
+      const auto = typeof meta.auto_changed === 'boolean' ? (meta.auto_changed as boolean) : null;
+      lastChannel.set(id, { channel, auto });
+      // auto === false => the agent changed their own channel (off-script).
+      if (auto === false) manualChannel.push({ id, eventId: String(ev.id || atIso), channel, atIso });
     }
   }
   // Last-known channel from what we've already persisted (Intercom's REST API
@@ -426,6 +470,7 @@ async function computeAndPersist(): Promise<MonitorSnapshot> {
   // 4) Persist (so webhooks have a base state) + prune; flag overbreaks to the feed.
   const staleClosed = await persist(agents, liveRows, nowIso);
   await writeOverbreaks(agents);
+  await writeManualChannelAlerts(manualChannel, drafts);
 
   const presence = { online: 0, away: 0, offline: 0 };
   const awayMap = new Map<string, number>();

@@ -99,8 +99,9 @@ async function handleConversation(conv: any) {
   );
 
   if (prior?.assignee_id && !newAssigneeId && !closed) {
-    // Conversation went from assigned-to-an-agent → unassigned: record it (report),
-    // no alert by default (policy: unassign is recorded, not alerted).
+    // Conversation went from assigned-to-an-agent → unassigned: an off-script
+    // self-unassign. This belongs in the Alert Feed (alongside manual channel
+    // changes + overbreak), per the dashboard's documented alert model.
     const wl = await workloadFor(prior.assignee_id);
     await recordBehavior({
       teammate_id: prior.assignee_id,
@@ -110,7 +111,7 @@ async function handleConversation(conv: any) {
       conversation_id: convId,
       customer_name: conv?.source?.author?.name || null,
       workload: wl,
-      is_alert: false,
+      is_alert: true,
       detail: `Unassigned a ${channel || 'conversation'} from themselves`,
       at: new Date(),
       dedup_key: `unassigned:${convId}:${Math.floor(Date.now() / 60000)}`,

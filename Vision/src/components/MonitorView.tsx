@@ -279,20 +279,17 @@ export default function MonitorView() {
   }, [loadDeclines, loadAlerts]);
 
   useEffect(() => {
-    // Runs the whole time the monitor is MOUNTED (tab open) — we intentionally do
-    // NOT pause on tab-hidden, so the Picture-in-Picture window keeps updating
-    // while you're in another tab/app. It only stops when the tab/view is closed
-    // (unmount cleanup below). The realtime WebSocket also keeps the tab from
-    // being heavily throttled in the background.
+    // Initial load + realtime subscription. Runs the whole time the monitor is
+    // MOUNTED (tab open) — we intentionally do NOT pause on tab-hidden, so the
+    // Picture-in-Picture window keeps updating while you're in another tab/app.
+    // It only stops when the tab/view is closed (unmount cleanup below). The
+    // periodic polling/re-render is driven by a separate heartbeat effect (below)
+    // whose timers survive tab backgrounding when a PiP window is open.
     loadSnapshot();
     loadAlerts();
     loadDeclines();
     seedLiveConvs();
     triggerBehaviorPoll();
-    const snapInterval = setInterval(() => pollSnapshot(), POLL_MS);
-    const behaviorInterval = setInterval(() => triggerBehaviorPoll(), BEHAVIOR_POLL_MS);
-    const reseedInterval = setInterval(() => seedLiveConvs(), 120 * 1000); // correct realtime drift
-    const tick = setInterval(() => forceTick((n) => n + 1), 10 * 1000); // live time-in-state / overbreak
     const channel = supabase
       .channel('monitor-rt')
       // --- behavior_events: alert feed + decline stream ---
@@ -342,13 +339,36 @@ export default function MonitorView() {
       })
       .subscribe();
     return () => {
-      clearInterval(snapInterval);
-      clearInterval(behaviorInterval);
-      clearInterval(reseedInterval);
-      clearInterval(tick);
       supabase.removeChannel(channel);
     };
-  }, [loadSnapshot, pollSnapshot, loadAlerts, loadDeclines, seedLiveConvs, triggerBehaviorPoll, notify]);
+  }, [loadSnapshot, loadAlerts, loadDeclines, seedLiveConvs, triggerBehaviorPoll, notify]);
+
+  // ---- HEARTBEAT: polling + the live time-in-state re-render --------------
+  // Background tabs throttle setInterval to ~once/minute, which is what froze the
+  // PiP (the data was stuck at whatever time you last had the tab focused). A
+  // Document Picture-in-Picture window is always treated as "visible", so timers
+  // we schedule *on it* keep firing at full speed even when the main tab is in the
+  // background. So: host the heartbeat on the PiP window whenever one is open,
+  // otherwise on the main window (full speed when the tab is visible; throttled
+  // and self-healing on return when it's hidden — which is fine, nobody's
+  // watching). The realtime subscription above stays live the whole time.
+  useEffect(() => {
+    const host: Window = pipWindow && !pipWindow.closed ? pipWindow : window;
+    const snapInterval = host.setInterval(() => pollSnapshot(), POLL_MS);
+    const behaviorInterval = host.setInterval(() => triggerBehaviorPoll(), BEHAVIOR_POLL_MS);
+    const reseedInterval = host.setInterval(() => seedLiveConvs(), 120 * 1000); // correct realtime drift
+    const tick = host.setInterval(() => forceTick((n) => n + 1), 10 * 1000); // live time-in-state / overbreak
+    return () => {
+      try {
+        host.clearInterval(snapInterval);
+        host.clearInterval(behaviorInterval);
+        host.clearInterval(reseedInterval);
+        host.clearInterval(tick);
+      } catch {
+        /* host window may already be torn down (PiP closed) */
+      }
+    };
+  }, [pipWindow, pollSnapshot, triggerBehaviorPoll, seedLiveConvs]);
 
   const toggleNotify = async () => {
     if (!notify && typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
