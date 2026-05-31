@@ -206,26 +206,52 @@ let inFlight: Promise<MonitorSnapshot> | null = null;
  * background refresh and return the slightly-stale copy. Only a cold cache (or
  * force=true) awaits a fresh compute.
  */
+function emptySnapshot(): MonitorSnapshot {
+  const queue: Record<string, QueueGroup> = {};
+  for (const k of QUEUE_KEYS) queue[k] = { voice: 0, chat: 0, oldestWaitingAt: null };
+  return {
+    generatedAt: new Date().toISOString(),
+    cached: false,
+    appId: appIdCached,
+    agents: [],
+    queue,
+    handling: { Voice: 0, Chat: 0 },
+    emailBacklog: 0,
+    presence: { online: 0, away: 0, offline: 0 },
+    awayBreakdown: [],
+    counts: { agents: 0, liveConversations: 0, staleClosed: 0 },
+  };
+}
+
 export async function getMonitorSnapshot(force = false): Promise<MonitorSnapshot> {
   const refresh = () => {
-    if (inFlight) return inFlight;
-    inFlight = computeAndPersist()
-      .then((snap) => {
-        cache = { at: Date.now(), snap };
-        return snap;
-      })
-      .finally(() => {
-        inFlight = null;
-      });
+    if (!inFlight) {
+      inFlight = computeAndPersist()
+        .then((snap) => {
+          cache = { at: Date.now(), snap };
+          return snap;
+        })
+        .finally(() => {
+          inFlight = null;
+        });
+    }
     return inFlight;
   };
 
-  if (force) return refresh();
-  if (cache) {
-    if (Date.now() - cache.at >= TTL_MS) void refresh(); // refresh in the background
+  // Warm: always serve the cached copy instantly; refresh in the background.
+  if (!force && cache) {
+    if (Date.now() - cache.at >= TTL_MS) refresh().catch((e) => console.error('[monitor] bg refresh failed:', e instanceof Error ? e.message : e));
     return { ...cache.snap, cached: true };
   }
-  return refresh(); // cold: must wait once
+
+  // Cold or forced: compute, but NEVER throw to the route — fall back to the last
+  // good cache (preferred) or a valid empty snapshot, so the endpoint never 500s.
+  try {
+    return await refresh();
+  } catch (e) {
+    console.error('[monitor] compute failed:', e instanceof Error ? e.message : e);
+    return cache ? { ...cache.snap, cached: true } : emptySnapshot();
+  }
 }
 
 async function computeAndPersist(): Promise<MonitorSnapshot> {

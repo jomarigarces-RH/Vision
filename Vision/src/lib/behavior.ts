@@ -35,16 +35,23 @@ let inFlight: Promise<BehaviorPollResult> | null = null;
 
 export async function pollBehavior(force = false): Promise<BehaviorPollResult> {
   if (!force && cache && Date.now() - cache.at < TTL_MS) return { ...cache.res, cached: true };
-  if (inFlight) return inFlight;
-  inFlight = run()
-    .then((res) => {
-      cache = { at: Date.now(), res };
-      return res;
-    })
-    .finally(() => {
-      inFlight = null;
-    });
-  return inFlight;
+  if (!inFlight) {
+    inFlight = run()
+      .then((res) => {
+        cache = { at: Date.now(), res };
+        return res;
+      })
+      .finally(() => {
+        inFlight = null;
+      });
+  }
+  // Never throw to the route: on failure serve the last result, or a benign zero.
+  try {
+    return await inFlight;
+  } catch (e) {
+    console.error('[behavior] poll failed:', e instanceof Error ? e.message : e);
+    return cache ? { ...cache.res, cached: true } : { generatedAt: new Date().toISOString(), cached: false, windowMinutes: 0, rows: 0, recorded: 0, alerts: 0 };
+  }
 }
 
 /** One-off poll over an explicit PST day range (for backfill / reporting). Not cached. */

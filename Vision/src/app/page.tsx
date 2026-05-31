@@ -68,15 +68,16 @@ export default function Dashboard() {
           absolute md:relative
           ${sidebarCollapsed ? "-translate-x-full md:translate-x-0 md:w-[72px]" : "translate-x-0 w-[260px]"}`}
       >
-        <div className="p-5 flex justify-center items-center">
-          <div className={`bg-[var(--bg-card)] rounded-xl flex items-center justify-center shadow-sm overflow-hidden transition-all duration-300 ${sidebarCollapsed ? "w-10 h-10 p-1" : "w-[60px] h-[66px] p-1.5"}`}>
-            <svg width={sidebarCollapsed ? "24" : "36"} height={sidebarCollapsed ? "28" : "44"} viewBox="0 0 120 148" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 8 L12 100 L30 100 L30 68 L58 68 L78 100 L98 100 L74 64 C88 58 96 46 96 32 C96 14 82 8 62 8 Z M30 24 L58 24 C72 24 78 28 78 38 C78 48 72 54 58 54 L30 54 Z" fill="#ffffff" />
-              {(!sidebarCollapsed || isMobile) && (
-                <text x="60" y="132" textAnchor="middle" fontFamily="Inter, sans-serif" fontWeight="800" fontSize="22" letterSpacing="3" fill="#ffffff">RESIDENT</text>
-              )}
-            </svg>
-          </div>
+        <div className="p-5 flex flex-col justify-center items-center gap-1.5">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logo.png"
+            alt="Ashley Digital"
+            className={`object-contain transition-all duration-300 ${sidebarCollapsed ? "w-9" : "w-[120px]"}`}
+          />
+          {(!sidebarCollapsed || isMobile) && (
+            <span className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-[var(--text-secondary)]">Ashley Digital</span>
+          )}
         </div>
 
         <nav className="flex-1 px-3 py-2 flex flex-col gap-1 overflow-y-auto hide-scrollbar">
@@ -122,8 +123,8 @@ export default function Dashboard() {
               <Menu size={20} />
             </button>
             <h1 className="text-base sm:text-xl font-bold tracking-tight text-[var(--text-primary)] flex items-center truncate">
-              <span className="hidden sm:inline">Resident Home</span>
-              <span className="sm:hidden">Resident</span>
+              <span className="hidden sm:inline">Ashley Digital</span>
+              <span className="sm:hidden">Ashley</span>
               <span className="text-[var(--text-tertiary)] font-medium mx-1 sm:mx-2">|</span>
               <span className="truncate">Vision</span>
             </h1>
