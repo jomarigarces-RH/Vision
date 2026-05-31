@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '@/lib/supabase';
 import { usePageVisibility } from '@/hooks/usePageVisibility';
 import {
   Phone, MessageSquare, Mail, Users, Coffee, Circle, RefreshCw,
   AlertTriangle, Bell, BellOff, Search, Clock, PhoneOff, UserMinus, Repeat,
   X, ChevronUp, ChevronDown, ChevronsUpDown, Volume2, VolumeX, PhoneIncoming,
-  Maximize2, Minimize2, Copy, ExternalLink,
+  Maximize2, Minimize2, Copy, ExternalLink, PictureInPicture2,
 } from 'lucide-react';
 
 // ===== TYPES (mirror src/lib/monitor.ts snapshot payload) =====
@@ -145,6 +146,7 @@ export default function MonitorView() {
   const [notify, setNotify] = useState(false);
   const [expanded, setExpanded] = useState<null | 'grid' | 'alerts' | 'declines'>(null);
   const [convPop, setConvPop] = useState<{ x: number; y: number; label: string; convs: AgentConv[] } | null>(null);
+  const [pipWindow, setPipWindow] = useState<Window | null>(null);
 
   // Realtime overlays: live agent_state rows (override the snapshot when newer)
   // and the live open Voice/Chat set (drives queue + handling in real time).
@@ -340,6 +342,47 @@ export default function MonitorView() {
     setNotify((n) => !n);
   };
 
+  // Picture-in-Picture: pop a compact, always-on-top live panel (grid + queue).
+  // Uses the Document PiP API where available, else a normal pop-out window.
+  const openPip = useCallback(async () => {
+    if (pipWindow) {
+      pipWindow.close();
+      return;
+    }
+    try {
+      const dpip = (window as unknown as { documentPictureInPicture?: { requestWindow: (o: { width: number; height: number }) => Promise<Window> } }).documentPictureInPicture;
+      const w = dpip?.requestWindow ? await dpip.requestWindow({ width: 1040, height: 660 }) : window.open('', 'vision-pip', 'width=1040,height=660');
+      if (!w) return;
+      // Copy this document's styles (incl. CSS variables / Tailwind) into the PiP doc.
+      for (const ss of Array.from(document.styleSheets)) {
+        try {
+          const css = Array.from(ss.cssRules).map((r) => r.cssText).join('\n');
+          const style = w.document.createElement('style');
+          style.textContent = css;
+          w.document.head.appendChild(style);
+        } catch {
+          if (ss.href) {
+            const link = w.document.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = ss.href;
+            w.document.head.appendChild(link);
+          }
+        }
+      }
+      w.document.documentElement.className = document.documentElement.className;
+      w.document.body.className = document.body.className;
+      w.document.body.style.margin = '0';
+      w.document.title = 'Vision — Live Monitor';
+      w.addEventListener('pagehide', () => setPipWindow(null));
+      setPipWindow(w);
+    } catch {
+      /* PiP not permitted */
+    }
+  }, [pipWindow]);
+
+  // Close the PiP window if the dashboard unmounts.
+  useEffect(() => () => pipWindow?.close(), [pipWindow]);
+
   const emailBacklog = snap?.emailBacklog ?? 0;
   const appId = snap?.appId ?? '';
   const genAt = snap?.generatedAt ? new Date(snap.generatedAt).getTime() : 0;
@@ -476,6 +519,16 @@ export default function MonitorView() {
           >
             {notify ? <Bell size={14} /> : <BellOff size={14} />}
             Alerts
+          </button>
+          <button
+            onClick={openPip}
+            title="Pop out a floating live monitor (grid + queue)"
+            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+              pipWindow ? 'bg-brand-blue/15 text-brand-blue' : 'text-[var(--text-secondary)] hover:bg-white/5'
+            }`}
+          >
+            <PictureInPicture2 size={14} />
+            {pipWindow ? 'Close PiP' : 'Pop out'}
           </button>
           <button
             onClick={() => loadSnapshot(true)}
@@ -737,6 +790,75 @@ export default function MonitorView() {
           </div>
         </div>
       </div>
+
+      {/* PICTURE-IN-PICTURE: compact, always-on-top live monitor (grid + queue) */}
+      {pipWindow &&
+        createPortal(
+          <div className="flex h-screen w-screen flex-col gap-2 bg-[var(--bg-body)] p-2 font-sans text-sm text-[var(--text-primary)]">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-bold">
+              <span className="flex items-center gap-1 text-emerald-400"><Circle size={8} className="fill-current" />{presence.online}</span>
+              <span className="text-amber-400">Away {presence.away}</span>
+              <span className="text-slate-400">Off {presence.offline}</span>
+              <span className="text-brand-blue">Calls {handling.Voice}</span>
+              <span className="text-violet-400">Chats {handling.Chat}</span>
+              <span className="ml-auto text-amber-400">{totalVoiceWait} voice</span>
+              <span className="text-violet-400">{totalChatWait} chat</span>
+              <span className="font-medium text-[var(--text-secondary)]">waiting</span>
+              {overbreakCount > 0 && <span className="rounded bg-rose-500/15 px-1.5 text-rose-400">{overbreakCount} overbreak</span>}
+            </div>
+            <div className="grid grid-cols-5 gap-1.5">
+              {LOB_GROUPS.map((g) => {
+                const q = queue[g.key] || { voice: 0, chat: 0, oldestWaitingAt: null };
+                const wait = q.voice + q.chat;
+                return (
+                  <div key={g.key} className={`rounded-lg border bg-[var(--bg-card)] px-2 py-1 ${q.voice > 0 ? 'border-amber-500/40' : 'border-[var(--border-light)]'}`}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold">{g.label}</span>
+                      {wait > 0 && <span className="text-[11px] font-bold text-amber-400">{wait}</span>}
+                    </div>
+                    <div className="flex items-center gap-3 text-[13px] font-bold">
+                      <span className={q.voice > 0 ? 'text-amber-400' : 'text-[var(--text-secondary)]'}><Phone size={11} className="mr-0.5 inline" />{q.voice}</span>
+                      <span className={q.chat > 0 ? 'text-amber-400' : 'text-[var(--text-secondary)]'}><MessageSquare size={11} className="mr-0.5 inline" />{q.chat}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-[var(--border-light)] bg-[var(--bg-card)]">
+              <table className="w-full text-[13px]">
+                <thead className="sticky top-0 bg-[var(--bg-card)] text-[10px] uppercase tracking-wide text-[var(--text-secondary)]">
+                  <tr className="border-b border-[var(--border-light)]">
+                    <th className="px-2 py-1 text-left font-bold">Agent</th>
+                    <th className="px-1 text-left font-bold">State</th>
+                    <th className="px-1 text-left font-bold">Time</th>
+                    <th className="px-1 text-left font-bold">LOB</th>
+                    <th className="px-1 text-center font-bold"><Phone size={11} className="inline" /></th>
+                    <th className="px-1 text-center font-bold"><MessageSquare size={11} className="inline" /></th>
+                    <th className="px-1 text-center font-bold"><Mail size={11} className="inline" /></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {gridAgents.map((a) => {
+                    const over = overbreakMins(a);
+                    return (
+                      <tr key={a.teammate_id} className={`border-b border-[var(--border-light)]/40 ${over ? 'animate-pulse bg-rose-500/10' : ''}`}>
+                        <td className="max-w-[160px] truncate px-2 py-0.5 font-semibold">{a.name}</td>
+                        <td className="px-1"><StateBadge presence={a.presence} reason={a.away_reason} /></td>
+                        <td className={`px-1 ${over ? 'font-bold text-rose-400' : 'text-[var(--text-secondary)]'}`}>{a.away_since ? fmtAgo(a.away_since) : '—'}{over > 0 ? ` +${over}m` : ''}</td>
+                        <td className="px-1 text-[var(--text-secondary)]">{lobLabel(a.lob)}</td>
+                        <td className={`px-1 text-center font-bold ${a.calls_open > 0 ? 'text-brand-blue' : 'text-[var(--text-tertiary)]'}`}>{a.calls_open}</td>
+                        <td className={`px-1 text-center font-bold ${a.chats_open > 0 ? 'text-violet-400' : 'text-[var(--text-tertiary)]'}`}>{a.chats_open}</td>
+                        <td className={`px-1 text-center font-bold ${a.emails_open > 0 ? 'text-slate-300' : 'text-[var(--text-tertiary)]'}`}>{a.emails_open}</td>
+                      </tr>
+                    );
+                  })}
+                  {gridAgents.length === 0 && <tr><td colSpan={7} className="py-6 text-center text-[var(--text-secondary)]">No agents.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>,
+          pipWindow.document.body,
+        )}
 
       {/* Conversation-id popover (deep links to Intercom + copy) */}
       {convPop && (
