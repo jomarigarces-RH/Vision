@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin as supabase } from '@/lib/supabase'; // server-only; bypasses RLS
 import { pstDateString } from '@/lib/intercom';
 import { computeDayMetrics, toEmailRow, toOpsMetricRows } from '@/lib/sla-metrics';
 

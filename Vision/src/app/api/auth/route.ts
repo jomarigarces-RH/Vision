@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin as supabase } from "@/lib/supabase"; // server-only; bypasses RLS (users table stays private)
 import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {

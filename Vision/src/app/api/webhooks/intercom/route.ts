@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import crypto from 'node:crypto';
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin as supabase } from '@/lib/supabase'; // server-only; bypasses RLS
 import {
   channelFromSourceType,
   classifyMonitorGroup,

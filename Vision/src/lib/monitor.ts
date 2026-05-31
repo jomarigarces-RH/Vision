@@ -12,7 +12,7 @@
  *     produce no delivered realtime messages.
  *   - Closed conversations are pruned so the DB stays well under 500 MB.
  */
-import { supabase } from '@/lib/supabase';
+import { supabaseAdmin as supabase } from '@/lib/supabase'; // server-only; bypasses RLS
 import {
   channelFromSourceType,
   classifyMonitorGroup,

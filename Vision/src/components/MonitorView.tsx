@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '@/lib/supabase';
-import { usePageVisibility } from '@/hooks/usePageVisibility';
 import {
   Phone, MessageSquare, Mail, Users, Coffee, Circle, RefreshCw,
   AlertTriangle, Bell, BellOff, Search, Clock, PhoneOff, UserMinus, Repeat,
@@ -137,7 +136,6 @@ const BEHAVIOR_META: Record<string, { label: string; icon: React.ReactNode }> = 
 };
 
 export default function MonitorView() {
-  const isVisible = usePageVisibility();
   const [snap, setSnap] = useState<MonitorSnapshot | null>(null);
   const [alerts, setAlerts] = useState<BehaviorEvent[]>([]);
   const [declines, setDeclines] = useState<BehaviorEvent[]>([]);
@@ -281,7 +279,11 @@ export default function MonitorView() {
   }, [loadDeclines, loadAlerts]);
 
   useEffect(() => {
-    if (!isVisible) return;
+    // Runs the whole time the monitor is MOUNTED (tab open) — we intentionally do
+    // NOT pause on tab-hidden, so the Picture-in-Picture window keeps updating
+    // while you're in another tab/app. It only stops when the tab/view is closed
+    // (unmount cleanup below). The realtime WebSocket also keeps the tab from
+    // being heavily throttled in the background.
     loadSnapshot();
     loadAlerts();
     loadDeclines();
@@ -346,7 +348,7 @@ export default function MonitorView() {
       clearInterval(tick);
       supabase.removeChannel(channel);
     };
-  }, [isVisible, loadSnapshot, pollSnapshot, loadAlerts, loadDeclines, seedLiveConvs, triggerBehaviorPoll, notify]);
+  }, [loadSnapshot, pollSnapshot, loadAlerts, loadDeclines, seedLiveConvs, triggerBehaviorPoll, notify]);
 
   const toggleNotify = async () => {
     if (!notify && typeof Notification !== 'undefined' && Notification.permission !== 'granted') {

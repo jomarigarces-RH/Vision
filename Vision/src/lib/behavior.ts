@@ -15,7 +15,7 @@
  * Runs on Vercel, cached in module memory (concurrent callers collapse onto one
  * export). Dedup_key prevents double-recording across overlapping polls.
  */
-import { supabase } from './supabase';
+import { supabaseAdmin as supabase } from './supabase'; // server-only; bypasses RLS
 import { classifyMonitorGroup, exportCallTeammateStats, pstDateString } from './intercom';
 
 export type BehaviorPollResult = {
