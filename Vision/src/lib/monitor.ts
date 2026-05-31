@@ -23,6 +23,7 @@ import {
   getLiveConversations,
   getOpenEmailCount,
   getTeams,
+  pstDateString,
 } from '@/lib/intercom';
 
 export type Presence = 'online' | 'away' | 'offline';
@@ -121,6 +122,28 @@ async function getStaff(): Promise<StaffRow[]> {
   return staffCache.rows;
 }
 
+// Per-agent open-email workload (NAME -> conv ids). Refreshed on its OWN 10-min
+// cadence in the background — never blocks a snapshot (the email export is ~30s).
+const EMAIL_TTL_MS = 10 * 60 * 1000;
+let emailCache: { at: number; byName: Map<string, string[]> } | null = null;
+let emailInFlight: Promise<void> | null = null;
+function getEmailWorkloadCached(): Map<string, string[]> {
+  const stale = !emailCache || Date.now() - emailCache.at > EMAIL_TTL_MS;
+  if (stale && !emailInFlight) {
+    emailInFlight = exportOpenEmailByTeammate()
+      .then((res) => {
+        emailCache = { at: Date.now(), byName: res.byName };
+      })
+      .catch(() => {})
+      .finally(() => {
+        emailInFlight = null;
+      });
+  }
+  return emailCache?.byName || new Map();
+}
+
+let appIdCached = '';
+
 // Away reasons that actually mean the agent is OFF SHIFT (not on a working break),
 // so they should read as Offline, not Away. Generic "Away"/no-reason = the
 // /admins baseline with no break selected => treat as off shift too.
@@ -132,22 +155,77 @@ function isOffShift(reason: string | null): boolean {
   return OFFLINE_REASON.test(r);
 }
 
+// Overbreak limits (minutes) — break/BRB 15m, lunch 60m.
+const OVERBREAK_LIMIT: Record<string, number> = { break: 15, lunch: 60 };
+function overbreakKind(reason: string | null): 'break' | 'lunch' | null {
+  const s = (reason || '').toLowerCase();
+  if (/lunch/.test(s)) return 'lunch';
+  if (/break|brb/.test(s)) return 'break';
+  return null;
+}
+
+/** Write an overbreak alert (once per break session, deduped on away_since). */
+async function writeOverbreaks(agents: MonitorAgent[]): Promise<void> {
+  const now = Date.now();
+  const events: Array<Record<string, unknown>> = [];
+  for (const a of agents) {
+    if (a.presence !== 'away' || !a.away_since) continue;
+    const kind = overbreakKind(a.away_reason);
+    if (!kind) continue;
+    const mins = (now - new Date(a.away_since).getTime()) / 60000;
+    const limit = OVERBREAK_LIMIT[kind];
+    if (mins <= limit) continue;
+    const at = new Date();
+    events.push({
+      teammate_id: a.teammate_id,
+      teammate_name: a.name,
+      lob: a.lob,
+      behavior: 'overbreak',
+      is_alert: true,
+      detail: `Over ${kind} by ${Math.round(mins - limit)}m — "${a.away_reason}"`,
+      at: at.toISOString(),
+      date: pstDateString(at),
+      dedup_key: `overbreak:${a.teammate_id}:${a.away_since}`, // one alert per break session
+    });
+  }
+  if (events.length) {
+    try {
+      await supabase.from('behavior_events').upsert(events, { onConflict: 'dedup_key', ignoreDuplicates: true });
+    } catch {
+      /* best-effort */
+    }
+  }
+}
+
 let cache: { at: number; snap: MonitorSnapshot } | null = null;
 let inFlight: Promise<MonitorSnapshot> | null = null;
 
-/** Cached, concurrency-collapsed snapshot. Pass force=true to bypass the cache. */
+/**
+ * Stale-while-revalidate: once warm, callers ALWAYS get the cached snapshot
+ * instantly (so the grid never blocks on Intercom). If it's stale we kick off a
+ * background refresh and return the slightly-stale copy. Only a cold cache (or
+ * force=true) awaits a fresh compute.
+ */
 export async function getMonitorSnapshot(force = false): Promise<MonitorSnapshot> {
-  if (!force && cache && Date.now() - cache.at < TTL_MS) return { ...cache.snap, cached: true };
-  if (inFlight) return inFlight; // a compute is already running — ride along
-  inFlight = computeAndPersist()
-    .then((snap) => {
-      cache = { at: Date.now(), snap };
-      return snap;
-    })
-    .finally(() => {
-      inFlight = null;
-    });
-  return inFlight;
+  const refresh = () => {
+    if (inFlight) return inFlight;
+    inFlight = computeAndPersist()
+      .then((snap) => {
+        cache = { at: Date.now(), snap };
+        return snap;
+      })
+      .finally(() => {
+        inFlight = null;
+      });
+    return inFlight;
+  };
+
+  if (force) return refresh();
+  if (cache) {
+    if (Date.now() - cache.at >= TTL_MS) void refresh(); // refresh in the background
+    return { ...cache.snap, cached: true };
+  }
+  return refresh(); // cold: must wait once
 }
 
 async function computeAndPersist(): Promise<MonitorSnapshot> {
@@ -155,16 +233,19 @@ async function computeAndPersist(): Promise<MonitorSnapshot> {
   // email backlog is ~94% of open conversations and paginating it blows the
   // 60s cap); Voice/Chat/SMS — the live-critical channels — come in full.
   const sinceUnix = Math.floor(Date.now() / 1000) - 12 * 3600; // a shift's worth — we only need each agent's latest away-reason/channel
-  const [admins, teams, events, convs, emailBacklog, staff] = await Promise.all([
+  const [admins, teams, events, convs, emailBacklog, staff, appId] = await Promise.all([
     getAdminsDetailed(),
     getTeams(),
     getActivityLogs(sinceUnix, 40).catch(() => []),
     getLiveConversations(),
     getOpenEmailCount().catch(() => 0),
     getStaff().catch(() => []),
+    getAppId().catch(() => ''),
   ]);
+  appIdCached = appId || appIdCached;
   const nameById = new Map(admins.map((a) => [a.id, a.name || null]));
   const resolveLob = buildLobResolver(staff);
+  const emailByName = getEmailWorkloadCached(); // non-blocking; cached/empty
 
   // 1) Presence baseline from /admins (seat-holders only).
   const drafts = new Map<string, MonitorAgent>();
@@ -182,6 +263,7 @@ async function computeAndPersist(): Promise<MonitorSnapshot> {
       calls_open: 0,
       chats_open: 0,
       emails_open: 0,
+      convs: [],
       last_event_at: null,
     });
   }
@@ -210,25 +292,36 @@ async function computeAndPersist(): Promise<MonitorSnapshot> {
   // does NOT expose an agent's current channel availability — only change events
   // do — so we carry forward the last value learned from activity logs / webhooks
   // instead of blanking it each run).
-  const { data: persisted } = await supabase.from('agent_state').select('teammate_id, channel, channel_auto');
-  const prevChannel = new Map((persisted || []).map((r: any) => [String(r.teammate_id), { channel: r.channel as string | null, auto: r.channel_auto as boolean | null }]));
+  const { data: persisted } = await supabase.from('agent_state').select('teammate_id, channel, channel_auto, away_reason, away_since');
+  const prevState = new Map(
+    (persisted || []).map((r: any) => [
+      String(r.teammate_id),
+      { channel: r.channel as string | null, auto: r.channel_auto as boolean | null, away_reason: r.away_reason as string | null, away_since: r.away_since as string | null },
+    ]),
+  );
 
   for (const [id, d] of drafts) {
+    const p = prevState.get(id);
     const a = lastAwayOn.get(id);
-    if (d.presence === 'away' && a) {
-      d.away_reason = a.reason || 'Away';
-      d.away_since = a.at;
+    if (d.presence === 'away') {
+      if (a) {
+        // fresh away event in the activity log
+        d.away_reason = a.reason || 'Away';
+        d.away_since = a.at;
+      } else if (p?.away_since) {
+        // carry forward the webhook/earlier-known break start (so long lunches/
+        // breaks keep an accurate since for overbreak detection)
+        d.away_reason = p.away_reason || d.away_reason;
+        d.away_since = p.away_since;
+      }
     }
     const c = lastChannel.get(id);
     if (c) {
       d.channel = c.channel;
       d.channel_auto = c.auto;
-    } else {
-      const p = prevChannel.get(id); // carry forward last-known
-      if (p) {
-        d.channel = p.channel;
-        d.channel_auto = p.auto;
-      }
+    } else if (p) {
+      d.channel = p.channel; // carry forward last-known channel
+      d.channel_auto = p.auto;
     }
     d.last_event_at = lastEventAt.get(id) || null;
 
@@ -267,8 +360,13 @@ async function computeAndPersist(): Promise<MonitorSnapshot> {
     if (assigneeId) {
       const d = drafts.get(assigneeId);
       if (d) {
-        if (channel === 'Voice') d.calls_open++;
-        else if (channel === 'Chat') d.chats_open++;
+        if (channel === 'Voice') {
+          d.calls_open++;
+          d.convs.push({ id: convId, ch: 'Voice' });
+        } else if (channel === 'Chat') {
+          d.chats_open++;
+          d.convs.push({ id: convId, ch: 'Chat' });
+        }
       }
       // assigned & open = in progress
       if (channel === 'Voice') handling.Voice++;
@@ -284,10 +382,20 @@ async function computeAndPersist(): Promise<MonitorSnapshot> {
     }
   }
 
+  // Merge per-agent open EMAIL workload (by name, from the cached export).
+  for (const d of drafts.values()) {
+    const ids = d.name ? emailByName.get(d.name) : undefined;
+    if (ids && ids.length) {
+      d.emails_open = ids.length;
+      for (const id of ids) d.convs.push({ id, ch: 'Email' });
+    }
+  }
+
   const agents = [...drafts.values()];
 
-  // 4) Persist (so webhooks have a base state) + prune.
+  // 4) Persist (so webhooks have a base state) + prune; flag overbreaks to the feed.
   const staleClosed = await persist(agents, liveRows, nowIso);
+  await writeOverbreaks(agents);
 
   const presence = { online: 0, away: 0, offline: 0 };
   const awayMap = new Map<string, number>();
@@ -299,6 +407,7 @@ async function computeAndPersist(): Promise<MonitorSnapshot> {
   return {
     generatedAt: nowIso,
     cached: false,
+    appId: appIdCached,
     agents,
     queue,
     handling,
@@ -309,11 +418,42 @@ async function computeAndPersist(): Promise<MonitorSnapshot> {
   };
 }
 
+// Diff-write state: hash of the meaningful columns per row, so we only UPSERT
+// rows that actually changed. This is what makes client realtime viable — the
+// bulk 45s rewrite would otherwise fire a realtime message for every row and
+// blow the free-tier quota. Cold start (empty maps) writes everything once.
+const prevAgentHash = new Map<string, string>();
+const prevConvHash = new Map<string, string>();
+const agentHash = (a: MonitorAgent) =>
+  [a.presence, a.away_reason, a.away_since, a.channel, a.channel_auto, a.lob, a.calls_open, a.chats_open, a.emails_open].join('|');
+const convHash = (r: Record<string, unknown>) =>
+  [r.channel, r.team_name, r.lob, r.assignee_id, r.assignee_name, r.state, r.customer_name].join('|');
+
 async function persist(agents: MonitorAgent[], liveRows: Array<Record<string, unknown>>, nowIso: string): Promise<number> {
   try {
-    const agentRows = agents.map((a) => ({ ...a, updated_at: nowIso }));
-    await supabase.from('agent_state').upsert(agentRows, { onConflict: 'teammate_id' });
-    await supabase.from('live_conversations').upsert(liveRows, { onConflict: 'conversation_id' });
+    // Strip `convs` (not a column — it's only for the live payload) and write ONLY
+    // changed agents (diff vs the in-memory hash).
+    const agentRows = agents
+      .filter((a) => {
+        const h = agentHash(a);
+        if (prevAgentHash.get(a.teammate_id) === h) return false;
+        prevAgentHash.set(a.teammate_id, h);
+        return true;
+      })
+      .map((a) => {
+        const row: Record<string, unknown> = { ...a, updated_at: nowIso };
+        delete row.convs;
+        return row;
+      });
+    const changedConvs = liveRows.filter((r) => {
+      const id = r.conversation_id as string;
+      const h = convHash(r);
+      if (prevConvHash.get(id) === h) return false;
+      prevConvHash.set(id, h);
+      return true;
+    });
+    if (agentRows.length) await supabase.from('agent_state').upsert(agentRows, { onConflict: 'teammate_id' });
+    if (changedConvs.length) await supabase.from('live_conversations').upsert(changedConvs, { onConflict: 'conversation_id' });
 
     // Close rows that were open before but are gone from this snapshot — but ONLY
     // the channels this snapshot actually fetched (Voice/Chat/SMS). Email rows are

@@ -7,10 +7,11 @@ import {
   Phone, MessageSquare, Mail, Users, Coffee, Circle, RefreshCw,
   AlertTriangle, Bell, BellOff, Search, Clock, PhoneOff, UserMinus, Repeat,
   X, ChevronUp, ChevronDown, ChevronsUpDown, Volume2, VolumeX, PhoneIncoming,
-  Maximize2, Minimize2,
+  Maximize2, Minimize2, Copy, ExternalLink,
 } from 'lucide-react';
 
 // ===== TYPES (mirror src/lib/monitor.ts snapshot payload) =====
+type AgentConv = { id: string; ch: 'Voice' | 'Chat' | 'Email' };
 type MonitorAgent = {
   teammate_id: string;
   name: string | null;
@@ -23,10 +24,12 @@ type MonitorAgent = {
   calls_open: number;
   chats_open: number;
   emails_open: number;
+  convs: AgentConv[];
 };
 type QueueGroup = { voice: number; chat: number; oldestWaitingAt: string | null };
 type MonitorSnapshot = {
   generatedAt: string;
+  appId: string;
   agents: MonitorAgent[];
   queue: Record<string, QueueGroup>;
   handling: { Voice: number; Chat: number };
@@ -35,6 +38,30 @@ type MonitorSnapshot = {
   awayBreakdown: [string, number][];
   counts: { agents: number; liveConversations: number };
 };
+// Realtime row shapes (subset of the Supabase tables we subscribe to).
+type AgentStateRow = {
+  teammate_id: string;
+  presence: 'online' | 'away' | 'offline';
+  away_reason: string | null;
+  away_since: string | null;
+  channel: string | null;
+  channel_auto: boolean | null;
+  lob: string | null;
+  calls_open: number;
+  chats_open: number;
+  emails_open: number;
+  updated_at: string;
+};
+type LiveConvRow = {
+  conversation_id: string;
+  channel: string | null;
+  lob: string | null;
+  assignee_id: string | null;
+  state: string | null;
+  created_at_ic: string | null;
+};
+const QUEUE_KEYS = ['support', 'sales', 'specialty', 'spanish', 'null'];
+
 type BehaviorEvent = {
   id: string;
   teammate_name: string | null;
@@ -64,13 +91,30 @@ const STATE_OPTS = [
 ] as const;
 const lobLabel = (l: string | null) => (l ? LOB_GROUPS.find((g) => g.key === l)?.label || l : 'Unrouted');
 
-type SortCol = 'agent' | 'state' | 'lob' | 'channel' | 'calls' | 'chats' | 'time';
+type SortCol = 'agent' | 'state' | 'lob' | 'channel' | 'calls' | 'chats' | 'emails' | 'time';
 const PRES_RANK: Record<string, number> = { online: 0, away: 1, offline: 2 };
 // ms the agent has been in their current state (from away_since); -1 if unknown.
 const stateMs = (a: { away_since: string | null }) => (a.away_since ? Date.now() - new Date(a.away_since).getTime() : -1);
 
-const POLL_MS = 45 * 1000; // matches the server snapshot TTL
+const POLL_MS = 15 * 1000; // server is stale-while-revalidate, so polls are cheap & instant
 const BEHAVIOR_POLL_MS = 120 * 1000; // matches the behavior poller's server-side cache
+
+// Overbreak: away longer than the allowed limit for the reason -> glow + anchor.
+const OVERBREAK_MIN: Record<string, number> = { break: 15, lunch: 60 };
+const reasonKind = (r: string | null): 'break' | 'lunch' | null => {
+  const s = (r || '').toLowerCase();
+  if (/lunch/.test(s)) return 'lunch';
+  if (/break|brb/.test(s)) return 'break';
+  return null;
+};
+const overbreakMins = (a: { presence: string; away_reason: string | null; away_since: string | null }): number => {
+  if (a.presence !== 'away' || !a.away_since) return 0;
+  const kind = reasonKind(a.away_reason);
+  if (!kind) return 0;
+  const mins = (Date.now() - new Date(a.away_since).getTime()) / 60000;
+  return mins > OVERBREAK_MIN[kind] ? Math.round(mins - OVERBREAK_MIN[kind]) : 0;
+};
+const intercomConvUrl = (appId: string, id: string) => `https://app.intercom.com/a/inbox/${appId}/inbox/conversation/${id}`;
 const fmtAgo = (iso: string | null) => {
   if (!iso) return '';
   const min = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
@@ -88,6 +132,7 @@ const BEHAVIOR_META: Record<string, { label: string; icon: React.ReactNode }> = 
   unassigned: { label: 'Unassigned self', icon: <UserMinus size={13} /> },
   no_action_timeout: { label: 'No action', icon: <Clock size={13} /> },
   channel_change: { label: 'Channel change', icon: <Repeat size={13} /> },
+  overbreak: { label: 'Overbreak', icon: <Coffee size={13} /> },
 };
 
 export default function MonitorView() {
@@ -99,6 +144,14 @@ export default function MonitorView() {
   const [loading, setLoading] = useState(false);
   const [notify, setNotify] = useState(false);
   const [expanded, setExpanded] = useState<null | 'grid' | 'alerts' | 'declines'>(null);
+  const [convPop, setConvPop] = useState<{ x: number; y: number; label: string; convs: AgentConv[] } | null>(null);
+
+  // Realtime overlays: live agent_state rows (override the snapshot when newer)
+  // and the live open Voice/Chat set (drives queue + handling in real time).
+  const [liveAgents, setLiveAgents] = useState<Map<string, AgentStateRow>>(new Map());
+  const [liveConvs, setLiveConvs] = useState<Map<string, LiveConvRow>>(new Map());
+  const liveConvsSeeded = useRef(false);
+  const [, forceTick] = useState(0); // re-render so time-in-state / overbreak recompute
 
   // grid filters (multi-select: empty set = all) + sort
   const [search, setSearch] = useState('');
@@ -118,9 +171,19 @@ export default function MonitorView() {
     setStateSel(new Set());
     setWorkOnly(false);
   };
+  // Anchor on a specific agent: clear other filters and search to their name so
+  // they're guaranteed visible (used by alert clicks + notification clicks).
+  const anchorAgent = (name: string | null) => {
+    if (!name) return;
+    setLobSel(new Set());
+    setStateSel(new Set());
+    setWorkOnly(false);
+    setSearch(name);
+    setExpanded(null);
+  };
   const filtersActive = search !== '' || lobSel.size > 0 || stateSel.size > 0 || workOnly;
   const toggleSort = (col: SortCol) =>
-    setSort((s) => (s.col === col ? { col, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: col === 'calls' || col === 'chats' || col === 'time' ? 'desc' : 'asc' }));
+    setSort((s) => (s.col === col ? { col, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: col === 'calls' || col === 'chats' || col === 'emails' || col === 'time' ? 'desc' : 'asc' }));
 
   const loadingRef = useRef(false);
   const alertIdsRef = useRef<Set<string>>(new Set());
@@ -170,6 +233,20 @@ export default function MonitorView() {
     }
   }, []);
 
+  // Seed the open Voice/Chat set for the realtime queue (small read; re-seeded
+  // periodically to correct any missed realtime events).
+  const seedLiveConvs = useCallback(async () => {
+    const { data } = await supabase
+      .from('live_conversations')
+      .select('conversation_id, channel, lob, assignee_id, state, created_at_ic')
+      .eq('state', 'open')
+      .in('channel', ['Voice', 'Chat']);
+    if (data) {
+      setLiveConvs(new Map((data as LiveConvRow[]).map((r) => [r.conversation_id, r])));
+      liveConvsSeeded.current = true;
+    }
+  }, []);
+
   // Trigger the server-side missed/declined poll (cached 2 min server-side, so
   // many tabs collapse onto one export). Realtime pushes the new rows.
   const triggerBehaviorPoll = useCallback(async () => {
@@ -187,35 +264,68 @@ export default function MonitorView() {
     loadSnapshot();
     loadAlerts();
     loadDeclines();
+    seedLiveConvs();
     triggerBehaviorPoll();
     const snapInterval = setInterval(() => loadSnapshot(), POLL_MS);
     const behaviorInterval = setInterval(() => triggerBehaviorPoll(), BEHAVIOR_POLL_MS);
+    const reseedInterval = setInterval(() => seedLiveConvs(), 120 * 1000); // correct realtime drift
+    const tick = setInterval(() => forceTick((n) => n + 1), 10 * 1000); // live time-in-state / overbreak
     const channel = supabase
-      .channel('monitor-behavior')
+      .channel('monitor-rt')
+      // --- behavior_events: alert feed + decline stream ---
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'behavior_events' }, (p) => {
         const ev = p.new as BehaviorEvent;
-        // live decline/miss stream
         if ((ev.behavior === 'declined_call' || ev.behavior === 'missed_call') && !declineIdsRef.current.has(ev.id)) {
           declineIdsRef.current.add(ev.id);
           setDeclines((prev) => [ev, ...prev].slice(0, 100));
         }
-        // alert feed (+ optional browser notification) — excludes declines/misses
         const isDecline = ev.behavior === 'declined_call' || ev.behavior === 'missed_call';
         if (ev.is_alert && !isDecline && !alertIdsRef.current.has(ev.id)) {
           alertIdsRef.current.add(ev.id);
           setAlerts((prev) => [ev, ...prev].slice(0, 60));
           if (notify && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-            new Notification(`${BEHAVIOR_META[ev.behavior]?.label || 'Alert'} — ${ev.teammate_name || 'agent'}`, { body: ev.detail || '' });
+            const n = new Notification(`${BEHAVIOR_META[ev.behavior]?.label || 'Alert'} — ${ev.teammate_name || 'agent'}`, { body: ev.detail || '', tag: ev.id });
+            n.onclick = () => {
+              window.focus();
+              anchorAgent(ev.teammate_name); // anchor: isolate that agent in the grid
+              n.close();
+            };
           }
         }
+      })
+      // --- agent_state: live presence / away / channel / workload ---
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'agent_state' }, (p) => {
+        const row = (p.eventType === 'DELETE' ? p.old : p.new) as AgentStateRow;
+        if (!row?.teammate_id) return;
+        setLiveAgents((prev) => {
+          const n = new Map(prev);
+          if (p.eventType === 'DELETE') n.delete(row.teammate_id);
+          else n.set(row.teammate_id, row);
+          return n;
+        });
+      })
+      // --- live_conversations: live queue + handling (open Voice/Chat only) ---
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'live_conversations' }, (p) => {
+        const row = (p.eventType === 'DELETE' ? p.old : p.new) as LiveConvRow;
+        const id = row?.conversation_id;
+        if (!id) return;
+        const keep = p.eventType !== 'DELETE' && row.state === 'open' && (row.channel === 'Voice' || row.channel === 'Chat');
+        setLiveConvs((prev) => {
+          const n = new Map(prev);
+          if (keep) n.set(id, row);
+          else n.delete(id);
+          return n;
+        });
       })
       .subscribe();
     return () => {
       clearInterval(snapInterval);
       clearInterval(behaviorInterval);
+      clearInterval(reseedInterval);
+      clearInterval(tick);
       supabase.removeChannel(channel);
     };
-  }, [isVisible, loadSnapshot, loadAlerts, loadDeclines, triggerBehaviorPoll, notify]);
+  }, [isVisible, loadSnapshot, loadAlerts, loadDeclines, seedLiveConvs, triggerBehaviorPoll, notify]);
 
   const toggleNotify = async () => {
     if (!notify && typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
@@ -225,14 +335,67 @@ export default function MonitorView() {
     setNotify((n) => !n);
   };
 
-  const agents = snap?.agents ?? [];
-  const handling = snap?.handling ?? { Voice: 0, Chat: 0 };
-  const presence = snap?.presence ?? { online: 0, away: 0, offline: 0 };
-  const queue = snap?.queue ?? {};
   const emailBacklog = snap?.emailBacklog ?? 0;
+  const appId = snap?.appId ?? '';
+  const genAt = snap?.generatedAt ? new Date(snap.generatedAt).getTime() : 0;
+
+  // Grid agents = snapshot base, overlaid with any newer live agent_state row.
+  const agents = useMemo(() => {
+    const base = snap?.agents ?? [];
+    return base.map((a) => {
+      const rt = liveAgents.get(a.teammate_id);
+      if (rt && new Date(rt.updated_at).getTime() > genAt) {
+        return {
+          ...a,
+          presence: rt.presence,
+          away_reason: rt.away_reason,
+          away_since: rt.away_since,
+          channel: rt.channel,
+          channel_auto: rt.channel_auto,
+          lob: rt.lob ?? a.lob,
+          calls_open: rt.calls_open ?? a.calls_open,
+          chats_open: rt.chats_open ?? a.chats_open,
+          emails_open: rt.emails_open ?? a.emails_open,
+        };
+      }
+      return a;
+    });
+  }, [snap, liveAgents, genAt]);
+
+  // Presence counts follow the (possibly overlaid) agents.
+  const presence = useMemo(() => {
+    const p = { online: 0, away: 0, offline: 0 };
+    for (const a of agents) p[a.presence]++;
+    return p;
+  }, [agents]);
+
+  // Queue + handling from the live open Voice/Chat set (falls back to snapshot
+  // until seeded).
+  const { queue, handling } = useMemo(() => {
+    if (!liveConvsSeeded.current) return { queue: snap?.queue ?? {}, handling: snap?.handling ?? { Voice: 0, Chat: 0 } };
+    const q: Record<string, QueueGroup> = {};
+    for (const k of QUEUE_KEYS) q[k] = { voice: 0, chat: 0, oldestWaitingAt: null };
+    const h = { Voice: 0, Chat: 0 };
+    for (const c of liveConvs.values()) {
+      if (c.state !== 'open') continue;
+      if (c.assignee_id) {
+        if (c.channel === 'Voice') h.Voice++;
+        else if (c.channel === 'Chat') h.Chat++;
+      } else {
+        const g = q[c.lob || 'null'];
+        if (!g) continue;
+        if (c.channel === 'Voice') g.voice++;
+        else if (c.channel === 'Chat') g.chat++;
+        if (c.created_at_ic && (!g.oldestWaitingAt || c.created_at_ic < g.oldestWaitingAt)) g.oldestWaitingAt = c.created_at_ic;
+      }
+    }
+    return { queue: q, handling: h };
+  }, [snap, liveConvs]);
+
   const totalVoiceWait = Object.values(queue).reduce((n, g) => n + g.voice, 0);
   const totalChatWait = Object.values(queue).reduce((n, g) => n + g.chat, 0);
   const totalWork = handling.Voice + handling.Chat;
+  const overbreakCount = agents.filter((a) => overbreakMins(a) > 0).length;
 
   const gridAgents = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -250,13 +413,20 @@ export default function MonitorView() {
         case 'channel': return dir * (a.channel || '~').localeCompare(b.channel || '~');
         case 'calls': return dir * (a.calls_open - b.calls_open);
         case 'chats': return dir * (a.chats_open - b.chats_open);
+        case 'emails': return dir * (a.emails_open - b.emails_open);
         case 'time': return dir * (stateMs(a) - stateMs(b));
         case 'state':
         default: return dir * ((PRES_RANK[a.presence] ?? 3) - (PRES_RANK[b.presence] ?? 3) || (a.away_reason || '').localeCompare(b.away_reason || ''));
       }
     };
-    // stable secondary sort by workload then name so ties are sensible
-    return filtered.sort((a, b) => cmp(a, b) || b.calls_open + b.chats_open - (a.calls_open + a.chats_open) || (a.name || '').localeCompare(b.name || ''));
+    // Overbreakers are ANCHORED to the very top (most-over first), regardless of
+    // the chosen sort, so supervisors see them immediately.
+    return filtered.sort((a, b) => {
+      const oa = overbreakMins(a);
+      const ob = overbreakMins(b);
+      if (oa || ob) return ob - oa;
+      return cmp(a, b) || b.calls_open + b.chats_open - (a.calls_open + a.chats_open) || (a.name || '').localeCompare(b.name || '');
+    });
   }, [agents, search, lobSel, stateSel, workOnly, sort]);
 
   // Expand: the chosen panel becomes an overlay over the monitor area; others hide.
@@ -266,6 +436,11 @@ export default function MonitorView() {
       : expanded
       ? 'hidden'
       : base;
+  const openConvPop = (e: React.MouseEvent, label: string, convs: AgentConv[]) => {
+    if (!convs.length) return;
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setConvPop({ x: Math.min(r.left, window.innerWidth - 300), y: r.bottom + 4, label, convs });
+  };
   const ExpandBtn = ({ id }: { id: 'grid' | 'alerts' | 'declines' }) => (
     <button
       onClick={() => setExpanded(expanded === id ? null : id)}
@@ -386,6 +561,11 @@ export default function MonitorView() {
                   <X size={13} /> Clear
                 </button>
               )}
+              {overbreakCount > 0 && (
+                <span className="flex items-center gap-1 rounded-full bg-rose-500/15 px-2 py-0.5 text-xs font-bold text-rose-400" title="Agents over their break/lunch limit">
+                  <AlertTriangle size={12} /> {overbreakCount} overbreak
+                </span>
+              )}
               <span className="ml-auto text-xs font-semibold text-[var(--text-secondary)]">{gridAgents.length} agents</span>
               <ExpandBtn id="grid" />
             </div>
@@ -411,29 +591,40 @@ export default function MonitorView() {
                   <SortHeader col="channel" sort={sort} onSort={toggleSort} className="text-left">Channel</SortHeader>
                   <SortHeader col="calls" sort={sort} onSort={toggleSort} className="text-center"><Phone size={12} className="inline" /></SortHeader>
                   <SortHeader col="chats" sort={sort} onSort={toggleSort} className="text-center"><MessageSquare size={12} className="inline" /></SortHeader>
+                  <SortHeader col="emails" sort={sort} onSort={toggleSort} className="text-center"><Mail size={12} className="inline" /></SortHeader>
                 </tr>
               </thead>
               <tbody>
-                {gridAgents.map((a) => (
-                  <tr key={a.teammate_id} className="border-b border-[var(--border-light)]/40 hover:bg-white/5">
-                    <td className="max-w-[170px] truncate px-3 py-1.5 font-semibold">{a.name}</td>
-                    <td className="px-2 py-1.5"><StateBadge presence={a.presence} reason={a.away_reason} /></td>
-                    <td className="px-2 py-1.5 font-medium text-[var(--text-secondary)]">{a.away_since ? fmtAgo(a.away_since) : '—'}</td>
-                    <td className="px-2 py-1.5 text-[var(--text-secondary)]">{lobLabel(a.lob)}</td>
-                    <td className="px-2 py-1.5">
-                      {a.channel ? (
-                        <span className="text-[var(--text-secondary)]">{channelLabel(a.channel)}</span>
-                      ) : (
-                        <span className="text-[var(--text-tertiary)]">—</span>
-                      )}
-                      {a.channel_auto === false && <span title="Manually changed channel (off-script)" className="ml-1 text-amber-400">●</span>}
-                    </td>
-                    <Cell n={a.calls_open} tone="blue" />
-                    <Cell n={a.chats_open} tone="violet" />
-                  </tr>
-                ))}
+                {gridAgents.map((a) => {
+                  const over = overbreakMins(a);
+                  return (
+                    <tr
+                      key={a.teammate_id}
+                      className={`border-b border-[var(--border-light)]/40 ${over ? 'animate-pulse bg-rose-500/10 ring-1 ring-inset ring-rose-500/40' : 'hover:bg-white/5'}`}
+                    >
+                      <td className="max-w-[170px] truncate px-3 py-1.5 font-semibold">{a.name}</td>
+                      <td className="px-2 py-1.5"><StateBadge presence={a.presence} reason={a.away_reason} /></td>
+                      <td className={`px-2 py-1.5 font-medium ${over ? 'font-bold text-rose-400' : 'text-[var(--text-secondary)]'}`}>
+                        {a.away_since ? fmtAgo(a.away_since) : '—'}
+                        {over > 0 && <span className="ml-1 text-[11px]">(+{over}m over)</span>}
+                      </td>
+                      <td className="px-2 py-1.5 text-[var(--text-secondary)]">{lobLabel(a.lob)}</td>
+                      <td className="px-2 py-1.5">
+                        {a.channel ? (
+                          <span className="text-[var(--text-secondary)]">{channelLabel(a.channel)}</span>
+                        ) : (
+                          <span className="text-[var(--text-tertiary)]">—</span>
+                        )}
+                        {a.channel_auto === false && <span title="Manually changed channel (off-script)" className="ml-1 text-amber-400">●</span>}
+                      </td>
+                      <WorkloadCell n={a.calls_open} tone="blue" onOpen={(e) => openConvPop(e, 'Calls', a.convs.filter((c) => c.ch === 'Voice'))} />
+                      <WorkloadCell n={a.chats_open} tone="violet" onOpen={(e) => openConvPop(e, 'Chats', a.convs.filter((c) => c.ch === 'Chat'))} />
+                      <WorkloadCell n={a.emails_open} tone="slate" onOpen={(e) => openConvPop(e, 'Emails', a.convs.filter((c) => c.ch === 'Email'))} />
+                    </tr>
+                  );
+                })}
                 {gridAgents.length === 0 && (
-                  <tr><td colSpan={7} className="py-8 text-center text-[var(--text-secondary)]">{snap ? 'No agents match.' : 'Loading…'}</td></tr>
+                  <tr><td colSpan={8} className="py-8 text-center text-[var(--text-secondary)]">{snap ? 'No agents match.' : 'Loading…'}</td></tr>
                 )}
               </tbody>
             </table>
@@ -459,7 +650,12 @@ export default function MonitorView() {
               {alerts.map((ev) => {
                 const meta = BEHAVIOR_META[ev.behavior] || { label: ev.behavior, icon: <AlertTriangle size={13} /> };
                 return (
-                  <div key={ev.id} className="border-b border-[var(--border-light)]/40 px-3 py-2">
+                  <div
+                    key={ev.id}
+                    onClick={() => anchorAgent(ev.teammate_name)}
+                    title="Click to find this agent in the grid"
+                    className="cursor-pointer border-b border-[var(--border-light)]/40 px-3 py-2 hover:bg-white/5"
+                  >
                     <div className="flex items-center gap-1.5">
                       <span className="text-rose-400">{meta.icon}</span>
                       <span className="text-xs font-bold">{meta.label}</span>
@@ -519,7 +715,14 @@ export default function MonitorView() {
                         <span className="ml-auto shrink-0 text-[11px] font-medium text-[var(--text-secondary)]">{fmtAgo(ev.at)}</span>
                       </div>
                       <div className="truncate text-[11px] text-[var(--text-secondary)]">
-                        conv {ev.conversation_id || '—'}{ev.lob ? ` · ${lobLabel(ev.lob)}` : ''}
+                        {ev.conversation_id ? (
+                          <a href={intercomConvUrl(appId, ev.conversation_id)} target="_blank" rel="noreferrer" className="text-brand-blue hover:underline" onClick={(e) => e.stopPropagation()}>
+                            conv {ev.conversation_id}
+                          </a>
+                        ) : (
+                          'conv —'
+                        )}
+                        {ev.lob ? ` · ${lobLabel(ev.lob)}` : ''}
                       </div>
                     </div>
                   </div>
@@ -529,6 +732,39 @@ export default function MonitorView() {
           </div>
         </div>
       </div>
+
+      {/* Conversation-id popover (deep links to Intercom + copy) */}
+      {convPop && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setConvPop(null)} />
+          <div
+            className="fixed z-50 w-[280px] rounded-xl border border-[var(--border-light)] bg-[var(--bg-card)] p-2 shadow-2xl"
+            style={{ left: convPop.x, top: convPop.y }}
+          >
+            <div className="mb-1 flex items-center justify-between">
+              <span className="text-xs font-bold">{convPop.label} · {convPop.convs.length}</span>
+              <button onClick={() => setConvPop(null)} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]"><X size={13} /></button>
+            </div>
+            <div className="max-h-[260px] overflow-y-auto">
+              {convPop.convs.map((c) => (
+                <div key={c.id} className="flex items-center gap-1 py-0.5">
+                  <a
+                    href={intercomConvUrl(appId, c.id)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex-1 truncate font-mono text-[12px] text-brand-blue hover:underline"
+                    title="Open in Intercom"
+                  >
+                    {c.id}
+                  </a>
+                  <button title="Copy ID" onClick={() => navigator.clipboard?.writeText(c.id)} className="rounded p-1 text-[var(--text-secondary)] hover:bg-white/10"><Copy size={12} /></button>
+                  <a href={intercomConvUrl(appId, c.id)} target="_blank" rel="noreferrer" title="Open in Intercom" className="rounded p-1 text-[var(--text-secondary)] hover:bg-white/10"><ExternalLink size={12} /></a>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -597,10 +833,13 @@ function StateBadge({ presence, reason }: { presence: string | null; reason: str
   );
 }
 
-function Cell({ n, tone }: { n: number; tone: string }) {
+function WorkloadCell({ n, tone, onOpen }: { n: number; tone: string; onOpen: (e: React.MouseEvent) => void }) {
+  if (n <= 0) return <td className="px-2 py-1.5 text-center text-[var(--text-tertiary)]">0</td>;
   return (
     <td className="px-2 py-1.5 text-center">
-      <span className={n > 0 ? `font-bold ${TONE[tone]}` : 'text-[var(--text-tertiary)]'}>{n}</span>
+      <button onClick={onOpen} title="Show conversations" className={`font-bold underline-offset-2 hover:underline ${TONE[tone]}`}>
+        {n}
+      </button>
     </td>
   );
 }
