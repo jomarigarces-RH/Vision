@@ -199,6 +199,7 @@ async function writeOverbreaks(agents: MonitorAgent[]): Promise<void> {
 
 let cache: { at: number; snap: MonitorSnapshot } | null = null;
 let inFlight: Promise<MonitorSnapshot> | null = null;
+let inFlightAt = 0;
 
 /**
  * Stale-while-revalidate: once warm, callers ALWAYS get the cached snapshot
@@ -225,16 +226,19 @@ function emptySnapshot(): MonitorSnapshot {
 
 export async function getMonitorSnapshot(force = false): Promise<MonitorSnapshot> {
   const refresh = () => {
-    if (!inFlight) {
-      inFlight = computeAndPersist()
-        .then((snap) => {
-          cache = { at: Date.now(), snap };
-          return snap;
-        })
-        .finally(() => {
-          inFlight = null;
-        });
-    }
+    // Reuse an in-flight compute only if it started recently; if one has been
+    // pending too long (a stalled connection slipped past the fetch timeouts),
+    // abandon it and start fresh so the cache can never freeze permanently.
+    if (inFlight && Date.now() - inFlightAt < 90_000) return inFlight;
+    const p = computeAndPersist().then((snap) => {
+      cache = { at: Date.now(), snap };
+      return snap;
+    });
+    inFlight = p;
+    inFlightAt = Date.now();
+    p.finally(() => {
+      if (inFlight === p) inFlight = null;
+    });
     return inFlight;
   };
 

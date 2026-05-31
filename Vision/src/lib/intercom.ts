@@ -22,6 +22,17 @@ export type Channel = 'Voice' | 'Chat' | 'Email' | 'SMS';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** fetch with a hard timeout so a stalled connection can never hang the compute. */
+async function fetchT(url: string, opts: RequestInit = {}, ms = 20000): Promise<Response> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(url, { ...opts, signal: ctrl.signal });
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 /** Retry a flaky call (Intercom 429s / transient network) with linear backoff. */
 async function withRetry<T>(fn: () => Promise<T>, tries = 3, delayMs = 700): Promise<T> {
   let lastErr: unknown;
@@ -39,7 +50,7 @@ async function withRetry<T>(fn: () => Promise<T>, tries = 3, delayMs = 700): Pro
 /** GET JSON with ok-check + retry; throws (after retries) so callers don't cache empties. */
 async function getJson(url: string): Promise<any> {
   return withRetry(async () => {
-    const res = await fetch(url, { headers: apiHeaders() });
+    const res = await fetchT(url, { headers: apiHeaders() });
     if (!res.ok) throw new Error(`GET ${url.replace(BASE, '')} -> ${res.status}`);
     return res.json();
   });
@@ -192,7 +203,7 @@ const exportHeaders = (accept = 'application/json') => ({
  * Throws on hard failure; callers decide whether to degrade gracefully.
  */
 async function runExport(datasetId: string, attributeIds: string[], start: number, end: number): Promise<Record<string, string>[]> {
-  const enq = await fetch(`${BASE}/export/reporting_data/enqueue`, {
+  const enq = await fetchT(`${BASE}/export/reporting_data/enqueue`, {
     method: 'POST',
     headers: exportHeaders(),
     body: JSON.stringify({ dataset_id: datasetId, attribute_ids: attributeIds, start_time: start, end_time: end }),
@@ -204,7 +215,7 @@ async function runExport(datasetId: string, attributeIds: string[], start: numbe
   let downloadUrl: string | null = null;
   for (let i = 0; i < 18; i++) {
     await sleep(2500); // ~45s budget
-    const st = await fetch(`${BASE}/export/reporting_data/${jobId}`, { headers: exportHeaders() });
+    const st = await fetchT(`${BASE}/export/reporting_data/${jobId}`, { headers: exportHeaders() });
     const stJson = await st.json();
     if (typeof stJson?.status === 'string' && stJson.status.startsWith('complete')) {
       downloadUrl = stJson.download_url;
@@ -214,7 +225,7 @@ async function runExport(datasetId: string, attributeIds: string[], start: numbe
   }
   if (!downloadUrl) throw new Error(`export(${datasetId}) timed out`);
 
-  const dl = await fetch(downloadUrl, { headers: exportHeaders('application/octet-stream') });
+  const dl = await fetchT(downloadUrl, { headers: exportHeaders('application/octet-stream') }, 30000);
   if (!dl.ok) throw new Error(`export(${datasetId}) download ${dl.status}`);
   return parseCsv(await dl.text());
 }
@@ -340,7 +351,7 @@ let appIdCache: string | null = null;
 export async function getAppId(): Promise<string> {
   if (appIdCache !== null) return appIdCache;
   try {
-    const me = await fetch(`${BASE}/me`, { headers: apiHeaders() }).then((r) => r.json());
+    const me = await fetchT(`${BASE}/me`, { headers: apiHeaders() }).then((r) => r.json());
     appIdCache = String(me?.app?.id_code || '');
   } catch {
     appIdCache = '';
@@ -444,7 +455,7 @@ export async function getTeams(): Promise<Map<string, string>> {
 /** admin_id -> { name, email } (cached 5 min). */
 export async function getAdmins(): Promise<Map<string, { name: string; email: string }>> {
   if (adminCache && Date.now() - adminCache.at < CACHE_MS) return adminCache.map;
-  const data = await fetch(`${BASE}/admins`, { headers: apiHeaders() }).then((r) => r.json());
+  const data = await fetchT(`${BASE}/admins`, { headers: apiHeaders() }).then((r) => r.json());
   const map = new Map<string, { name: string; email: string }>();
   for (const ad of data?.admins || []) map.set(String(ad.id), { name: ad.name, email: ad.email });
   adminCache = { at: Date.now(), map };
@@ -488,7 +499,7 @@ export async function getActivityLogs(sinceUnix: number, maxPages = 20): Promise
   let url: string | null = `${BASE}/admins/activity_logs?created_at_after=${sinceUnix}`;
   const out: ActivityEvent[] = [];
   for (let i = 0; i < maxPages && url; i++) {
-    const j: { activity_logs?: ActivityEvent[]; pages?: { next?: string | null } } = await fetch(url, { headers: apiHeaders() }).then((r) => r.json());
+    const j: { activity_logs?: ActivityEvent[]; pages?: { next?: string | null } } = await fetchT(url, { headers: apiHeaders() }).then((r) => r.json());
     out.push(...(j.activity_logs || []));
     url = j.pages?.next || null;
   }
@@ -525,7 +536,7 @@ export async function getOpenConversations(createdAfterUnix?: number): Promise<O
       },
       pagination: { per_page: 150, ...(startingAfter ? { starting_after: startingAfter } : {}) },
     };
-    const res = await fetch(`${BASE}/conversations/search`, { method: 'POST', headers: apiHeaders(), body: JSON.stringify(body) });
+    const res = await fetchT(`${BASE}/conversations/search`, { method: 'POST', headers: apiHeaders(), body: JSON.stringify(body) });
     if (!res.ok) throw new Error(`open conversations search ${res.status}`);
     const data = await res.json();
     const convs: OpenConversation[] = data?.conversations || [];
@@ -567,7 +578,7 @@ export async function getLiveConversations(): Promise<OpenConversation[]> {
       pagination: { per_page: 150, ...(startingAfter ? { starting_after: startingAfter } : {}) },
     };
     const data = await withRetry(async () => {
-      const res = await fetch(`${BASE}/conversations/search`, { method: 'POST', headers: apiHeaders(), body: JSON.stringify(body) });
+      const res = await fetchT(`${BASE}/conversations/search`, { method: 'POST', headers: apiHeaders(), body: JSON.stringify(body) });
       if (!res.ok) throw new Error(`live conversations search ${res.status}`);
       return res.json();
     });
@@ -588,7 +599,7 @@ export async function getOpenEmailCount(): Promise<number> {
     ] },
     pagination: { per_page: 1 },
   };
-  const res = await fetch(`${BASE}/conversations/search`, { method: 'POST', headers: apiHeaders(), body: JSON.stringify(body) });
+  const res = await fetchT(`${BASE}/conversations/search`, { method: 'POST', headers: apiHeaders(), body: JSON.stringify(body) });
   if (!res.ok) return 0;
   const data = await res.json();
   return data?.total_count ?? 0;

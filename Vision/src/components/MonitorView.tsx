@@ -195,8 +195,8 @@ export default function MonitorView() {
   const declineIdsRef = useRef<Set<string>>(new Set());
 
   // ---- snapshot (heavy data) comes from Vercel, cached server-side ----------
-  const loadSnapshot = useCallback(async (force = false) => {
-    if (loadingRef.current) return;
+  const loadSnapshot = useCallback(async (force = false): Promise<MonitorSnapshot | null> => {
+    if (loadingRef.current) return null;
     loadingRef.current = true;
     setLoading(true);
     try {
@@ -206,6 +206,7 @@ export default function MonitorView() {
         // Never downgrade a populated grid to the server's empty fallback (which
         // it returns if a cold compute hit an Intercom hiccup) — keep last good.
         setSnap((prev) => (data.agents?.length === 0 && prev && prev.agents.length > 0 ? prev : data));
+        return data;
       }
     } catch {
       /* keep last snapshot on screen */
@@ -213,7 +214,17 @@ export default function MonitorView() {
       loadingRef.current = false;
       setLoading(false);
     }
+    return null;
   }, []);
+
+  // Poll; if the data is stale (server's background refresh stalled), force a
+  // fresh compute so the dashboard self-heals instead of freezing.
+  const pollSnapshot = useCallback(async () => {
+    const data = await loadSnapshot(false);
+    if (data && data.agents.length > 0 && Date.now() - new Date(data.generatedAt).getTime() > 75_000) {
+      await loadSnapshot(true);
+    }
+  }, [loadSnapshot]);
 
   // ---- behavior_events: alerts + the live decline stream (read from Supabase) -
   const loadAlerts = useCallback(async () => {
@@ -276,7 +287,7 @@ export default function MonitorView() {
     loadDeclines();
     seedLiveConvs();
     triggerBehaviorPoll();
-    const snapInterval = setInterval(() => loadSnapshot(), POLL_MS);
+    const snapInterval = setInterval(() => pollSnapshot(), POLL_MS);
     const behaviorInterval = setInterval(() => triggerBehaviorPoll(), BEHAVIOR_POLL_MS);
     const reseedInterval = setInterval(() => seedLiveConvs(), 120 * 1000); // correct realtime drift
     const tick = setInterval(() => forceTick((n) => n + 1), 10 * 1000); // live time-in-state / overbreak
@@ -335,7 +346,7 @@ export default function MonitorView() {
       clearInterval(tick);
       supabase.removeChannel(channel);
     };
-  }, [isVisible, loadSnapshot, loadAlerts, loadDeclines, seedLiveConvs, triggerBehaviorPoll, notify]);
+  }, [isVisible, loadSnapshot, pollSnapshot, loadAlerts, loadDeclines, seedLiveConvs, triggerBehaviorPoll, notify]);
 
   const toggleNotify = async () => {
     if (!notify && typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
