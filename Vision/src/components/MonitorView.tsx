@@ -27,7 +27,7 @@ type MonitorAgent = {
   emails_open: number;
   convs: AgentConv[];
 };
-type QueueGroup = { voice: number; chat: number; oldestWaitingAt: string | null };
+type QueueGroup = { voice: number; chat: number; oldestWaitingAt: string | null; voiceConvId?: string; chatConvId?: string };
 type MonitorSnapshot = {
   generatedAt: string;
   appId: string;
@@ -160,6 +160,7 @@ export default function MonitorView() {
   const [lobSel, setLobSel] = useState<Set<string>>(new Set());
   const [stateSel, setStateSel] = useState<Set<string>>(new Set());
   const [workOnly, setWorkOnly] = useState(false);
+  const [overbreakOnly, setOverbreakOnly] = useState(false);
   const [sort, setSort] = useState<{ col: SortCol; dir: 'asc' | 'desc' }>({ col: 'state', dir: 'asc' });
   const toggleSet = (setter: React.Dispatch<React.SetStateAction<Set<string>>>, val: string) =>
     setter((prev) => {
@@ -172,6 +173,7 @@ export default function MonitorView() {
     setLobSel(new Set());
     setStateSel(new Set());
     setWorkOnly(false);
+    setOverbreakOnly(false);
   };
   // Anchor on a specific agent: clear other filters and search to their name so
   // they're guaranteed visible (used by alert clicks + notification clicks).
@@ -180,10 +182,11 @@ export default function MonitorView() {
     setLobSel(new Set());
     setStateSel(new Set());
     setWorkOnly(false);
+    setOverbreakOnly(false);
     setSearch(name);
     setExpanded(null);
   };
-  const filtersActive = search !== '' || lobSel.size > 0 || stateSel.size > 0 || workOnly;
+  const filtersActive = search !== '' || lobSel.size > 0 || stateSel.size > 0 || workOnly || overbreakOnly;
   const toggleSort = (col: SortCol) =>
     setSort((s) => (s.col === col ? { col, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: col === 'calls' || col === 'chats' || col === 'emails' || col === 'time' ? 'desc' : 'asc' }));
 
@@ -424,17 +427,33 @@ export default function MonitorView() {
     const q: Record<string, QueueGroup> = {};
     for (const k of QUEUE_KEYS) q[k] = { voice: 0, chat: 0, oldestWaitingAt: null };
     const h = { Voice: 0, Chat: 0 };
+    // track the oldest waiting created_at per group+channel so we can link to it
+    const oldestVoice: Record<string, string> = {};
+    const oldestChat: Record<string, string> = {};
     for (const c of liveConvs.values()) {
       if (c.state !== 'open') continue;
       if (c.assignee_id) {
         if (c.channel === 'Voice') h.Voice++;
         else if (c.channel === 'Chat') h.Chat++;
       } else {
-        const g = q[c.lob || 'null'];
+        const key = c.lob || 'null';
+        const g = q[key];
         if (!g) continue;
-        if (c.channel === 'Voice') g.voice++;
-        else if (c.channel === 'Chat') g.chat++;
-        if (c.created_at_ic && (!g.oldestWaitingAt || c.created_at_ic < g.oldestWaitingAt)) g.oldestWaitingAt = c.created_at_ic;
+        const at = c.created_at_ic || '';
+        if (c.channel === 'Voice') {
+          g.voice++;
+          if (at && (!oldestVoice[key] || at < oldestVoice[key])) {
+            oldestVoice[key] = at;
+            g.voiceConvId = c.conversation_id;
+          }
+        } else if (c.channel === 'Chat') {
+          g.chat++;
+          if (at && (!oldestChat[key] || at < oldestChat[key])) {
+            oldestChat[key] = at;
+            g.chatConvId = c.conversation_id;
+          }
+        }
+        if (at && (!g.oldestWaitingAt || at < g.oldestWaitingAt)) g.oldestWaitingAt = at;
       }
     }
     return { queue: q, handling: h };
@@ -452,7 +471,8 @@ export default function MonitorView() {
       .filter((a) => !q || a.name!.toLowerCase().includes(q))
       .filter((a) => lobSel.size === 0 || lobSel.has(a.lob || 'null'))
       .filter((a) => stateSel.size === 0 || stateSel.has(a.presence))
-      .filter((a) => !workOnly || a.calls_open + a.chats_open > 0);
+      .filter((a) => !workOnly || a.calls_open + a.chats_open > 0)
+      .filter((a) => !overbreakOnly || overbreakMins(a) > 0);
     const dir = sort.dir === 'asc' ? 1 : -1;
     const cmp = (a: MonitorAgent, b: MonitorAgent): number => {
       switch (sort.col) {
@@ -475,7 +495,7 @@ export default function MonitorView() {
       if (oa || ob) return ob - oa;
       return cmp(a, b) || b.calls_open + b.chats_open - (a.calls_open + a.chats_open) || (a.name || '').localeCompare(b.name || '');
     });
-  }, [agents, search, lobSel, stateSel, workOnly, sort]);
+  }, [agents, search, lobSel, stateSel, workOnly, overbreakOnly, sort]);
 
   // Expand: the chosen panel becomes an overlay over the monitor area; others hide.
   const panelClass = (id: 'grid' | 'alerts' | 'declines', base: string) =>
@@ -571,13 +591,9 @@ export default function MonitorView() {
                   <span className="text-sm font-bold">{g.label}</span>
                   {waiting > 0 && <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[11px] font-bold text-amber-400">{waiting}</span>}
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className={`flex items-center gap-1 text-base font-bold ${q.voice > 0 ? 'text-amber-400' : 'text-[var(--text-secondary)]'}`}>
-                    <Phone size={13} />{q.voice}
-                  </span>
-                  <span className={`flex items-center gap-1 text-base font-bold ${q.chat > 0 ? 'text-amber-400' : 'text-[var(--text-secondary)]'}`}>
-                    <MessageSquare size={13} />{q.chat}
-                  </span>
+                <div className="flex items-center gap-3 text-base">
+                  <QueueNum icon={<Phone size={13} />} n={q.voice} convId={q.voiceConvId} appId={appId} />
+                  <QueueNum icon={<MessageSquare size={13} />} n={q.chat} convId={q.chatConvId} appId={appId} />
                 </div>
                 <div className="mt-1 flex items-center gap-1 text-[11px] font-medium text-[var(--text-secondary)]">
                   <Clock size={11} />
@@ -620,9 +636,15 @@ export default function MonitorView() {
                 </button>
               )}
               {overbreakCount > 0 && (
-                <span className="flex items-center gap-1 rounded-full bg-rose-500/15 px-2 py-0.5 text-xs font-bold text-rose-400" title="Agents over their break/lunch limit">
+                <button
+                  onClick={() => setOverbreakOnly((v) => !v)}
+                  title="Show only agents over their break/lunch limit"
+                  className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold transition-colors ${
+                    overbreakOnly ? 'bg-rose-500 text-white' : 'bg-rose-500/15 text-rose-400 hover:bg-rose-500/25'
+                  }`}
+                >
                   <AlertTriangle size={12} /> {overbreakCount} overbreak
-                </span>
+                </button>
               )}
               <span className="ml-auto text-xs font-semibold text-[var(--text-secondary)]">{gridAgents.length} agents</span>
               <ExpandBtn id="grid" />
@@ -782,6 +804,9 @@ export default function MonitorView() {
                         )}
                         {ev.lob ? ` · ${lobLabel(ev.lob)}` : ''}
                       </div>
+                      <div className="text-[11px] font-medium text-[var(--text-tertiary)]">
+                        workload {ev.workload_calls ?? 0}c/{ev.workload_chats ?? 0}ch/{ev.workload_emails ?? 0}e
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -816,9 +841,9 @@ export default function MonitorView() {
                       <span className="text-xs font-bold">{g.label}</span>
                       {wait > 0 && <span className="text-[11px] font-bold text-amber-400">{wait}</span>}
                     </div>
-                    <div className="flex items-center gap-3 text-[13px] font-bold">
-                      <span className={q.voice > 0 ? 'text-amber-400' : 'text-[var(--text-secondary)]'}><Phone size={11} className="mr-0.5 inline" />{q.voice}</span>
-                      <span className={q.chat > 0 ? 'text-amber-400' : 'text-[var(--text-secondary)]'}><MessageSquare size={11} className="mr-0.5 inline" />{q.chat}</span>
+                    <div className="flex items-center gap-3 text-[13px]">
+                      <QueueNum icon={<Phone size={11} />} n={q.voice} convId={q.voiceConvId} appId={appId} />
+                      <QueueNum icon={<MessageSquare size={11} />} n={q.chat} convId={q.chatConvId} appId={appId} />
                     </div>
                   </div>
                 );
@@ -958,6 +983,19 @@ function StateBadge({ presence, reason }: { presence: string | null; reason: str
       <span className="max-w-[140px] truncate">{showReason ? reason : 'Offline'}</span>
     </span>
   );
+}
+
+// A queue voice/chat count that links to the oldest waiting conversation's inbox.
+function QueueNum({ icon, n, convId, appId }: { icon: React.ReactNode; n: number; convId?: string; appId: string }) {
+  const cls = `flex items-center gap-1 font-bold ${n > 0 ? 'text-amber-400' : 'text-[var(--text-secondary)]'}`;
+  if (convId && appId) {
+    return (
+      <a href={`https://app.intercom.com/a/inbox/${appId}/inbox/conversation/${convId}`} target="_blank" rel="noreferrer" title="Open oldest waiting in Intercom" className={`${cls} hover:underline`}>
+        {icon}{n}
+      </a>
+    );
+  }
+  return <span className={cls}>{icon}{n}</span>;
 }
 
 function WorkloadCell({ n, tone, onOpen }: { n: number; tone: string; onOpen: (e: React.MouseEvent) => void }) {
