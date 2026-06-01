@@ -269,12 +269,24 @@ export default function SlaDashboardView() {
   }, [endDate]);
 
   // Copies the dashboard content to clipboard as PNG.
+  // modern-screenshot renders via the browser's own engine, so Tailwind's
+  // oklch/lab colors, borders, and flex layout all come out correct (html2canvas
+  // and dom-to-image-more both mangled them).
   const takeScreenshot = useCallback(async () => {
     try {
       const element = document.getElementById('dashboard-content') as HTMLElement;
       if (!element) { showToastMsg('Dashboard not found'); return; }
-      const domtoimage = (await import('dom-to-image-more')).default;
-      const blob = await domtoimage.toBlob(element, { bgcolor: '#0a0a0a' });
+      showToastMsg('Capturing…');
+      // Make sure web fonts are loaded before snapshotting, or text reflows/overlaps.
+      if (document.fonts?.ready) await document.fonts.ready;
+      const { domToBlob } = await import('modern-screenshot');
+      const blob = await domToBlob(element, {
+        backgroundColor: '#0a0a0a',
+        scale: 2, // retina-sharp
+        width: element.scrollWidth, // capture full content width (no right-edge clipping)
+        height: element.scrollHeight,
+      });
+      if (!blob) { showToastMsg('Screenshot failed: empty image'); return; }
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
       showToastMsg('Copied to clipboard!');
     } catch (e) {
@@ -326,11 +338,11 @@ export default function SlaDashboardView() {
         {toast.msg}
       </div>
 
-      <div id="dashboard-content" className="max-w-[1400px] mx-auto p-5 pb-10">
+      <div id="dashboard-content" className="max-w-[1400px] mx-auto p-3 sm:p-5 pb-10">
         {/* ===== HEADER ===== */}
-        <header className="flex flex-wrap justify-between items-start gap-4 mb-5">
-          <div className="flex flex-col gap-1.5">
-            <h1 className="text-[1.6rem] font-extrabold tracking-[-0.03em] flex items-center gap-2 cursor-pointer group">
+        <header className="flex flex-wrap justify-between items-start gap-3 sm:gap-4 mb-5">
+          <div className="flex flex-col gap-1.5 min-w-0">
+            <h1 className="text-[1.3rem] sm:text-[1.6rem] font-extrabold tracking-[-0.03em] flex items-center gap-2 cursor-pointer group">
               Intercom SLA Report
               <RefreshCw size={18} onClick={() => syncIntercom()} className={`text-[#4f7df3] transition-all duration-500 ${loading ? 'rotate-180 opacity-50' : 'opacity-100'}`} />
             </h1>
@@ -343,11 +355,11 @@ export default function SlaDashboardView() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <div className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full border transition-all select-none border-[#10b981] bg-[#10b981]/10`}>
+            <div className={`hidden sm:flex items-center gap-2 px-3.5 py-1.5 rounded-full border transition-all select-none border-[#10b981] bg-[#10b981]/10`}>
               <div className={`w-2 h-2 rounded-full bg-[#10b981] shadow-[0_0_10px_#10b981] animate-pulse`} />
               <span className={`text-[0.65rem] font-extrabold text-[#10b981] tracking-widest`}>REALTIME CONNECTED</span>
             </div>
-            <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border text-[0.7rem] font-extrabold cursor-pointer transition-transform hover:scale-105 ${dataHealth === 'good' ? 'bg-[#10b981]/10 border-[#10b981]/30 text-[#10b981]' : dataHealth === 'issue' ? 'bg-[#f59e0b]/10 border-[#f59e0b]/30 text-[#f59e0b]' : 'bg-[#ef4444]/10 border-[#ef4444]/30 text-[#ef4444]'}`}>
+            <div className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border text-[0.7rem] font-extrabold cursor-pointer transition-transform hover:scale-105 ${dataHealth === 'good' ? 'bg-[#10b981]/10 border-[#10b981]/30 text-[#10b981]' : dataHealth === 'issue' ? 'bg-[#f59e0b]/10 border-[#f59e0b]/30 text-[#f59e0b]' : 'bg-[#ef4444]/10 border-[#ef4444]/30 text-[#ef4444]'}`}>
               <CheckCircle2 size={14} />
               <span>{dataHealth === 'good' ? 'Data Healthy' : dataHealth === 'issue' ? 'Data Issues' : 'Critical'}</span>
             </div>
@@ -359,8 +371,8 @@ export default function SlaDashboardView() {
         </header>
 
         {/* ===== TABS & GLOBAL ABSENTEEISM ===== */}
-        <div className="flex flex-wrap justify-between items-center gap-3 mb-5">
-          <div className="flex p-1 bg-[#1a1a1a] border border-[#2a2a2a] rounded-[30px] gap-0.5">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:justify-between sm:items-center gap-3 mb-5">
+          <div className="flex p-1 bg-[#1a1a1a] border border-[#2a2a2a] rounded-[30px] gap-0.5 overflow-x-auto hide-scrollbar max-w-full">
             {[
               { key: 'overview', label: 'Overview' },
               { key: 'support', label: 'Support' },
@@ -371,14 +383,14 @@ export default function SlaDashboardView() {
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`px-4 py-2 rounded-3xl text-[0.78rem] font-bold transition-all cursor-pointer ${activeTab === tab.key ? 'bg-[#2a2a2a] text-white shadow-lg' : 'text-[#a0a0a0] hover:text-white'}`}
+                className={`px-4 py-2 rounded-3xl text-[0.78rem] font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${activeTab === tab.key ? 'bg-[#2a2a2a] text-white shadow-lg' : 'text-[#a0a0a0] hover:text-white'}`}
               >
                 {tab.label}
               </button>
             ))}
           </div>
 
-          <div className="flex items-center gap-3.5 px-4.5 py-2 rounded-[30px] bg-[#1a1a1a] border border-[#2a2a2a]">
+          <div className="flex items-center justify-between sm:justify-start gap-3.5 px-4 sm:px-4.5 py-2 rounded-[30px] bg-[#1a1a1a] border border-[#2a2a2a]">
             <div className="flex items-center gap-1.5 text-[0.72rem] font-bold text-[#a0a0a0] uppercase tracking-widest">
               <Activity size={16} /> Global Absenteeism
             </div>
@@ -428,7 +440,7 @@ export default function SlaDashboardView() {
             )}
 
             {/* Three Column LOB Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {Object.entries(ops).map(([key, d]) => (
                 <LOBGroupCard key={key} data={d} />
               ))}
@@ -524,7 +536,7 @@ export default function SlaDashboardView() {
 
       {/* ===== CONTROL PANEL SIDEBAR ===== */}
       <div className={`fixed inset-0 bg-black/50 backdrop-blur-sm z-[99] transition-opacity ${cpOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={() => setCpOpen(false)} />
-      <aside className={`fixed top-0 bottom-0 w-[450px] bg-[#141414] border-l border-[#222] z-[100] flex flex-col transition-all duration-[300ms] ${cpOpen ? 'right-0' : '-right-[460px]'}`}>
+      <aside className={`fixed top-0 bottom-0 w-full sm:w-[450px] bg-[#141414] border-l border-[#222] z-[100] flex flex-col transition-all duration-[300ms] ${cpOpen ? 'right-0' : '-right-full sm:-right-[460px]'}`}>
         <div className="flex justify-between items-center px-5 py-4 border-b border-[#222] sticky top-0 bg-[#141414] z-10">
           <div className="flex items-center gap-2 text-[0.88rem] font-bold text-[#f0f0f0]">
             <Settings size={16} /> Control Panel
@@ -940,7 +952,7 @@ function MiniCalendar({ year, month, startDate, endDate, onPick, onPrev, onNext 
   }
 
   return (
-    <div className="flex gap-2 p-2 bg-white/[0.02] border border-[#222] rounded-xl">
+    <div className="flex flex-col sm:flex-row gap-2 p-2 bg-white/[0.02] border border-[#222] rounded-xl">
       <div className="flex-1">
         <div className="flex justify-between items-center mb-1.5 px-0.5">
           <button onClick={onPrev} className="text-[0.7rem] text-[#a0a0a0] hover:text-[#4f7df3] p-1 rounded transition-colors cursor-pointer"><ChevronLeft size={14} /></button>
@@ -952,7 +964,7 @@ function MiniCalendar({ year, month, startDate, endDate, onPick, onPrev, onNext 
           {renderMonth(leftY, leftM)}
         </div>
       </div>
-      <div className="flex-1 border-l border-[#222] pl-2">
+      <div className="flex-1 sm:border-l border-[#222] sm:pl-2 border-t sm:border-t-0 pt-2 sm:pt-0">
         <div className="flex justify-between items-center mb-1.5 px-0.5">
           <span />
           <span className="text-[0.72rem] font-extrabold">{MONTHS[month]} {year}</span>
