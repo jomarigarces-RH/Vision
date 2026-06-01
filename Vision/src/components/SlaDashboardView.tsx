@@ -9,7 +9,6 @@ import {
   TrendingDown, RefreshCw, BarChart3, X, Camera, Copy,
   Download, Calendar, ChevronLeft, ChevronRight, Zap, Send, Maximize
 } from 'lucide-react';
-import domtoimage from 'dom-to-image-more';
 
 // ===== TYPES =====
 type ChannelData = {
@@ -275,6 +274,7 @@ export default function SlaDashboardView() {
   const takeScreenshot = useCallback(async () => {
     try {
       const element = (document.querySelector('main') || document.body) as HTMLElement;
+      const domtoimage = (await import('dom-to-image-more')).default;
       const dataUrl = await domtoimage.toPng(element, { bgcolor: '#0a0a0a' });
       const link = document.createElement('a');
       link.href = dataUrl;
