@@ -155,6 +155,24 @@ function isOffShift(reason: string | null): boolean {
   return OFFLINE_REASON.test(r);
 }
 
+// STALE-AWAY expiry. The /admins endpoint only tells us away_mode_enabled — NOT
+// the reason. We learn the reason from transient activity-log events; if our
+// compute isn't running when an agent clicks "Done for the day" at end of shift,
+// that event ages out of the lookback window and we carry forward their PRIOR
+// reason ("On a break") indefinitely — they then show as on-break for 12h+.
+// Fix: an away reason held implausibly long with no fresh event means they went
+// off-shift with away-mode on. Short transient reasons (break/lunch/BRB/call/
+// wrap-up) can't realistically exceed a few hours; any reason held ~a full shift
+// is off-shift regardless. Such agents read as Offline (and never trip overbreak).
+const SHORT_AWAY = /break|lunch|brb|on a call|call wrap|wrap up/i;
+const STALE_SHORT_MS = 3 * 3600 * 1000; // break/lunch/call held > 3h => off-shift
+const STALE_ANY_MS = 9 * 3600 * 1000; // any away reason held > 9h (a shift) => off-shift
+function isStaleAway(reason: string | null, sinceMs: number): boolean {
+  if (sinceMs <= 0) return false;
+  if (SHORT_AWAY.test(reason || '')) return sinceMs > STALE_SHORT_MS;
+  return sinceMs > STALE_ANY_MS;
+}
+
 // Overbreak limits (minutes) — break/BRB 15m, lunch 60m.
 const OVERBREAK_LIMIT: Record<string, number> = { break: 15, lunch: 60 };
 function overbreakKind(reason: string | null): 'break' | 'lunch' | null {
@@ -303,7 +321,12 @@ async function computeAndPersist(): Promise<MonitorSnapshot> {
   // All Intercom pulls run concurrently. Email is fetched as a COUNT (the open
   // email backlog is ~94% of open conversations and paginating it blows the
   // 60s cap); Voice/Chat/SMS — the live-critical channels — come in full.
-  const sinceUnix = Math.floor(Date.now() / 1000) - 24 * 3600; // 24h window — captures away-reason changes even if delayed
+  // Activity-log churn is high (200+ events/day), so 12 pages only reach back a
+  // few minutes regardless of this floor — it just caps how far we'd page on a
+  // quiet workspace. We catch each agent's reason when it's FRESH (12s polling)
+  // and carry it forward; the stale-away rule in computeSnapshot expires reasons
+  // that age out when no tab was open to catch the off-shift transition.
+  const sinceUnix = Math.floor(Date.now() / 1000) - 12 * 3600;
   const [admins, teams, events, convs, emailBacklog, staff, appId] = await Promise.all([
     getAdminsDetailed(),
     getTeams(),
@@ -407,6 +430,21 @@ async function computeAndPersist(): Promise<MonitorSnapshot> {
     // Off-shift away reasons (Done for the day, Offline Transition, generic Away)
     // read as Offline, not Away.
     if (d.presence === 'away' && isOffShift(d.away_reason)) d.presence = 'offline';
+
+    // Stale-away expiry: an away reason held implausibly long means the agent went
+    // off-shift (clicked "Done for the day") but we missed the transition event —
+    // activity-log churn is so high (200+/day) that 12 pages only reach back a few
+    // MINUTES, so any change older than that is invisible and we carry the prior
+    // reason forward forever. Reclassify the obviously-stale ones as off-shift so
+    // they don't show "On a break" for 12h+ or trip a bogus overbreak alert. When a
+    // fresh event exists, away_since is recent and this is a no-op.
+    if (d.presence === 'away' && d.away_since) {
+      const sinceMs = Date.now() - new Date(d.away_since).getTime();
+      if (isStaleAway(d.away_reason, sinceMs)) {
+        d.presence = 'offline';
+        d.away_reason = 'Done for the day'; // best-effort: stale reason is untrustworthy
+      }
+    }
   }
 
   // 3) Open conversations -> live rows + per-agent workload + queue aggregate.
