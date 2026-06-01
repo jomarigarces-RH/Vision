@@ -257,7 +257,10 @@ async function writeManualChannelAlerts(
     });
   if (!rows.length) return;
   try {
-    await supabase.from('behavior_events').upsert(rows, { onConflict: 'dedup_key', ignoreDuplicates: true });
+    // ignoreDuplicates:false so re-processing a recent event REWRITES its detail
+    // (e.g. to add the actor once this fix ships) instead of freezing the old text.
+    // The feed subscription is INSERT-only, so an update never re-posts the alert.
+    await supabase.from('behavior_events').upsert(rows, { onConflict: 'dedup_key', ignoreDuplicates: false });
   } catch {
     /* best-effort */
   }
