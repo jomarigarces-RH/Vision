@@ -399,7 +399,10 @@ export default function SlaDashboardView() {
         {/* ===== CONTENT PANELS ===== */}
         {activeTab === 'overview' && (
           <div className="space-y-4">
-            {/* Consolidated Summary Table */}
+            {/* Consolidated Summary Table — with skeleton */}
+            {loading ? (
+              <OpsMetricSkeleton />
+            ) : (
             <div className="bg-[#141414] border border-[#222] rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.5)] overflow-hidden">
               <div className="px-4 py-3 border-b border-[#2a2a2a]">
                 <h2 className="text-[0.75rem] font-extrabold uppercase tracking-[0.06em] text-[#a0a0a0]">Operations Summary (Consolidated)</h2>
@@ -429,6 +432,7 @@ export default function SlaDashboardView() {
                 </table>
               </div>
             </div>
+            )}
 
             {/* Three Column LOB Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -439,7 +443,10 @@ export default function SlaDashboardView() {
 
             {/* Bottom Row */}
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-              {/* Email Productivity Table (Simulating the report view) */}
+              {/* Email Productivity Table (Simulating the report view) — with skeleton */}
+              {loading ? (
+                <EmailSectionSkeleton />
+              ) : (
               <div className="lg:col-span-3 bg-[#141414] border border-[#222] rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.5)] overflow-hidden">
                 <div className="px-4 py-3 border-b border-[#2a2a2a] flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -475,6 +482,7 @@ export default function SlaDashboardView() {
                   </div>
                 </div>
               </div>
+              )}
 
               {/* Ops Log */}
               <div className="lg:col-span-2 bg-[#141414] border border-[#222] rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.5)]">
@@ -651,6 +659,82 @@ export default function SlaDashboardView() {
           </button>
         </div>
       </aside>
+    </div>
+  );
+}
+
+// ===== SKELETON LOADERS =====
+function SkeletonBox({ width = 'w-full', height = 'h-6', className = '' }: { width?: string; height?: string; className?: string }) {
+  return <div className={`${width} ${height} ${className} bg-gradient-to-r from-[#1a1a1a] via-[#2a2a2a] to-[#1a1a1a] rounded animate-pulse`} />;
+}
+
+function EmailStatSkeleton() {
+  return (
+    <div className="p-3 rounded-xl border border-[#2a2a2a] bg-white/[0.03] space-y-2">
+      <SkeletonBox height="h-3" width="w-20" className="mb-2" />
+      <SkeletonBox height="h-8" width="w-24" />
+    </div>
+  );
+}
+
+function EmailSectionSkeleton() {
+  return (
+    <div className="lg:col-span-3 bg-[#141414] border border-[#222] rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.5)] overflow-hidden">
+      <div className="px-4 py-3 border-b border-[#2a2a2a] flex items-center justify-between">
+        <SkeletonBox width="w-32" height="h-4" />
+        <SkeletonBox width="w-24" height="h-3" />
+      </div>
+      <div className="p-5 space-y-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => <EmailStatSkeleton key={i} />)}
+        </div>
+        <div className="border-t border-[#222] pt-4 space-y-3">
+          <SkeletonBox width="w-48" height="h-3" />
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="flex items-center justify-between p-2 rounded-xl border border-[#222] bg-white/[0.01]">
+              <SkeletonBox width="w-24" height="h-3" />
+              <SkeletonBox width="w-8" height="h-3" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OpsMetricSkeleton() {
+  return (
+    <div className="bg-[#141414] border border-[#222] rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.5)] overflow-hidden">
+      <div className="px-4 py-3 border-b border-[#2a2a2a]">
+        <SkeletonBox width="w-40" height="h-3" />
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-[#2a2a2a]">
+              {['LOB', 'Voice In', 'Voice SLA', 'Aband.', 'Chat In', 'Chat SLA', 'FRT'].map((h) => (
+                <th key={h} className="p-3">
+                  <SkeletonBox width="w-16" height="h-3" />
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {Array.from({ length: 3 }).map((_, i) => (
+              <tr key={i} className="border-b border-[#2a2a2a]">
+                <td className="p-3">
+                  <SkeletonBox width="w-20" height="h-3" />
+                </td>
+                {Array.from({ length: 6 }).map((_, j) => (
+                  <td key={j} className="p-3">
+                    <SkeletonBox width="w-12" height="h-3" />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
