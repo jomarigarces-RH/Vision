@@ -303,7 +303,7 @@ async function computeAndPersist(): Promise<MonitorSnapshot> {
   // All Intercom pulls run concurrently. Email is fetched as a COUNT (the open
   // email backlog is ~94% of open conversations and paginating it blows the
   // 60s cap); Voice/Chat/SMS — the live-critical channels — come in full.
-  const sinceUnix = Math.floor(Date.now() / 1000) - 12 * 3600; // a shift's worth — we only need each agent's latest away-reason/channel
+  const sinceUnix = Math.floor(Date.now() / 1000) - 24 * 3600; // 24h window — captures away-reason changes even if delayed
   const [admins, teams, events, convs, emailBacklog, staff, appId] = await Promise.all([
     getAdminsDetailed(),
     getTeams(),
@@ -352,8 +352,13 @@ async function computeAndPersist(): Promise<MonitorSnapshot> {
     const atIso = new Date(ev.created_at * 1000).toISOString();
     lastEventAt.set(id, atIso);
     if (ev.activity_type === 'admin_away_mode_change') {
-      if (meta.away_mode) lastAwayOn.set(id, { reason: (meta.away_status_reason as string) || null, at: atIso });
-      else lastAwayOn.delete(id);
+      if (meta.away_mode) {
+        // Capture away event with explicit reason if available; null if not (will preserve previous in merge).
+        const reason = (meta.away_status_reason as string) || null;
+        lastAwayOn.set(id, { reason, at: atIso });
+      } else {
+        lastAwayOn.delete(id); // agent is now active
+      }
     } else if (ev.activity_type === 'admin_channel_change') {
       const channel = (meta.channel_availability as string) ?? null;
       const auto = typeof meta.auto_changed === 'boolean' ? (meta.auto_changed as boolean) : null;
@@ -379,8 +384,8 @@ async function computeAndPersist(): Promise<MonitorSnapshot> {
     const a = lastAwayOn.get(id);
     if (d.presence === 'away') {
       if (a) {
-        // fresh away event in the activity log
-        d.away_reason = a.reason || 'Away';
+        // fresh away event in the activity log — use its reason if available, else preserve previous
+        d.away_reason = a.reason ?? (p?.away_reason || 'Away');
         d.away_since = a.at;
       } else if (p?.away_since) {
         // carry forward the webhook/earlier-known break start (so long lunches/
