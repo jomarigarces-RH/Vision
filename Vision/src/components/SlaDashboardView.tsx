@@ -268,23 +268,19 @@ export default function SlaDashboardView() {
     }
   }, [endDate]);
 
-  // Screenshot the entire dashboard and download as PNG.
-  // Uses dom-to-image-more (SVG foreignObject) — natively handles oklch/lab colors
-  // that html2canvas cannot parse.
+  // Copies the dashboard content to clipboard as PNG.
   const takeScreenshot = useCallback(async () => {
     try {
-      const element = (document.querySelector('main') || document.body) as HTMLElement;
+      const element = document.getElementById('dashboard-content') as HTMLElement;
+      if (!element) { showToastMsg('Dashboard not found'); return; }
       const domtoimage = (await import('dom-to-image-more')).default;
-      const dataUrl = await domtoimage.toPng(element, { bgcolor: '#0a0a0a' });
-      const link = document.createElement('a');
-      link.href = dataUrl;
-      link.download = `vision-sla-${endDate}.png`;
-      link.click();
-      showToastMsg('Screenshot downloaded!');
+      const blob = await domtoimage.toBlob(element, { bgcolor: '#0a0a0a' });
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      showToastMsg('Copied to clipboard!');
     } catch (e) {
       showToastMsg(`Screenshot failed: ${e instanceof Error ? e.message : 'unknown error'}`);
     }
-  }, [endDate]);
+  }, []);
 
   // UI Handlers
   const togglePreset = (field: string, preset: string) => {
@@ -330,7 +326,7 @@ export default function SlaDashboardView() {
         {toast.msg}
       </div>
 
-      <div className="max-w-[1400px] mx-auto p-5 pb-10">
+      <div id="dashboard-content" className="max-w-[1400px] mx-auto p-5 pb-10">
         {/* ===== HEADER ===== */}
         <header className="flex flex-wrap justify-between items-start gap-4 mb-5">
           <div className="flex flex-col gap-1.5">
