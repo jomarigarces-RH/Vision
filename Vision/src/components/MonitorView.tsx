@@ -96,7 +96,9 @@ const PRES_RANK: Record<string, number> = { online: 0, away: 1, offline: 2 };
 // ms the agent has been in their current state (from away_since); -1 if unknown.
 const stateMs = (a: { away_since: string | null }) => (a.away_since ? Date.now() - new Date(a.away_since).getTime() : -1);
 
-const POLL_MS = 12 * 1000; // server is stale-while-revalidate, so polls are cheap & instant
+const POLL_MS = 20 * 1000; // align with the snapshot's 22s server cache (TTL_MS): polling
+// faster just refetches identical cached data, so 20s ~halves Vercel invocations + Supabase
+// egress vs. the old 12s with no freshness loss. The 75s self-heal force-refresh still applies.
 const BEHAVIOR_POLL_MS = 120 * 1000; // matches the behavior poller's server-side cache
 
 // Overbreak: away longer than the allowed limit for the reason -> glow + anchor.
