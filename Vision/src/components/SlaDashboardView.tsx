@@ -3,11 +3,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { usePageVisibility } from '@/hooks/usePageVisibility';
-import { 
-  Activity, Users, Clock, MessageSquare, Phone, 
+import {
+  Activity, Users, Clock, MessageSquare, Phone,
   CheckCircle2, AlertCircle, Settings, Mail, ChevronDown,
   TrendingDown, RefreshCw, BarChart3, X, Camera, Copy,
-  Download, Calendar, ChevronLeft, ChevronRight, Zap
+  Download, Calendar, ChevronLeft, ChevronRight, Zap, Send
 } from 'lucide-react';
 
 // ===== TYPES =====
@@ -54,6 +54,12 @@ const pstToday = () =>
 // instead of every open tab firing its own (free-tier friendly).
 const SYNC_STALE_MS = 10 * 60 * 1000;
 
+// Fixed SLA goal band — pass ONLY when SLA is within [80, 87]. Below 80 OR above
+// 87 is a fail (the target is fixed company-wide, not configurable per channel).
+const SLA_MIN = 80;
+const SLA_MAX = 87;
+const slaPass = (pct: number) => pct >= SLA_MIN && pct <= SLA_MAX;
+
 // ===== MAIN COMPONENT =====
 export default function SlaDashboardView() {
   const isVisible = usePageVisibility();
@@ -69,9 +75,6 @@ export default function SlaDashboardView() {
   const [calSelecting, setCalSelecting] = useState<'from' | 'to'>('from');
   const [calMonth, setCalMonth] = useState(() => new Date().getMonth());
   const [calYear, setCalYear] = useState(() => new Date().getFullYear());
-
-  // SLA Thresholds
-  const [slaTargets, setSlaTargets] = useState({ voice: 80, chat: 80 });
 
   // Data
   const [globalAbsent, setGlobalAbsent] = useState({ pct: '0%', count: 0 });
@@ -125,15 +128,14 @@ export default function SlaDashboardView() {
           const abandoned = m.abandoned_count || 0;
           const abandonRate = inbound > 0 ? ((abandoned / inbound) * 100).toFixed(1) + '%' : '0.0%';
           const slaVal = m.sla_percent || (inbound > 0 ? (m.passed_count / inbound * 100) : 100);
-          const target = channelKey === 'chat' ? slaTargets.chat : slaTargets.voice;
-          
+
           next[lobKey][channelKey] = {
             ...next[lobKey][channelKey],
             inbound: String(inbound),
             abandoned: String(abandoned),
             abandonRate: abandonRate,
             sla: slaVal.toFixed(2) + '%',
-            status: slaVal >= target ? 'passed' : 'failed',
+            status: slaPass(slaVal) ? 'passed' : 'failed',
             frt: (m.frt_seconds || 0) + 's',
             aht: (m.handle_seconds || 0) + 's',
             inQueue: (m.wait_seconds || 0) + 's'
@@ -166,7 +168,7 @@ export default function SlaDashboardView() {
     } finally {
       setLoading(false);
     }
-  }, [endDate, slaTargets]);
+  }, [endDate]);
 
   // Guard against overlapping syncs (each sync now runs two Intercom exports).
   const syncingRef = useRef(false);
@@ -233,6 +235,36 @@ export default function SlaDashboardView() {
       supabase.removeChannel(channel);
     };
   }, [fetchData, syncIfStale, isVisible]);
+
+  // Persist the Shift Operations Log so it stays for everyone (server write —
+  // RLS makes the browser read-only). Realtime then pushes it to other tabs.
+  const saveOpsLog = useCallback(async () => {
+    try {
+      const res = await fetch('/api/ops-log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: endDate, sections: opsLog }),
+      });
+      if (res.ok) { showToastMsg('Operations log saved.'); fetchData(); }
+      else { const e = await res.json().catch(() => ({})); showToastMsg(`Save failed: ${e.error || res.status}`); }
+    } catch {
+      showToastMsg('Save failed — see console.');
+    }
+  }, [endDate, opsLog, fetchData]);
+
+  // Post the day's SLA summary to Slack (server reads the synced numbers).
+  const postToSlack = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await fetch(`/api/slack?date=${endDate}`, { method: 'POST' });
+      if (res.ok) showToastMsg('Posted to Slack!');
+      else { const e = await res.json().catch(() => ({})); showToastMsg(`Slack: ${e.error || res.status}`); }
+    } catch {
+      showToastMsg('Slack post failed — see console.');
+    } finally {
+      setLoading(false);
+    }
+  }, [endDate]);
 
   // UI Handlers
   const togglePreset = (field: string, preset: string) => {
@@ -303,6 +335,10 @@ export default function SlaDashboardView() {
               <CheckCircle2 size={14} />
               <span>{dataHealth === 'good' ? 'Data Healthy' : dataHealth === 'issue' ? 'Data Issues' : 'Critical'}</span>
             </div>
+            <button onClick={postToSlack} disabled={loading} className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#611f69]/15 border border-[#611f69]/40 text-[#d9a7e0] text-[0.75rem] font-bold hover:bg-[#611f69]/25 transition-all cursor-pointer disabled:opacity-50">
+              <Send size={14} />
+              <span>Post to Slack</span>
+            </button>
             <button onClick={() => setCpOpen(true)} className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#ccc] text-[0.75rem] font-bold hover:border-[#4f7df3] hover:text-[#4f7df3] transition-all cursor-pointer">
               <Settings size={14} />
               <span>Control Panel</span>
@@ -363,10 +399,10 @@ export default function SlaDashboardView() {
                       <tr key={key} className="hover:bg-[#4f7df3]/5 transition-colors border-b border-[#2a2a2a]">
                         <td className="p-3 text-[0.85rem] font-extrabold text-[#a0a0a0]">{d.title.split(' ')[0]}</td>
                         <td className="p-3 text-[0.85rem] font-bold">{d.voice.inbound}</td>
-                        <td className={`p-3 text-[0.85rem] font-black ${parsePct(d.voice.sla) < slaTargets.voice ? 'text-[#ef4444]' : 'text-[#10b981]'}`}>{d.voice.sla}</td>
+                        <td className={`p-3 text-[0.85rem] font-black ${slaPass(parsePct(d.voice.sla)) ? 'text-[#10b981]' : 'text-[#ef4444]'}`}>{d.voice.sla}</td>
                         <td className="p-3 text-[0.85rem] font-bold text-amber-500">{d.voice.abandonRate}</td>
                         <td className="p-3 text-[0.85rem] font-bold">{d.chat.inbound}</td>
-                        <td className={`p-3 text-[0.85rem] font-black ${parsePct(d.chat.sla) < slaTargets.chat ? 'text-[#ef4444]' : 'text-[#6366f1]'}`}>{d.chat.sla}</td>
+                        <td className={`p-3 text-[0.85rem] font-black ${slaPass(parsePct(d.chat.sla)) ? 'text-[#6366f1]' : 'text-[#ef4444]'}`}>{d.chat.sla}</td>
                         <td className="p-3 text-[0.75rem] font-bold opacity-60 text-brand-blue">{d.chat.frt}</td>
                       </tr>
                     ))}
@@ -378,7 +414,7 @@ export default function SlaDashboardView() {
             {/* Three Column LOB Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               {Object.entries(ops).map(([key, d]) => (
-                <LOBGroupCard key={key} data={d} slaTargets={slaTargets} />
+                <LOBGroupCard key={key} data={d} />
               ))}
             </div>
 
@@ -391,14 +427,14 @@ export default function SlaDashboardView() {
                     <Mail size={14} className="text-[#4f7df3]" />
                     <h2 className="text-[0.75rem] font-extrabold uppercase tracking-[0.06em] text-[#a0a0a0]">Email Productivity</h2>
                   </div>
-                  <span className="text-[0.65rem] font-bold text-[#444]">Source: Teammates Dataset</span>
+                  <span className="text-[0.65rem] font-bold text-[#444]">Source: Conversations (by close date)</span>
                 </div>
                 <div className="p-5">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                     <EmailStat label="Closed" value={emailData.closed} cls="blue" />
                     <EmailStat label="Assigned" value={emailData.assigned} cls="indigo" />
                     <EmailStat label="Replied" value={emailData.replied} cls="green" />
-                    <EmailStat label="Sent" value={emailData.sent} cls="purple" />
+                    <EmailStat label="Open" value={emailData.sent} cls="purple" />
                   </div>
                   
                   <div className="border-t border-[#222] pt-4">
@@ -455,7 +491,7 @@ export default function SlaDashboardView() {
         {/* Detail Views */}
         {(['support', 'sales', 'serviceRecovery'] as const).map(lobKey => (
           activeTab === lobKey && (
-            <DetailView key={lobKey} title={ops[lobKey].title} data={ops[lobKey]} slaTargets={slaTargets} />
+            <DetailView key={lobKey} title={ops[lobKey].title} data={ops[lobKey]} />
           )
         ))}
 
@@ -510,11 +546,10 @@ export default function SlaDashboardView() {
             </div>
           </CPSection>
 
-          {/* SLA THRESHOLDS */}
-          <CPSection title="SLA High-Target Thresholds (%)">
-            <div className="grid grid-cols-2 gap-2">
-              <div><label className="text-[0.65rem] font-semibold text-[#555]">Voice Target</label><input type="number" value={slaTargets.voice} onChange={e => setSlaTargets(p => ({ ...p, voice: Number(e.target.value) || 0 }))} className="w-full mt-1 px-2 py-1.5 rounded-md border border-[#2a2a2a] bg-[#0f0f0f] text-[0.78rem] outline-none" /></div>
-              <div><label className="text-[0.65rem] font-semibold text-[#555]">Chat Target</label><input type="number" value={slaTargets.chat} onChange={e => setSlaTargets(p => ({ ...p, chat: Number(e.target.value) || 0 }))} className="w-full mt-1 px-2 py-1.5 rounded-md border border-[#2a2a2a] bg-[#0f0f0f] text-[0.78rem] outline-none" /></div>
+          {/* SLA GOAL (fixed band) */}
+          <CPSection title="SLA Goal">
+            <div className="text-[0.72rem] leading-relaxed text-[#a0a0a0]">
+              Fixed pass band: <span className="font-bold text-[#10b981]">{SLA_MIN}%–{SLA_MAX}%</span>. Anything below {SLA_MIN}% or above {SLA_MAX}% is marked <span className="font-bold text-[#ef4444]">Failed</span>.
             </div>
           </CPSection>
 
@@ -549,7 +584,7 @@ export default function SlaDashboardView() {
           </CPSection>
 
 
-          <button onClick={() => { setCpOpen(false); showToastMsg('Dashboard preferences updated.'); }} className="w-full py-3 rounded-xl bg-[#4f7df3] text-white text-[0.82rem] font-black hover:opacity-90 transition-opacity cursor-pointer mb-6 uppercase tracking-widest">
+          <button onClick={() => { saveOpsLog(); setCpOpen(false); }} className="w-full py-3 rounded-xl bg-[#4f7df3] text-white text-[0.82rem] font-black hover:opacity-90 transition-opacity cursor-pointer mb-6 uppercase tracking-widest">
             Apply Changes
           </button>
         </div>
@@ -578,10 +613,10 @@ function fmtTime(s: string) {
   return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
 }
 
-function LOBGroupCard({ data, slaTargets }: { data: LOBData; slaTargets: { voice: number; chat: number } }) {
+function LOBGroupCard({ data }: { data: LOBData }) {
   const parsePct = (v: string) => parseFloat(String(v).replace('%', '')) || 0;
-  const chatOk = parsePct(data.chat.sla) >= slaTargets.chat;
-  const voiceOk = parsePct(data.voice.sla) >= slaTargets.voice;
+  const chatOk = slaPass(parsePct(data.chat.sla));
+  const voiceOk = slaPass(parsePct(data.voice.sla));
 
   return (
     <div className="bg-[#141414] border border-[#222] rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.5)] overflow-hidden">
@@ -626,7 +661,7 @@ function LOBGroupCard({ data, slaTargets }: { data: LOBData; slaTargets: { voice
   );
 }
 
-function DetailView({ title, data, slaTargets }: { title: string; data: LOBData; slaTargets: { voice: number; chat: number } }) {
+function DetailView({ title, data }: { title: string; data: LOBData }) {
   const parsePct = (v: string) => parseFloat(String(v).replace('%', '')) || 0;
   function DetailCard({ label, value, highlight, isSLA }: any) {
     let cls = 'p-4 rounded-xl border border-[#2a2a2a] bg-white/[0.03]';

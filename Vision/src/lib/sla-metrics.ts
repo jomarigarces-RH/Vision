@@ -15,9 +15,14 @@ import {
   type Lob,
   type SlaRow,
   classifyLob,
+  countEmailAssignedInDay,
+  countEmailRepliedInDay,
+  emailClosedByAdmin,
   exportCalls,
   exportConversations,
   exportSlaStatus,
+  getAdmins,
+  getOpenEmailCount,
   pstDayRange,
 } from './intercom';
 
@@ -40,11 +45,11 @@ export type ChannelAgg = {
 };
 
 export type EmailAgg = {
-  closed: number;
-  assigned: number;
-  replied: number;
-  sent: number; // total replies sent
-  topAgents: { name: string; count: number }[];
+  closed: number; // emails CLOSED in the day (by close-event time)
+  assigned: number; // emails assigned to a teammate in the day
+  replied: number; // emails that got a teammate reply in the day
+  sent: number; // current OPEN email backlog (shown as the 4th card, "Open")
+  topAgents: { name: string; count: number }[]; // top closers in the day
 };
 
 export type DayMetrics = {
@@ -179,40 +184,33 @@ export function computeChat(convRows: ConvRow[], slaRows: SlaRow[]): Record<Lob,
 }
 
 // ---------------------------------------------------------------------------
-// Email (conversation dataset, channel = "Email") — global productivity panel
+// Email (global productivity panel) — DAY-based via the Conversations Search API.
 // ---------------------------------------------------------------------------
 
-export function computeEmail(rows: ConvRow[]): EmailAgg {
-  let closed = 0;
-  let assigned = 0;
-  let replied = 0;
-  let sent = 0;
-  const closedByAgent = new Map<string, number>();
-
-  for (const r of rows) {
-    if (r.channel !== 'Email') continue;
-    const lob = classifyLob(r.currently_assigned_team_id);
-    if (lob !== 'support' && lob !== 'sales') continue; // in-scope email only
-
-    const replies = num(r.teammate_replies_count) ?? 0;
-    if (r.currently_assigned_teammate_id) assigned++;
-    if (replies > 0) {
-      replied++;
-      sent += replies;
-    }
-    if (isClosed(r.current_conversation_state)) {
-      closed++;
-      const agent = r.first_closing_teammate_id;
-      if (agent) closedByAgent.set(agent, (closedByAgent.get(agent) || 0) + 1);
-    }
-  }
-
-  const topAgents = [...closedByAgent.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([name, count]) => ({ name, count }));
-
-  return { closed, assigned, replied, sent, topAgents };
+/**
+ * DAY-based email productivity via the Conversations Search API (matches
+ * Intercom's "All users - email count" report). The reporting export windows on
+ * CREATED date so it can't see emails closed/replied today that were created
+ * earlier — the Search API filters on the actual event timestamps instead.
+ *  - closed   = emails whose last close happened in the day (≈ Intercom "Closed")
+ *  - assigned = emails assigned in the day
+ *  - replied  = emails that got a teammate reply in the day
+ *  - sent     = current open email backlog (the 4th card)
+ *  - topAgents= top closers in the day (statistics.last_closed_by_id -> admin name)
+ */
+export async function computeEmailDay(start: number, end: number): Promise<EmailAgg> {
+  const [closedRes, replied, assigned, backlog, admins] = await Promise.all([
+    emailClosedByAdmin(start, end),
+    countEmailRepliedInDay(start, end),
+    countEmailAssignedInDay(start, end),
+    getOpenEmailCount(),
+    getAdmins().catch(() => new Map<string, { name: string; email: string }>()),
+  ]);
+  const topAgents = [...closedRes.byAdminId.entries()]
+    .map(([id, count]) => ({ name: admins.get(id)?.name || `#${id}`, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
+  return { closed: closedRes.total, assigned, replied, sent: backlog, topAgents };
 }
 
 // ---------------------------------------------------------------------------
@@ -227,10 +225,11 @@ export async function computeDayMetrics(dateStr: string): Promise<DayMetrics> {
   const settle = <T,>(p: Promise<T>) =>
     p.then((rows) => ({ ok: true as const, rows }), (err) => ({ ok: false as const, err: String(err?.message || err) }));
 
-  const [voiceRes, convRes, slaRes] = await Promise.all([
+  const [voiceRes, convRes, slaRes, emailRes] = await Promise.all([
     settle(exportCalls(start, end)),
     settle(exportConversations(start, end)),
     settle(exportSlaStatus(start, end)),
+    settle(computeEmailDay(start, end)), // day-based email via Search (not the export)
   ]);
 
   let voice = emptyLobMap();
@@ -252,7 +251,12 @@ export async function computeDayMetrics(dateStr: string): Promise<DayMetrics> {
   if (slaRes.ok) diagnostics.slaRows = slaRes.rows.length;
   else diagnostics.slaError = slaRes.err;
   chat = computeChat(convRows, slaRows);
-  email = computeEmail(convRows);
+  if (emailRes.ok) {
+    email = emailRes.rows;
+    diagnostics.emailClosed = email.closed;
+  } else {
+    diagnostics.emailError = emailRes.err;
+  }
 
   return { date: dateStr, voice, chat, email, diagnostics };
 }

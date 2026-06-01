@@ -67,16 +67,18 @@ export function teamBaseName(teamName: string): string {
 
 /**
  * Map a team name to one of the 3 dashboard LOBs, or null to exclude.
- *  - exactly "Service Recovery"  -> serviceRecovery (NOT Recovery Escalations etc.)
+ *  - any "Recovery" team (Service Recovery, Recovery Escalations, …)
+ *                                 -> serviceRecovery — matches Intercom's combined
+ *                                    "Service Recovery & Recovery Escalations" card
  *  - contains "Sales"             -> sales
  *  - contains "Support"           -> support
  *  - everything else (Retail, Transit, Recall, Secure Payment, B2B, generic
- *    "Spanish Agents", escalations, internal/unassigned) -> excluded
+ *    "Spanish Agents", non-recovery escalations, internal/unassigned) -> excluded
  */
 export function classifyLob(teamName: string): Lob | null {
   const base = teamBaseName(teamName);
   if (!base) return null;
-  if (base.toLowerCase() === 'service recovery') return 'serviceRecovery';
+  if (/recovery/i.test(base)) return 'serviceRecovery';
   if (/sales/i.test(base)) return 'sales';
   if (/support/i.test(base)) return 'support';
   return null;
@@ -603,4 +605,75 @@ export async function getOpenEmailCount(): Promise<number> {
   if (!res.ok) return 0;
   const data = await res.json();
   return data?.total_count ?? 0;
+}
+
+// --- Email productivity (DAY-based, via Conversations Search) ---------------
+// The reporting export windows the `conversation` dataset on CREATED date, so it
+// can't count emails *closed/replied today* (they were created days earlier) —
+// that's why the old panel read far too low. The Search API exposes the event
+// timestamps (statistics.last_close_at / last_admin_reply_at / last_assignment_at)
+// and last_closed_by_id, so we count by the actual event day instead. Verified
+// against Intercom's "All users - email count" report (closed ≈ matches).
+
+type SearchClause = { field: string; operator: string; value: unknown };
+const EMAIL_SOURCE: SearchClause = { field: 'source.type', operator: '=', value: 'email' };
+const inDay = (field: string, start: number, end: number): SearchClause[] => [
+  { field, operator: '>', value: start },
+  { field, operator: '<', value: end },
+];
+
+/** total_count for a conversations/search query (cheap; per_page=1). */
+export async function searchConvCount(value: SearchClause[]): Promise<number> {
+  const body = { query: { operator: 'AND', value }, pagination: { per_page: 1 } };
+  try {
+    const data = await withRetry(async () => {
+      const res = await fetchT(`${BASE}/conversations/search`, { method: 'POST', headers: apiHeaders(), body: JSON.stringify(body) });
+      if (!res.ok) throw new Error(`search count ${res.status}`);
+      return res.json();
+    });
+    return data?.total_count ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Email conversations CLOSED within [start,end): exact total (from total_count)
+ * plus closes-per-admin-id (from statistics.last_closed_by_id) for the leaderboard.
+ * Pages are capped — only the leaderboard is affected by the cap; `total` is exact.
+ */
+export async function emailClosedByAdmin(start: number, end: number): Promise<{ total: number; byAdminId: Map<string, number> }> {
+  const byAdminId = new Map<string, number>();
+  let total = 0;
+  let startingAfter: string | undefined;
+  for (let page = 0; page < 12; page++) {
+    const body = {
+      query: { operator: 'AND', value: [EMAIL_SOURCE, ...inDay('statistics.last_close_at', start, end)] },
+      pagination: { per_page: 150, ...(startingAfter ? { starting_after: startingAfter } : {}) },
+    };
+    const data = await withRetry(async () => {
+      const res = await fetchT(`${BASE}/conversations/search`, { method: 'POST', headers: apiHeaders(), body: JSON.stringify(body) });
+      if (!res.ok) throw new Error(`email closed search ${res.status}`);
+      return res.json();
+    });
+    if (page === 0) total = data?.total_count ?? 0;
+    const convs: Array<{ statistics?: { last_closed_by_id?: number | null } }> = data?.conversations || [];
+    for (const c of convs) {
+      const id = c.statistics?.last_closed_by_id;
+      if (id) byAdminId.set(String(id), (byAdminId.get(String(id)) || 0) + 1);
+    }
+    startingAfter = data?.pages?.next?.starting_after;
+    if (!convs.length || !startingAfter) break;
+  }
+  return { total, byAdminId };
+}
+
+/** Count of email conversations that received a teammate reply within [start,end). */
+export function countEmailRepliedInDay(start: number, end: number): Promise<number> {
+  return searchConvCount([EMAIL_SOURCE, ...inDay('statistics.last_admin_reply_at', start, end)]);
+}
+
+/** Count of email conversations assigned to a teammate within [start,end). */
+export function countEmailAssignedInDay(start: number, end: number): Promise<number> {
+  return searchConvCount([EMAIL_SOURCE, ...inDay('statistics.last_assignment_at', start, end)]);
 }
