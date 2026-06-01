@@ -274,7 +274,16 @@ export default function SlaDashboardView() {
     try {
       const element = document.querySelector('main') || document.body;
       if (!element) { showToastMsg('Dashboard not found'); return; }
-      const canvas = await html2canvas(element, { backgroundColor: '#0a0a0a', scale: 2 });
+      // html2canvas doesn't support modern CSS color functions (lab, oklab, etc.);
+      // suppress those warnings and capture anyway — visual quality is unaffected.
+      const origWarn = console.warn;
+      console.warn = (...args: any[]) => {
+        if (args[0]?.includes?.('unsupported color function')) return;
+        origWarn(...args);
+      };
+      const canvas = await html2canvas(element, { backgroundColor: '#0a0a0a', scale: 2 }).finally(() => {
+        console.warn = origWarn;
+      });
       const link = document.createElement('a');
       link.href = canvas.toDataURL('image/png');
       link.download = `vision-sla-${endDate}.png`;
@@ -354,10 +363,6 @@ export default function SlaDashboardView() {
               <CheckCircle2 size={14} />
               <span>{dataHealth === 'good' ? 'Data Healthy' : dataHealth === 'issue' ? 'Data Issues' : 'Critical'}</span>
             </div>
-            <button onClick={postToSlack} disabled={loading} className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#611f69]/15 border border-[#611f69]/40 text-[#d9a7e0] text-[0.75rem] font-bold hover:bg-[#611f69]/25 transition-all cursor-pointer disabled:opacity-50">
-              <Send size={14} />
-              <span>Post to Slack</span>
-            </button>
             <button onClick={() => setCpOpen(true)} className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#1a1a1a] border border-[#2a2a2a] text-[#ccc] text-[0.75rem] font-bold hover:border-[#4f7df3] hover:text-[#4f7df3] transition-all cursor-pointer">
               <Settings size={14} />
               <span>Control Panel</span>
