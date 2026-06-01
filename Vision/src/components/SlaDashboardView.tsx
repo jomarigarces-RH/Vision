@@ -275,14 +275,20 @@ export default function SlaDashboardView() {
       const element = document.querySelector('main') || document.body;
       if (!element) { showToastMsg('Dashboard not found'); return; }
       // html2canvas doesn't support modern CSS color functions (lab, oklab, etc.);
-      // suppress those warnings and capture anyway — visual quality is unaffected.
+      // suppress those warnings/errors and capture anyway — visual quality is unaffected.
       const origWarn = console.warn;
+      const origError = console.error;
       console.warn = (...args: any[]) => {
         if (args[0]?.includes?.('unsupported color function')) return;
         origWarn(...args);
       };
+      console.error = (...args: any[]) => {
+        if (args[0]?.includes?.('unsupported color function')) return;
+        origError(...args);
+      };
       const canvas = await html2canvas(element, { backgroundColor: '#0a0a0a', scale: 2 }).finally(() => {
         console.warn = origWarn;
+        console.error = origError;
       });
       const link = document.createElement('a');
       link.href = canvas.toDataURL('image/png');
