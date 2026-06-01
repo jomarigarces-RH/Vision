@@ -205,14 +205,21 @@ const exportHeaders = (accept = 'application/json') => ({
  * Throws on hard failure; callers decide whether to degrade gracefully.
  */
 async function runExport(datasetId: string, attributeIds: string[], start: number, end: number): Promise<Record<string, string>[]> {
-  const enq = await fetchT(`${BASE}/export/reporting_data/enqueue`, {
-    method: 'POST',
-    headers: exportHeaders(),
-    body: JSON.stringify({ dataset_id: datasetId, attribute_ids: attributeIds, start_time: start, end_time: end }),
-  });
-  const enqJson = await enq.json();
-  const jobId = enqJson?.job_identifier;
-  if (!jobId) throw new Error(`export(${datasetId}) enqueue failed: ${JSON.stringify(enqJson).slice(0, 200)}`);
+  // Enqueue with retry: firing 3 exports concurrently (plus the email search) can
+  // trip Intercom's rate limit, returning no job_identifier. A transient miss here
+  // was the cause of voice/chat silently zeroing out. Retry is cheap — a successful
+  // enqueue + export normally completes in ~4s, far under the 60s budget.
+  const jobId = await withRetry(async () => {
+    const enq = await fetchT(`${BASE}/export/reporting_data/enqueue`, {
+      method: 'POST',
+      headers: exportHeaders(),
+      body: JSON.stringify({ dataset_id: datasetId, attribute_ids: attributeIds, start_time: start, end_time: end }),
+    });
+    const enqJson = await enq.json();
+    const id = enqJson?.job_identifier;
+    if (!id) throw new Error(`export(${datasetId}) enqueue failed: ${JSON.stringify(enqJson).slice(0, 200)}`);
+    return id as string;
+  }, 3, 800);
 
   let downloadUrl: string | null = null;
   // Poll every 2s up to ~36s. Combined with the 18s download cap below, a single

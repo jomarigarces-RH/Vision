@@ -29,18 +29,31 @@ export async function POST(req: Request) {
     console.log(`[intercom-sync] computing metrics for ${date} (PST)…`);
     const metrics = await computeDayMetrics(date);
 
-    // Upsert the 6 ops_metrics rows (3 LOBs x Voice/Chat).
+    // Upsert ONLY the channels whose source export succeeded this run.
+    // toOpsMetricRows already drops the channels flagged not-ok, so a transient
+    // export failure leaves the last-good row intact instead of zeroing it.
     const opsRows = toOpsMetricRows(metrics);
-    const { error: opsErr } = await supabase
-      .from('ops_metrics')
-      .upsert(opsRows, { onConflict: 'department,channel,date' });
-    if (opsErr) throw new Error(`ops_metrics upsert: ${opsErr.message}`);
+    const skipped: string[] = [];
+    if (!metrics.ok.voice) skipped.push('voice');
+    if (!metrics.ok.chat) skipped.push('chat');
+    if (opsRows.length) {
+      const { error: opsErr } = await supabase
+        .from('ops_metrics')
+        .upsert(opsRows, { onConflict: 'department,channel,date' });
+      if (opsErr) throw new Error(`ops_metrics upsert: ${opsErr.message}`);
+    }
 
-    // Upsert the email productivity row.
-    const { error: emailErr } = await supabase
-      .from('email_productivity')
-      .upsert(toEmailRow(metrics), { onConflict: 'date' });
-    if (emailErr) console.error('[intercom-sync] email_productivity upsert failed:', emailErr.message);
+    // Upsert the email row only when trustworthy (see ok.email) — never overwrite
+    // a real closed count with a transient 0.
+    if (metrics.ok.email) {
+      const { error: emailErr } = await supabase
+        .from('email_productivity')
+        .upsert(toEmailRow(metrics), { onConflict: 'date' });
+      if (emailErr) console.error('[intercom-sync] email_productivity upsert failed:', emailErr.message);
+    } else {
+      skipped.push('email');
+    }
+    if (skipped.length) console.warn(`[intercom-sync] ${date}: kept last-good (source failed) for: ${skipped.join(', ')}`);
 
     console.log(`[intercom-sync] ✅ ${date}`, JSON.stringify(metrics.diagnostics));
     return NextResponse.json({
@@ -49,6 +62,8 @@ export async function POST(req: Request) {
       voice: metrics.voice,
       chat: metrics.chat,
       email: metrics.email,
+      ok: metrics.ok,
+      keptLastGood: skipped, // channels whose source failed; prior DB values preserved
       diagnostics: metrics.diagnostics,
     });
   } catch (err) {

@@ -58,6 +58,10 @@ export type DayMetrics = {
   chat: Record<Lob, ChannelAgg>;
   email: EmailAgg;
   diagnostics: Record<string, unknown>;
+  // Which datasets computed successfully THIS run. A failed export must NOT
+  // overwrite the last-good DB values with zeros — the caller skips writing the
+  // channels whose source failed. (voice<-calls, chat<-conv+sla, email<-search)
+  ok: { voice: boolean; chat: boolean; email: boolean };
 };
 
 const emptyAgg = (): ChannelAgg => ({ inbound: 0, passed: 0, abandoned: 0, frtSeconds: 0, handleSeconds: 0, waitSeconds: 0 });
@@ -258,7 +262,22 @@ export async function computeDayMetrics(dateStr: string): Promise<DayMetrics> {
     diagnostics.emailError = emailRes.err;
   }
 
-  return { date: dateStr, voice, chat, email, diagnostics };
+  // Per-dataset trust flags (so a failed source never zeroes out last-good data):
+  //  - voice needs the calls export
+  //  - chat needs BOTH the conversation export (abandoned/FRT) and the SLA export
+  //    (the headline hit rate) — a half-loaded chat row is misleading
+  //  - email needs the search to succeed AND its closed count to be self-consistent:
+  //    emailClosedByAdmin bails to 0 on any hiccup, so closed=0 while hundreds were
+  //    assigned/replied is a failure signature, not a real zero.
+  const emailClosedTrustworthy = email.closed > 0 || (email.assigned === 0 && email.replied === 0);
+  const ok = {
+    voice: voiceRes.ok,
+    chat: convRes.ok && slaRes.ok,
+    email: emailRes.ok && emailClosedTrustworthy,
+  };
+  if (emailRes.ok && !emailClosedTrustworthy) diagnostics.emailClosedSuspect = `closed=0 but assigned=${email.assigned} replied=${email.replied}`;
+
+  return { date: dateStr, voice, chat, email, diagnostics, ok };
 }
 
 // ---------------------------------------------------------------------------
@@ -288,8 +307,11 @@ export function toOpsMetricRows(m: DayMetrics) {
     });
   };
   for (const lob of LOBS) {
-    push(lob, 'Voice', m.voice[lob]);
-    push(lob, 'Chat', m.chat[lob]);
+    // Only write a channel whose source export succeeded — otherwise we'd stomp
+    // the last-good row with zeros from a transient failure (the bug where voice/
+    // chat showed 0 while email still had data).
+    if (m.ok.voice) push(lob, 'Voice', m.voice[lob]);
+    if (m.ok.chat) push(lob, 'Chat', m.chat[lob]);
   }
   return rows;
 }
