@@ -9,7 +9,7 @@ import {
   TrendingDown, RefreshCw, BarChart3, X, Camera, Copy,
   Download, Calendar, ChevronLeft, ChevronRight, Zap, Send, Maximize
 } from 'lucide-react';
-import html2canvas from 'html2canvas';
+import domtoimage from 'dom-to-image-more';
 
 // ===== TYPES =====
 type ChannelData = {
@@ -270,28 +270,14 @@ export default function SlaDashboardView() {
   }, [endDate]);
 
   // Screenshot the entire dashboard and download as PNG.
+  // Uses dom-to-image-more (SVG foreignObject) — natively handles oklch/lab colors
+  // that html2canvas cannot parse.
   const takeScreenshot = useCallback(async () => {
     try {
-      const element = document.querySelector('main') || document.body;
-      if (!element) { showToastMsg('Dashboard not found'); return; }
-      // html2canvas doesn't support modern CSS color functions (lab, oklab, etc.);
-      // suppress those warnings/errors and capture anyway — visual quality is unaffected.
-      const origWarn = console.warn;
-      const origError = console.error;
-      console.warn = (...args: any[]) => {
-        if (args[0]?.includes?.('unsupported color function')) return;
-        origWarn(...args);
-      };
-      console.error = (...args: any[]) => {
-        if (args[0]?.includes?.('unsupported color function')) return;
-        origError(...args);
-      };
-      const canvas = await html2canvas(element, { backgroundColor: '#0a0a0a', scale: 2 }).finally(() => {
-        console.warn = origWarn;
-        console.error = origError;
-      });
+      const element = (document.querySelector('main') || document.body) as HTMLElement;
+      const dataUrl = await domtoimage.toPng(element, { bgcolor: '#0a0a0a' });
       const link = document.createElement('a');
-      link.href = canvas.toDataURL('image/png');
+      link.href = dataUrl;
       link.download = `vision-sla-${endDate}.png`;
       link.click();
       showToastMsg('Screenshot downloaded!');
