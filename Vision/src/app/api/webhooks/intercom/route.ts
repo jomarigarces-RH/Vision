@@ -169,7 +169,12 @@ async function handleAdminActivity(item: any, payload: any) {
     );
     await supabase.from('agent_status_log').insert({ teammate_id: adminId, name, event_type: 'channel_change', channel, auto_changed: auto ?? null, at: at.toISOString(), date });
     if (auto === false) {
-      // Off-script: agent manually changed their channel.
+      // A person (not Intercom auto-assignment) made the change. update_by is the
+      // actor; it differs from the affected agent only when an RTA does it for them.
+      const ch = channel === 'phone' ? 'Voice' : channel === 'conversations' ? 'Messaging' : channel === 'both' ? 'Both' : channel || 'unknown';
+      const byId = meta.update_by != null ? String(meta.update_by) : null;
+      const byOther = byId && byId !== adminId;
+      const actor = byOther ? (meta.update_by_name || `admin ${byId}`) : null;
       await recordBehavior({
         teammate_id: adminId,
         teammate_name: name,
@@ -177,7 +182,7 @@ async function handleAdminActivity(item: any, payload: any) {
         behavior: 'channel_change',
         workload: await workloadFor(adminId),
         is_alert: true,
-        detail: `Manually switched channel to "${channel}"`,
+        detail: actor ? `Channel changed to "${ch}" by ${actor}` : `Switched own channel to "${ch}"`,
         at,
         dedup_key: `channel:${adminId}:${ev?.id || at.getTime()}`,
       });

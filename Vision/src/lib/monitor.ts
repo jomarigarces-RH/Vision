@@ -228,7 +228,7 @@ const channelText = (c: string | null) =>
  * the Alert Feed had stopped showing manual changes.
  */
 async function writeManualChannelAlerts(
-  manual: Array<{ id: string; eventId: string; channel: string | null; atIso: string }>,
+  manual: Array<{ id: string; eventId: string; channel: string | null; atIso: string; byId: string | null; byName: string | null }>,
   drafts: Map<string, MonitorAgent>,
 ): Promise<void> {
   if (!manual.length) return;
@@ -236,13 +236,20 @@ async function writeManualChannelAlerts(
     .filter((e) => drafts.has(e.id))
     .map((e) => {
       const d = drafts.get(e.id)!;
+      // Did the agent change their own channel, or did someone (an RTA) do it for
+      // them? update_by differs from the affected agent only in the latter case.
+      const byOther = e.byId && e.byId !== e.id;
+      const actor = byOther ? (e.byName || `admin ${e.byId}`) : null;
+      const detail = actor
+        ? `Channel changed to "${channelText(e.channel)}" by ${actor}`
+        : `Switched own channel to "${channelText(e.channel)}"`;
       return {
         teammate_id: e.id,
         teammate_name: d.name,
         lob: d.lob,
         behavior: 'channel_change',
         is_alert: true,
-        detail: `Manually switched channel to "${channelText(e.channel)}"`,
+        detail,
         at: e.atIso,
         date: pstDateString(new Date(e.atIso)),
         dedup_key: `channel:${e.id}:${e.eventId}`,
@@ -367,7 +374,9 @@ async function computeAndPersist(): Promise<MonitorSnapshot> {
   const lastChannel = new Map<string, { channel: string | null; auto: boolean | null }>();
   const lastEventAt = new Map<string, string>();
   // Every off-script (manual) channel change in the window -> Alert Feed rows.
-  const manualChannel: Array<{ id: string; eventId: string; channel: string | null; atIso: string }> = [];
+  // byId/byName = who actually made the change (metadata.update_by), which differs
+  // from `id` (the affected agent) when an RTA flips someone else's channel.
+  const manualChannel: Array<{ id: string; eventId: string; channel: string | null; atIso: string; byId: string | null; byName: string | null }> = [];
   for (const ev of [...events].sort((x, y) => x.created_at - y.created_at)) {
     const id = String(ev.performed_by?.id || '');
     if (!id || !drafts.has(id)) continue;
@@ -386,8 +395,14 @@ async function computeAndPersist(): Promise<MonitorSnapshot> {
       const channel = (meta.channel_availability as string) ?? null;
       const auto = typeof meta.auto_changed === 'boolean' ? (meta.auto_changed as boolean) : null;
       lastChannel.set(id, { channel, auto });
-      // auto === false => the agent changed their own channel (off-script).
-      if (auto === false) manualChannel.push({ id, eventId: String(ev.id || atIso), channel, atIso });
+      // auto === false => a person (not Intercom's auto-assignment) made the change.
+      // update_by is the actor; it equals `id` for a self-change, or an RTA's id
+      // when someone flipped this agent's channel for them.
+      if (auto === false) {
+        const byId = meta.update_by != null ? String(meta.update_by) : null;
+        const byName = (meta.update_by_name as string) || null;
+        manualChannel.push({ id, eventId: String(ev.id || atIso), channel, atIso, byId, byName });
+      }
     }
   }
   // Last-known channel from what we've already persisted (Intercom's REST API

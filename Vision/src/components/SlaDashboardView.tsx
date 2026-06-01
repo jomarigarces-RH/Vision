@@ -269,9 +269,10 @@ export default function SlaDashboardView() {
   }, [endDate]);
 
   // Copies the dashboard content to clipboard as PNG.
-  // modern-screenshot renders via the browser's own engine, so Tailwind's
-  // oklch/lab colors, borders, and flex layout all come out correct (html2canvas
-  // and dom-to-image-more both mangled them).
+  // html2canvas-pro paints to a canvas by reading computed styles, so flex/grid
+  // layout and borders render correctly (the foreignObject-based libs drew white
+  // boxes and broke the header). The "-pro" fork adds oklch/lab color support,
+  // which is the only reason plain html2canvas couldn't be used.
   const takeScreenshot = useCallback(async () => {
     try {
       const element = document.getElementById('dashboard-content') as HTMLElement;
@@ -279,13 +280,14 @@ export default function SlaDashboardView() {
       showToastMsg('Capturing…');
       // Make sure web fonts are loaded before snapshotting, or text reflows/overlaps.
       if (document.fonts?.ready) await document.fonts.ready;
-      const { domToBlob } = await import('modern-screenshot');
-      const blob = await domToBlob(element, {
+      const html2canvas = (await import('html2canvas-pro')).default;
+      const canvas = await html2canvas(element, {
         backgroundColor: '#0a0a0a',
         scale: 2, // retina-sharp
-        width: element.scrollWidth, // capture full content width (no right-edge clipping)
-        height: element.scrollHeight,
+        useCORS: true,
+        logging: false,
       });
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
       if (!blob) { showToastMsg('Screenshot failed: empty image'); return; }
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
       showToastMsg('Copied to clipboard!');
