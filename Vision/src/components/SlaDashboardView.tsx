@@ -7,8 +7,9 @@ import {
   Activity, Users, Clock, MessageSquare, Phone,
   CheckCircle2, AlertCircle, Settings, Mail, ChevronDown,
   TrendingDown, RefreshCw, BarChart3, X, Camera, Copy,
-  Download, Calendar, ChevronLeft, ChevronRight, Zap, Send
+  Download, Calendar, ChevronLeft, ChevronRight, Zap, Send, Maximize
 } from 'lucide-react';
+import html2canvas from 'html2canvas';
 
 // ===== TYPES =====
 type ChannelData = {
@@ -102,8 +103,10 @@ export default function SlaDashboardView() {
   const showToastMsg = (msg: string) => { setToast({ msg, show: true }); setTimeout(() => setToast({ msg: '', show: false }), 3500); };
   const getTimeStr = () => {
     const now = new Date();
-    const h = now.toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', hour12: true });
-    return `Time of Report: ${h.split(':')[0]}:00 ${h.includes('PM') ? 'PM' : 'AM'} PST`;
+    const parts = now.toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', hour12: true });
+    const isPM = parts.includes('PM');
+    const hour = parts.split(/\s/)[0]; // extract hour part before space
+    return `Time of Report: ${hour}:00 ${isPM ? 'PM' : 'AM'} PST`;
   };
 
   // Real Data Fetching
@@ -263,6 +266,22 @@ export default function SlaDashboardView() {
       showToastMsg('Slack post failed — see console.');
     } finally {
       setLoading(false);
+    }
+  }, [endDate]);
+
+  // Screenshot the entire dashboard and download as PNG.
+  const takeScreenshot = useCallback(async () => {
+    try {
+      const element = document.querySelector('main') || document.body;
+      if (!element) { showToastMsg('Dashboard not found'); return; }
+      const canvas = await html2canvas(element, { backgroundColor: '#0a0a0a', scale: 2 });
+      const link = document.createElement('a');
+      link.href = canvas.toDataURL('image/png');
+      link.download = `vision-sla-${endDate}.png`;
+      link.click();
+      showToastMsg('Screenshot downloaded!');
+    } catch (e) {
+      showToastMsg(`Screenshot failed: ${e instanceof Error ? e.message : 'unknown error'}`);
     }
   }, [endDate]);
 
@@ -514,6 +533,49 @@ export default function SlaDashboardView() {
           </button>
         </div>
         <div className="flex-1 overflow-y-auto p-5 space-y-6 hide-scrollbar">
+          {/* STATUS + ACTIONS */}
+          <div className="space-y-3">
+            <div className="flex flex-wrap gap-2">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-[#10b981]/40 bg-[#10b981]/10">
+                <div className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse" />
+                <span className="text-[0.65rem] font-extrabold text-[#10b981] tracking-widest">REALTIME</span>
+              </div>
+              <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[0.65rem] font-extrabold ${dataHealth === 'good' ? 'bg-[#10b981]/10 border-[#10b981]/30 text-[#10b981]' : dataHealth === 'issue' ? 'bg-[#f59e0b]/10 border-[#f59e0b]/30 text-[#f59e0b]' : 'bg-[#ef4444]/10 border-[#ef4444]/30 text-[#ef4444]'}`}>
+                <CheckCircle2 size={12} />
+                {dataHealth === 'good' ? 'Healthy' : dataHealth === 'issue' ? 'Issues' : 'Critical'}
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={postToSlack} disabled={loading} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#611f69]/15 border border-[#611f69]/40 text-[#d9a7e0] text-[0.65rem] font-bold hover:bg-[#611f69]/25 transition-all cursor-pointer disabled:opacity-50">
+                <Send size={12} /> Slack
+              </button>
+              <button onClick={takeScreenshot} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#4f7df3]/15 border border-[#4f7df3]/40 text-[#8ab4f8] text-[0.65rem] font-bold hover:bg-[#4f7df3]/25 transition-all cursor-pointer">
+                <Maximize size={12} /> Clip
+              </button>
+            </div>
+          </div>
+
+          {/* TAB SELECTION */}
+          <CPSection title="View">
+            <div className="flex flex-wrap gap-1">
+              {[
+                { key: 'overview', label: 'Overview' },
+                { key: 'support', label: 'Support' },
+                { key: 'sales', label: 'Sales' },
+                { key: 'serviceRecovery', label: 'SR' },
+                { key: 'weekly', label: '📊' },
+              ].map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => { setActiveTab(tab.key); }}
+                  className={`px-2.5 py-1 rounded-lg border text-[0.65rem] font-bold transition-all cursor-pointer ${activeTab === tab.key ? 'bg-[#4f7df3]/10 text-[#4f7df3] border-[#4f7df3]' : 'text-[#a0a0a0] border-[#2a2a2a]'}`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </CPSection>
+
           {/* DATE RANGE */}
           <CPSection title="Date Range">
             <div className="flex flex-wrap gap-1 mb-3">
