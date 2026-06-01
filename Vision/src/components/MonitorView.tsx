@@ -331,7 +331,12 @@ export default function MonitorView() {
         });
       })
       // --- live_conversations: live queue + handling (open Voice/Chat only) ---
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'live_conversations' }, (p) => {
+      // Server-side filter so Supabase only broadcasts Voice/Chat rows — SMS/Email
+      // rows in this table would otherwise be sent to every tab and then discarded
+      // below, wasting Realtime quota. (DELETE events from the >2h prune aren't
+      // filterable by `channel` and aren't needed — those rows are already closed
+      // and gone from the client map; close itself arrives as a Voice/Chat UPDATE.)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'live_conversations', filter: 'channel=in.(Voice,Chat)' }, (p) => {
         const row = (p.eventType === 'DELETE' ? p.old : p.new) as LiveConvRow;
         const id = row?.conversation_id;
         if (!id) return;
