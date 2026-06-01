@@ -215,8 +215,10 @@ async function runExport(datasetId: string, attributeIds: string[], start: numbe
   if (!jobId) throw new Error(`export(${datasetId}) enqueue failed: ${JSON.stringify(enqJson).slice(0, 200)}`);
 
   let downloadUrl: string | null = null;
+  // Poll every 2s up to ~36s. Combined with the 18s download cap below, a single
+  // export stays ≲54s — under Vercel's 60s function limit (the 504 budget).
   for (let i = 0; i < 18; i++) {
-    await sleep(2500); // ~45s budget
+    await sleep(2000);
     const st = await fetchT(`${BASE}/export/reporting_data/${jobId}`, { headers: exportHeaders() });
     const stJson = await st.json();
     if (typeof stJson?.status === 'string' && stJson.status.startsWith('complete')) {
@@ -227,7 +229,7 @@ async function runExport(datasetId: string, attributeIds: string[], start: numbe
   }
   if (!downloadUrl) throw new Error(`export(${datasetId}) timed out`);
 
-  const dl = await fetchT(downloadUrl, { headers: exportHeaders('application/octet-stream') }, 30000);
+  const dl = await fetchT(downloadUrl, { headers: exportHeaders('application/octet-stream') }, 18000);
   if (!dl.ok) throw new Error(`export(${datasetId}) download ${dl.status}`);
   return parseCsv(await dl.text());
 }
@@ -622,15 +624,15 @@ const inDay = (field: string, start: number, end: number): SearchClause[] => [
   { field, operator: '<', value: end },
 ];
 
-/** total_count for a conversations/search query (cheap; per_page=1). */
+/** total_count for a conversations/search query (cheap; per_page=1). Single
+ *  short-timeout attempt — these are secondary metrics, so on any hiccup we
+ *  return 0 rather than risk extending the sync toward the Vercel timeout. */
 export async function searchConvCount(value: SearchClause[]): Promise<number> {
   const body = { query: { operator: 'AND', value }, pagination: { per_page: 1 } };
   try {
-    const data = await withRetry(async () => {
-      const res = await fetchT(`${BASE}/conversations/search`, { method: 'POST', headers: apiHeaders(), body: JSON.stringify(body) });
-      if (!res.ok) throw new Error(`search count ${res.status}`);
-      return res.json();
-    });
+    const res = await fetchT(`${BASE}/conversations/search`, { method: 'POST', headers: apiHeaders(), body: JSON.stringify(body) }, 10000);
+    if (!res.ok) return 0;
+    const data = await res.json();
     return data?.total_count ?? 0;
   } catch {
     return 0;
@@ -638,32 +640,38 @@ export async function searchConvCount(value: SearchClause[]): Promise<number> {
 }
 
 /**
- * Email conversations CLOSED within [start,end): exact total (from total_count)
- * plus closes-per-admin-id (from statistics.last_closed_by_id) for the leaderboard.
- * Pages are capped — only the leaderboard is affected by the cap; `total` is exact.
+ * Email conversations CLOSED within [start,end): exact total (from total_count on
+ * page 0) plus closes-per-admin-id (from statistics.last_closed_by_id) for the
+ * leaderboard. HARD-BOUNDED (≤6 pages, ~20s wall-clock, 12s/call, break on any
+ * error) so it can never push /api/intercom/sync past Vercel's function limit —
+ * the unbounded version was the cause of the 504s. The `total` stays exact even
+ * if later pages are skipped; only the leaderboard sample shrinks.
  */
 export async function emailClosedByAdmin(start: number, end: number): Promise<{ total: number; byAdminId: Map<string, number> }> {
   const byAdminId = new Map<string, number>();
   let total = 0;
   let startingAfter: string | undefined;
-  for (let page = 0; page < 12; page++) {
+  const deadline = Date.now() + 20_000;
+  for (let page = 0; page < 6 && Date.now() < deadline; page++) {
     const body = {
       query: { operator: 'AND', value: [EMAIL_SOURCE, ...inDay('statistics.last_close_at', start, end)] },
       pagination: { per_page: 150, ...(startingAfter ? { starting_after: startingAfter } : {}) },
     };
-    const data = await withRetry(async () => {
-      const res = await fetchT(`${BASE}/conversations/search`, { method: 'POST', headers: apiHeaders(), body: JSON.stringify(body) });
-      if (!res.ok) throw new Error(`email closed search ${res.status}`);
-      return res.json();
-    });
+    let data: { total_count?: number; conversations?: Array<{ statistics?: { last_closed_by_id?: number | null } }>; pages?: { next?: { starting_after?: string } } };
+    try {
+      const res = await fetchT(`${BASE}/conversations/search`, { method: 'POST', headers: apiHeaders(), body: JSON.stringify(body) }, 12000);
+      if (!res.ok) break;
+      data = await res.json();
+    } catch {
+      break; // timeout / network — keep what we have (total stays exact if page 0 landed)
+    }
     if (page === 0) total = data?.total_count ?? 0;
-    const convs: Array<{ statistics?: { last_closed_by_id?: number | null } }> = data?.conversations || [];
-    for (const c of convs) {
+    for (const c of data?.conversations || []) {
       const id = c.statistics?.last_closed_by_id;
       if (id) byAdminId.set(String(id), (byAdminId.get(String(id)) || 0) + 1);
     }
     startingAfter = data?.pages?.next?.starting_after;
-    if (!convs.length || !startingAfter) break;
+    if (!data?.conversations?.length || !startingAfter) break;
   }
   return { total, byAdminId };
 }

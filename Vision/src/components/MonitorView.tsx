@@ -191,6 +191,10 @@ export default function MonitorView() {
   const loadingRef = useRef(false);
   const alertIdsRef = useRef<Set<string>>(new Set());
   const declineIdsRef = useRef<Set<string>>(new Set());
+  // Heartbeat bookkeeping (last time each periodic task ran).
+  const lastPollRef = useRef(0);
+  const lastBehaviorRef = useRef(0);
+  const lastReseedRef = useRef(0);
 
   // ---- snapshot (heavy data) comes from Vercel, cached server-side ----------
   const loadSnapshot = useCallback(async (force = false): Promise<MonitorSnapshot | null> => {
@@ -343,32 +347,51 @@ export default function MonitorView() {
     };
   }, [loadSnapshot, loadAlerts, loadDeclines, seedLiveConvs, triggerBehaviorPoll, notify]);
 
-  // ---- HEARTBEAT: polling + the live time-in-state re-render --------------
-  // Background tabs throttle setInterval to ~once/minute, which is what froze the
-  // PiP (the data was stuck at whatever time you last had the tab focused). A
-  // Document Picture-in-Picture window is always treated as "visible", so timers
-  // we schedule *on it* keep firing at full speed even when the main tab is in the
-  // background. So: host the heartbeat on the PiP window whenever one is open,
-  // otherwise on the main window (full speed when the tab is visible; throttled
-  // and self-healing on return when it's hidden — which is fine, nobody's
-  // watching). The realtime subscription above stays live the whole time.
+  // One heartbeat action, re-bound every render so it always sees fresh state +
+  // callbacks. Polls the snapshot, runs the behavior poll, re-seeds the live
+  // conv set, and forces a re-render so time-in-state / overbreak / the PiP all
+  // stay live. Each sub-task fires on its own cadence (tracked via the refs).
+  const heartbeat = () => {
+    const now = Date.now();
+    forceTick((n) => n + 1); // re-render: "Xm ago", overbreak glow, and the PiP mirror
+    if (now - lastPollRef.current >= POLL_MS) { lastPollRef.current = now; pollSnapshot(); }
+    if (now - lastBehaviorRef.current >= BEHAVIOR_POLL_MS) { lastBehaviorRef.current = now; triggerBehaviorPoll(); }
+    if (now - lastReseedRef.current >= 120_000) { lastReseedRef.current = now; seedLiveConvs(); }
+  };
+  const heartbeatRef = useRef(heartbeat);
+  heartbeatRef.current = heartbeat;
+
+  // ---- HEARTBEAT via a Web Worker --------------------------------------------
+  // The PiP froze because a backgrounded tab throttles setInterval to ~once/min
+  // (the PiP window shares the opener's throttled event loop, so hosting timers
+  // on it didn't help). A *Worker* runs on its own thread and delivers ticks as
+  // postMessages, which are NOT subject to background-tab timer throttling — so
+  // the grid AND the PiP keep refreshing while you're in another tab/app. It runs
+  // the whole time the monitor is mounted; closing the tab/view terminates it.
   useEffect(() => {
-    const host: Window = pipWindow && !pipWindow.closed ? pipWindow : window;
-    const snapInterval = host.setInterval(() => pollSnapshot(), POLL_MS);
-    const behaviorInterval = host.setInterval(() => triggerBehaviorPoll(), BEHAVIOR_POLL_MS);
-    const reseedInterval = host.setInterval(() => seedLiveConvs(), 120 * 1000); // correct realtime drift
-    const tick = host.setInterval(() => forceTick((n) => n + 1), 10 * 1000); // live time-in-state / overbreak
+    let worker: Worker | null = null;
+    let url = '';
+    let fallback: ReturnType<typeof setInterval> | null = null;
+    const beat = () => heartbeatRef.current();
+    try {
+      const blob = new Blob(
+        ['let id=setInterval(function(){postMessage(0)},4000);onmessage=function(e){if(e.data==="stop"){clearInterval(id)}}'],
+        { type: 'application/javascript' },
+      );
+      url = URL.createObjectURL(blob);
+      worker = new Worker(url);
+      worker.onmessage = beat;
+    } catch {
+      fallback = setInterval(beat, 4000); // Worker blocked (rare) — degrade to a normal timer
+    }
     return () => {
-      try {
-        host.clearInterval(snapInterval);
-        host.clearInterval(behaviorInterval);
-        host.clearInterval(reseedInterval);
-        host.clearInterval(tick);
-      } catch {
-        /* host window may already be torn down (PiP closed) */
+      if (worker) {
+        try { worker.postMessage('stop'); worker.terminate(); } catch { /* ignore */ }
       }
+      if (url) URL.revokeObjectURL(url);
+      if (fallback) clearInterval(fallback);
     };
-  }, [pipWindow, pollSnapshot, triggerBehaviorPoll, seedLiveConvs]);
+  }, []);
 
   const toggleNotify = async () => {
     if (!notify && typeof Notification !== 'undefined' && Notification.permission !== 'granted') {

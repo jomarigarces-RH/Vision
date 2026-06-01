@@ -203,7 +203,7 @@ export async function computeEmailDay(start: number, end: number): Promise<Email
     emailClosedByAdmin(start, end),
     countEmailRepliedInDay(start, end),
     countEmailAssignedInDay(start, end),
-    getOpenEmailCount(),
+    getOpenEmailCount().catch(() => 0),
     getAdmins().catch(() => new Map<string, { name: string; email: string }>()),
   ]);
   const topAgents = [...closedRes.byAdminId.entries()]
